@@ -1,0 +1,401 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const mongoose = require('mongoose');
+const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
+
+const app = express();
+const PORT = process.env.PORT || 5001;
+
+// Middlewares
+app.use(cors());
+app.use(express.json({ limit: '100mb' })); // support base64 images
+
+// Database connection
+const primaryUri = process.env.MONGODB_URI;
+const fallbackUri = 'mongodb://127.0.0.1:27017/loop_db';
+
+// Disable buffering so that queries fail fast instead of hanging when database is offline
+mongoose.set('bufferCommands', false);
+
+async function connectWithFallback() {
+  if (primaryUri && primaryUri !== fallbackUri) {
+    console.log('Attempting to connect to primary MongoDB database...');
+    try {
+      await mongoose.connect(primaryUri, {
+        serverSelectionTimeoutMS: 4000, // fail fast
+        serverApi: {
+          version: '1',
+          strict: true,
+          deprecationErrors: true
+        }
+      });
+      console.log('Connected to primary MongoDB database successfully.');
+      return;
+    } catch (err) {
+      console.error('Primary MongoDB connection error:', err.message);
+      console.log('Falling back to local MongoDB database...');
+    }
+  }
+
+  try {
+    await mongoose.connect(fallbackUri, {
+      serverSelectionTimeoutMS: 4000
+    });
+    console.log('Connected to local fallback MongoDB successfully.');
+  } catch (err) {
+    console.error('Local fallback MongoDB connection error:', err.message);
+  }
+}
+
+connectWithFallback();
+
+// Middleware to check database connection status before handling API requests
+app.use((req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ 
+      error: 'Database connection is not established. Please make sure MongoDB is running locally or check your credentials in the server\'s .env file, verify network availability, and ensure your IP is whitelisted in MongoDB Atlas.' 
+    });
+  }
+  next();
+});
+
+// Routes
+
+// 1. Folders
+app.get('/api/folders', async (req, res) => {
+  try {
+    const folders = await Folder.find({});
+    res.json(folders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/folders', async (req, res) => {
+  try {
+    const folder = await Folder.create(req.body);
+    res.status(201).json(folder);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/folders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Folder.deleteOne({ id });
+    
+    // Update any subfolders to make them root folders
+    await Folder.updateMany({ parentId: id }, { parentId: null });
+    
+    // Re-assign study resources inside deleted folder to a fallback folder 'sem-1'
+    await Resource.updateMany({ folderId: id }, { folderId: 'sem-1' });
+    
+    res.json({ message: 'Folder deleted and orphaned entities re-assigned.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Users
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find({});
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  try {
+    const user = await User.create(req.body);
+    res.status(201).json(user);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/:email', async (req, res) => {
+  try {
+    await User.deleteOne({ email: req.params.email });
+    res.json({ message: 'User deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Stories
+app.get('/api/stories', async (req, res) => {
+  try {
+    const stories = await Story.find({});
+    res.json(stories);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/stories', async (req, res) => {
+  try {
+    const story = await Story.create(req.body);
+    res.status(201).json(story);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/stories/:id', async (req, res) => {
+  try {
+    const story = await Story.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+    if (!story) return res.status(404).json({ error: 'Story not found.' });
+    res.json(story);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/stories/:id', async (req, res) => {
+  try {
+    await Story.deleteOne({ id: req.params.id });
+    res.json({ message: 'Story deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Pending Stories
+app.get('/api/pending-stories', async (req, res) => {
+  try {
+    const pending = await PendingStory.find({});
+    res.json(pending);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pending-stories', async (req, res) => {
+  try {
+    const pendingData = { ...req.body };
+    if (!pendingData.id) pendingData.id = String(Date.now());
+    
+    if (pendingData.requestType === 'edit' || pendingData.requestType === 'delete') {
+      pendingData.activeId = pendingData.id;
+      // Assign a temporary new ID for the pending entry so it doesn't conflict
+      pendingData.id = String(Date.now());
+    }
+    
+    const pending = await PendingStory.create(pendingData);
+    res.status(201).json(pending);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/pending-stories/:id', async (req, res) => {
+  try {
+    await PendingStory.deleteOne({ id: req.params.id });
+    res.json({ message: 'Pending story rejected/deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pending-stories/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pending = await PendingStory.findOne({ id });
+    if (!pending) return res.status(404).json({ error: 'Pending story not found.' });
+
+    if (pending.requestType === 'delete') {
+      await Story.deleteOne({ id: pending.activeId });
+    } else if (pending.requestType === 'edit') {
+      const storyObj = pending.toObject();
+      const activeId = storyObj.activeId;
+      
+      delete storyObj._id;
+      delete storyObj.__v;
+      delete storyObj.status;
+      delete storyObj.requestType;
+      delete storyObj.activeId;
+      
+      storyObj.id = activeId;
+      await Story.findOneAndUpdate({ id: activeId }, storyObj, { new: true });
+    } else {
+      const storyObj = pending.toObject();
+      
+      delete storyObj._id;
+      delete storyObj.__v;
+      delete storyObj.status;
+      
+      await Story.create(storyObj);
+    }
+
+    await PendingStory.deleteOne({ id });
+    res.json({ message: 'Story approved successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Resources
+app.get('/api/resources', async (req, res) => {
+  try {
+    const resources = await Resource.find({});
+    res.json(resources);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/resources', async (req, res) => {
+  try {
+    const resourceData = { ...req.body };
+    if (!resourceData.id) resourceData.id = String(Date.now());
+    if (!resourceData.date) resourceData.date = new Date().toISOString().split('T')[0];
+    
+    const resource = await Resource.create(resourceData);
+    res.status(201).json(resource);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/resources/:id', async (req, res) => {
+  try {
+    const resource = await Resource.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+    if (!resource) return res.status(404).json({ error: 'Resource not found.' });
+    res.json(resource);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/resources/:id', async (req, res) => {
+  try {
+    await Resource.deleteOne({ id: req.params.id });
+    res.json({ message: 'Resource deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Pending Resources
+app.get('/api/pending-resources', async (req, res) => {
+  try {
+    const pending = await PendingResource.find({});
+    res.json(pending);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pending-resources', async (req, res) => {
+  try {
+    const pendingData = { ...req.body };
+    if (!pendingData.id) pendingData.id = String(Date.now());
+    if (!pendingData.date) pendingData.date = new Date().toISOString().split('T')[0];
+    
+    if (pendingData.requestType === 'edit' || pendingData.requestType === 'delete') {
+      pendingData.activeId = pendingData.id;
+      pendingData.id = String(Date.now());
+    }
+    
+    const pending = await PendingResource.create(pendingData);
+    res.status(201).json(pending);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/pending-resources/:id', async (req, res) => {
+  try {
+    await PendingResource.deleteOne({ id: req.params.id });
+    res.json({ message: 'Pending resource rejected/deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pending-resources/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pending = await PendingResource.findOne({ id });
+    if (!pending) return res.status(404).json({ error: 'Pending resource not found.' });
+
+    if (pending.requestType === 'delete') {
+      await Resource.deleteOne({ id: pending.activeId });
+    } else if (pending.requestType === 'edit') {
+      const resourceObj = pending.toObject();
+      const activeId = resourceObj.activeId;
+      
+      delete resourceObj._id;
+      delete resourceObj.__v;
+      delete resourceObj.status;
+      delete resourceObj.requestType;
+      delete resourceObj.activeId;
+      
+      resourceObj.id = activeId;
+      await Resource.findOneAndUpdate({ id: activeId }, resourceObj, { new: true });
+    } else {
+      const resourceObj = pending.toObject();
+      
+      delete resourceObj._id;
+      delete resourceObj.__v;
+      delete resourceObj.status;
+      
+      await Resource.create(resourceObj);
+    }
+
+    await PendingResource.deleteOne({ id });
+    res.json({ message: 'Resource approved successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Achievements
+app.get('/api/achievements', async (req, res) => {
+  try {
+    const achievements = await Achievement.find({});
+    res.json(achievements);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/achievements', async (req, res) => {
+  try {
+    const achievementData = { ...req.body };
+    if (!achievementData.id) achievementData.id = String(Date.now());
+    if (!achievementData.date) achievementData.date = new Date().toISOString().split('T')[0];
+    
+    const achievement = await Achievement.create(achievementData);
+    res.status(201).json(achievement);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/achievements/:id', async (req, res) => {
+  try {
+    const achievement = await Achievement.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+    if (!achievement) return res.status(404).json({ error: 'Achievement not found.' });
+    res.json(achievement);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/achievements/:id', async (req, res) => {
+  try {
+    await Achievement.deleteOne({ id: req.params.id });
+    res.json({ message: 'Achievement deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}.`);
+});

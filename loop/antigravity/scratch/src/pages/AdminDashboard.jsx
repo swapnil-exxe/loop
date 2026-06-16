@@ -1,0 +1,2542 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText } from 'lucide-react';
+import {
+  getPendingStories,
+  approveStory,
+  rejectPendingStory,
+  getPendingResources,
+  approveResource,
+  rejectPendingResource,
+  getStories,
+  deleteStory,
+  updateStory,
+  getResources,
+  deleteResource,
+  updateResource,
+  getAchievements,
+  deleteAchievement,
+  addAchievement,
+  updateAchievement,
+  getUsers,
+  addUser,
+  deleteUser,
+  getFolders,
+  addFolder,
+  deleteFolder,
+  fileToBase64
+} from '../utils/db';
+
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const [isAdmin] = useState(() => {
+    const userSession = localStorage.getItem('loop_current_user');
+    if (userSession) {
+      const parsed = JSON.parse(userSession);
+      return !!parsed.isAdmin;
+    }
+    return false;
+  });
+  const [activeTab, setActiveTab] = useState('approvals');
+  
+  // Db data states
+  const [pendingStories, setPendingStories] = useState([]);
+  const [pendingResources, setPendingResources] = useState([]);
+  const [activeStories, setActiveStories] = useState([]);
+  const [activeResources, setActiveResources] = useState([]);
+  const [activeAchievements, setActiveAchievements] = useState([]);
+  const [usersList, setUsersList] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const getFolderName = (folderId) => {
+    if (!folderId) return '';
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return folderId;
+    
+    const path = [folder.name];
+    let parentId = folder.parentId;
+    while (parentId) {
+      const parent = folders.find(f => f.id === parentId);
+      if (parent) {
+        path.unshift(parent.name);
+        parentId = parent.parentId;
+      } else {
+        break;
+      }
+    }
+    return path.join(' > ');
+  };
+
+  const handleDeleteFolder = async (folderId) => {
+    if (window.confirm('Are you sure you want to delete this folder? Subfolders and resources inside this folder will be unassigned.')) {
+      await deleteFolder(folderId);
+      await refreshData();
+    }
+  };
+
+  const [previewingPendingStory, setPreviewingPendingStory] = useState(null);
+  const [previewingPendingResource, setPreviewingPendingResource] = useState(null);
+
+  // New User form state
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState('Student');
+  
+  // Add Achievement form state
+  const [achievementForm, setAchievementForm] = useState({
+    title: '',
+    category: 'Hackathon Winners',
+    description: '',
+    date: new Date().toISOString().split('T')[0],
+    image: ''
+  });
+
+  const [formSuccess, setFormSuccess] = useState(false);
+
+  // Editing modal states
+  const [editingItem, setEditingItem] = useState(null);
+  const [editingType, setEditingType] = useState(''); // 'story' or 'achievement'
+
+  const [editStoryForm, setEditStoryForm] = useState({
+    name: '',
+    company: '',
+    role: '',
+    branch: 'CSE',
+    passoutYear: '',
+    semester: '',
+    cgpa: '',
+    journey: {
+      firstYear: '',
+      secondYear: '',
+      thirdYear: '',
+      fourthYear: '',
+      prep: ''
+    },
+    studyMaterials: [],
+    resume: ''
+  });
+
+  const [editAchievementForm, setEditAchievementForm] = useState({
+    title: '',
+    category: 'Hackathon Winners',
+    description: '',
+    date: '',
+    image: ''
+  });
+
+  const [editMaterialInput, setEditMaterialInput] = useState({
+    title: '',
+    type: 'PDF',
+    fileName: '',
+    fileSize: '',
+    previewUrl: ''
+  });
+  const [viewerFile, setViewerFile] = useState(null);
+
+  const processMaterialFile = (file) => {
+    const extension = file.name.split('.').pop().toLowerCase();
+    let determinedType = 'Notes';
+    if (extension === 'pdf') {
+      determinedType = 'PDF';
+    } else if (['png', 'jpg', 'jpeg'].includes(extension)) {
+      determinedType = 'Image';
+    } else if (file.name.toLowerCase().includes('roadmap')) {
+      determinedType = 'Roadmap';
+    }
+    
+    fileToBase64(file).then(base64Url => {
+      setEditMaterialInput({
+        title: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+        type: determinedType,
+        fileName: file.name,
+        fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+        previewUrl: base64Url
+      });
+    }).catch(err => {
+      console.error("Error reading file:", err);
+      alert("Failed to read file.");
+    });
+  };
+
+  const handleEditFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) processMaterialFile(file);
+  };
+
+  const processResumeFile = (file) => {
+    fileToBase64(file).then(base64Url => {
+      setEditStoryForm(prev => ({
+        ...prev,
+        resume: {
+          fileName: file.name,
+          fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+          url: base64Url
+        }
+      }));
+    }).catch(err => {
+      console.error("Error reading file:", err);
+      alert("Failed to read file.");
+    });
+  };
+
+  const processAchievementImage = (file) => {
+    fileToBase64(file).then(base64Url => {
+      setFormSuccess(false);
+      setAchievementForm(prev => ({
+        ...prev,
+        image: base64Url
+      }));
+    }).catch(err => {
+      console.error("Error reading file:", err);
+      alert("Failed to read file.");
+    });
+  };
+
+  const processEditAchievementImage = (file) => {
+    fileToBase64(file).then(base64Url => {
+      setEditAchievementForm(prev => ({
+        ...prev,
+        image: base64Url
+      }));
+    }).catch(err => {
+      console.error("Error reading file:", err);
+      alert("Failed to read file.");
+    });
+  };
+  const [editResourceForm, setEditResourceForm] = useState({
+    title: '',
+    category: 'Coding',
+    type: 'PDF',
+    folderId: 'sem-1',
+    link: ''
+  });
+
+  const refreshData = async () => {
+    try {
+      const pStories = await getPendingStories();
+      const pResources = await getPendingResources();
+      const aStories = await getStories();
+      const aResources = await getResources();
+      const aAchievements = await getAchievements();
+      const uList = await getUsers();
+      const savedFolders = await getFolders();
+      
+      setPendingStories(pStories);
+      setPendingResources(pResources);
+      setActiveStories(aStories);
+      setActiveResources(aResources);
+      setActiveAchievements(aAchievements);
+      setUsersList(uList);
+      setFolders(savedFolders);
+    } catch (err) {
+      console.error("Error refreshing data:", err);
+    }
+  };
+
+  useEffect(() => {
+    refreshData().finally(() => setLoading(false));
+  }, []);
+
+  const handleApproveStory = async (id) => {
+    await approveStory(id);
+    await refreshData();
+  };
+
+  const handleRejectStory = async (id) => {
+    await rejectPendingStory(id);
+    await refreshData();
+  };
+
+  const handleApproveResource = async (id) => {
+    await approveResource(id);
+    await refreshData();
+  };
+
+  const handleRejectResource = async (id) => {
+    await rejectPendingResource(id);
+    await refreshData();
+  };
+
+  const handleDeleteStory = async (id) => {
+    if (window.confirm('Are you sure you want to remove this story?')) {
+      await deleteStory(id);
+      await refreshData();
+    }
+  };
+
+  const handleDeleteResource = async (id) => {
+    if (window.confirm('Are you sure you want to remove this resource?')) {
+      await deleteResource(id);
+      await refreshData();
+    }
+  };
+
+  const handleDeleteAchievement = async (id) => {
+    if (window.confirm('Are you sure you want to remove this achievement?')) {
+      await deleteAchievement(id);
+      await refreshData();
+    }
+  };
+
+  const handleCreateAchievement = async (e) => {
+    e.preventDefault();
+    if (!achievementForm.title || !achievementForm.description) {
+      alert('Please fill out required fields');
+      return;
+    }
+
+    const imgUrl = achievementForm.image.trim() || 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=600&h=400';
+
+    await addAchievement({
+      ...achievementForm,
+      image: imgUrl
+    });
+
+    setFormSuccess(true);
+    await refreshData();
+
+    setTimeout(() => {
+      setFormSuccess(false);
+      setAchievementForm({
+        title: '',
+        category: 'Hackathon Winners',
+        description: '',
+        date: new Date().toISOString().split('T')[0],
+        image: ''
+      });
+    }, 1500);
+  };
+
+  // User management handlers
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    if (!newUserEmail.trim()) return;
+
+    await addUser({
+      email: newUserEmail.trim(),
+      role: newUserRole
+    });
+
+    setNewUserEmail('');
+    await refreshData();
+  };
+
+  const handleRemoveUser = async (email) => {
+    if (window.confirm(`Are you sure you want to remove user "${email}"?`)) {
+      await deleteUser(email);
+      await refreshData();
+    }
+  };
+
+  // Editing mode triggers
+  const startEditStory = (story) => {
+    setEditingType('story');
+    setEditingItem(story);
+    setEditMaterialInput({ title: '', type: 'PDF', fileName: '', fileSize: '', previewUrl: '' });
+    setEditStoryForm({
+      name: story.name || '',
+      company: story.company || '',
+      role: story.role || '',
+      branch: story.branch || 'CSE',
+      passoutYear: story.passoutYear || '',
+      semester: story.semester || '',
+      cgpa: story.cgpa || '',
+      journey: {
+        firstYear: story.journey?.firstYear || '',
+        secondYear: story.journey?.secondYear || '',
+        thirdYear: story.journey?.thirdYear || '',
+        fourthYear: story.journey?.fourthYear || '',
+        prep: story.journey?.prep || ''
+      },
+      studyMaterials: story.studyMaterials || [],
+      resume: story.resumeFile || story.resume || ''
+    });
+  };
+
+  const handleSaveStory = async (e) => {
+    e.preventDefault();
+    
+    // Format the payload correctly for backend Mongoose schemas
+    const payload = { ...editStoryForm };
+    if (payload.resume && typeof payload.resume === 'object') {
+      payload.resumeFile = payload.resume;
+      payload.resume = payload.resume.fileName;
+    } else {
+      payload.resumeFile = null;
+    }
+
+    await updateStory(editingItem.id, payload);
+    setEditingItem(null);
+    if (editMaterialInput.previewUrl && editMaterialInput.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(editMaterialInput.previewUrl);
+    }
+    setEditMaterialInput({ title: '', type: 'PDF', fileName: '', fileSize: '', previewUrl: '' });
+    await refreshData();
+  };
+
+  const startEditAchievement = (item) => {
+    setEditingType('achievement');
+    setEditingItem(item);
+    setEditAchievementForm({
+      title: item.title || '',
+      category: item.category || 'Hackathon Winners',
+      description: item.description || '',
+      date: item.date || '',
+      image: item.image || ''
+    });
+  };
+
+  const handleSaveAchievement = async (e) => {
+    e.preventDefault();
+    await updateAchievement(editingItem.id, editAchievementForm);
+    setEditingItem(null);
+    await refreshData();
+  };
+
+  const startEditResource = (res) => {
+    setEditingType('resource');
+    setEditingItem(res);
+    setEditResourceForm({
+      title: res.title || '',
+      category: res.category || 'Coding',
+      type: res.type || 'PDF',
+      folderId: res.folderId || 'sem-1',
+      link: res.link || ''
+    });
+  };
+
+  const handleSaveResource = async (e) => {
+    e.preventDefault();
+    await updateResource(editingItem.id, editResourceForm);
+    setEditingItem(null);
+    await refreshData();
+  };
+
+  if (!isAdmin) {
+    return (
+      <div className="container" style={{
+        minHeight: '80vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div className="glass-panel" style={{
+          maxWidth: '450px',
+          width: '100%',
+          padding: '3rem 2rem',
+          borderRadius: '24px',
+          textAlign: 'center',
+          border: '1px solid var(--border-color)'
+        }}>
+          <ShieldAlert size={60} style={{ color: '#ff453a', marginBottom: '1.5rem' }} />
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.75rem' }}>Access Denied</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.95rem' }}>
+            You do not have administrator permissions to view this dashboard. Please sign in with an official admin account.
+          </p>
+          <button onClick={() => navigate('/login')} className="btn btn-primary" style={{ width: '100%' }}>
+            Sign in as Admin
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container animate-fade-in" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+      
+      {/* Header */}
+      <div style={{ marginBottom: '3.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '2rem' }}>
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span>Administrator Controls</span>
+        </h1>
+        <p style={{ color: 'var(--text-secondary)' }}>
+          Moderate stories, resources, resumes, publish news, and oversee platform activity.
+        </p>
+      </div>
+
+      {/* Dashboard Nav Tabs */}
+      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '2.5rem' }}>
+        <button
+          onClick={() => setActiveTab('approvals')}
+          className="btn"
+          style={{
+            padding: '0.5rem 1rem',
+            fontSize: '0.9rem',
+            borderRadius: '10px',
+            backgroundColor: activeTab === 'approvals' ? 'var(--text-primary)' : 'transparent',
+            color: activeTab === 'approvals' ? 'var(--accent-inverse)' : 'var(--text-secondary)',
+            border: activeTab === 'approvals' ? '1px solid var(--text-primary)' : '1px solid transparent'
+          }}
+        >
+          Approvals ({pendingStories.length + pendingResources.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('active')}
+          className="btn"
+          style={{
+            padding: '0.5rem 1rem',
+            fontSize: '0.9rem',
+            borderRadius: '10px',
+            backgroundColor: activeTab === 'active' ? 'var(--text-primary)' : 'transparent',
+            color: activeTab === 'active' ? 'var(--accent-inverse)' : 'var(--text-secondary)',
+            border: activeTab === 'active' ? '1px solid var(--text-primary)' : '1px solid transparent'
+          }}
+        >
+          Manage Content
+        </button>
+        <button
+          onClick={() => setActiveTab('news')}
+          className="btn"
+          style={{
+            padding: '0.5rem 1rem',
+            fontSize: '0.9rem',
+            borderRadius: '10px',
+            backgroundColor: activeTab === 'news' ? 'var(--text-primary)' : 'transparent',
+            color: activeTab === 'news' ? 'var(--accent-inverse)' : 'var(--text-secondary)',
+            border: activeTab === 'news' ? '1px solid var(--text-primary)' : '1px solid transparent'
+          }}
+        >
+          Add News/Achievement
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          className="btn"
+          style={{
+            padding: '0.5rem 1rem',
+            fontSize: '0.9rem',
+            borderRadius: '10px',
+            backgroundColor: activeTab === 'users' ? 'var(--text-primary)' : 'transparent',
+            color: activeTab === 'users' ? 'var(--accent-inverse)' : 'var(--text-secondary)',
+            border: activeTab === 'users' ? '1px solid var(--text-primary)' : '1px solid transparent'
+          }}
+        >
+          Users ({usersList.length})
+        </button>
+      </div>
+
+      {/* Tab: Approvals */}
+      {activeTab === 'approvals' && (
+        <div>
+          {/* Stories Queue */}
+          <div style={{ marginBottom: '3.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Clock size={20} />
+              <span>Pending Senior Stories ({pendingStories.length})</span>
+            </h2>
+            
+            {pendingStories.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {pendingStories.map(story => (
+                  <div key={story.id} className="glass-panel" style={{
+                    padding: '1.5rem 2rem',
+                    borderRadius: '20px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                      <div>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>{story.name}</span>
+                          {story.requestType === 'delete' && (
+                            <span className="badge" style={{ backgroundColor: 'rgba(255, 69, 58, 0.15)', borderColor: 'rgba(255, 69, 58, 0.3)', color: '#ff453a', fontSize: '0.65rem' }}>
+                              Deletion Request
+                            </span>
+                          )}
+                          {story.requestType === 'edit' && (
+                            <span className="badge" style={{ backgroundColor: 'rgba(0, 122, 255, 0.15)', borderColor: 'rgba(0, 122, 255, 0.3)', color: '#0a84ff', fontSize: '0.65rem' }}>
+                              Edit Request
+                            </span>
+                          )}
+                        </h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {story.branch} Class of {story.passoutYear} • Placed: {story.company} ({story.role}) • Sem {story.semester} • CGPA {story.cgpa || 'N/A'}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          onClick={() => setPreviewingPendingStory(story)}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: 'var(--text-primary)', borderColor: 'var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}
+                        >
+                          <FileText size={14} /> Preview Submission
+                        </button>
+                        <button 
+                          onClick={() => handleApproveStory(story.id)}
+                          className="btn btn-primary"
+                          style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', backgroundColor: '#30d158', borderColor: '#30d158', color: '#fff', cursor: 'pointer' }}
+                        >
+                          <Check size={14} /> {story.requestType === 'delete' ? 'Approve Deletion' : story.requestType === 'edit' ? 'Approve Edits' : 'Approve Story & Resume'}
+                        </button>
+                        <button 
+                          onClick={() => handleRejectStory(story.id)}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.2)', cursor: 'pointer' }}
+                        >
+                          <X size={14} /> Reject
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: 'var(--bg-primary)',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      fontSize: '0.85rem',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Strategy Draft preview:</p>
+                      "{story.journey?.prep}"
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No pending senior stories to review.</p>
+            )}
+          </div>
+
+          {/* Resources Queue */}
+          <div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Clock size={20} />
+              <span>Pending Resources ({pendingResources.length})</span>
+            </h2>
+
+            {pendingResources.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {pendingResources.map(res => (
+                  <div key={res.id} className="glass-panel" style={{
+                    padding: '1.5rem 2rem',
+                    borderRadius: '20px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '1rem'
+                  }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>{res.title}</span>
+                        {res.requestType === 'delete' && (
+                          <span className="badge" style={{ backgroundColor: 'rgba(255, 69, 58, 0.15)', borderColor: 'rgba(255, 69, 58, 0.3)', color: '#ff453a', fontSize: '0.65rem' }}>
+                            Deletion Request
+                          </span>
+                        )}
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Category: {res.category} • Folder: {getFolderName(res.folderId) || res.folder || 'None'} • File: {res.type} • Uploaded by: {res.uploadedBy}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        onClick={() => setPreviewingPendingResource(res)}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: 'var(--text-primary)', borderColor: 'var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}
+                      >
+                        <FileText size={14} /> Preview
+                      </button>
+                      <button 
+                        onClick={() => handleApproveResource(res.id)}
+                        className="btn btn-primary"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', backgroundColor: '#30d158', borderColor: '#30d158', color: '#fff', cursor: 'pointer' }}
+                      >
+                        <Check size={14} /> {res.requestType === 'delete' ? 'Approve Deletion' : 'Approve Resource'}
+                      </button>
+                      <button 
+                        onClick={() => handleRejectResource(res.id)}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.2)', cursor: 'pointer' }}
+                      >
+                        <X size={14} /> Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No pending study resources to review.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Manage active content */}
+      {activeTab === 'active' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+          
+          {/* Active Stories */}
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Active Senior Stories ({activeStories.length})</h2>
+            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              {activeStories.map((story) => (
+                <div key={story.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1rem 1.5rem',
+                  borderBottom: '1px solid var(--border-color)'
+                }}>
+                  <div>
+                    <p style={{ fontWeight: 600 }}>{story.name} ({story.company})</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{story.branch} • Year: {story.passoutYear} • Role: {story.role}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      onClick={() => startEditStory(story)} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none' }}
+                      title="Edit Story"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteStory(story.id)} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.4rem', color: '#ff453a', border: 'none' }}
+                      title="Delete Story"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Active Resources */}
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Active Resources ({activeResources.length})</h2>
+            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              {activeResources.map((res) => (
+                <div key={res.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1rem 1.5rem',
+                  borderBottom: '1px solid var(--border-color)'
+                }}>
+                  <div>
+                    <p style={{ fontWeight: 600 }}>{res.title}</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      {res.category} • Folder: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getFolderName(res.folderId) || res.folder || 'None'}</span> • Type: {res.type} • Shared by: {res.uploadedBy}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setViewerFile({
+                        title: res.title,
+                        type: res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap' ? 'PDF' : res.type,
+                        fileName: res.title + '.pdf',
+                        fileSize: '1.2 MB',
+                        previewUrl: res.link || '#'
+                      })}
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
+                    >
+                      View File
+                    </button>
+                    <button 
+                      onClick={() => startEditResource(res)} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none', cursor: 'pointer' }}
+                      title="Edit Resource"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button onClick={() => handleDeleteResource(res.id)} className="btn btn-secondary" style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Active Achievements */}
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Active Achievements/News ({activeAchievements.length})</h2>
+            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              {activeAchievements.map((item) => (
+                <div key={item.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1rem 1.5rem',
+                  borderBottom: '1px solid var(--border-color)'
+                }}>
+                  <div>
+                    <p style={{ fontWeight: 600 }}>{item.title}</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.category} • Date: {item.date}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      onClick={() => startEditAchievement(item)} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none' }}
+                      title="Edit Achievement"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteAchievement(item.id)} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.4rem', color: '#ff453a', border: 'none' }}
+                      title="Delete Achievement"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Manage Folders */}
+          <div style={{ marginTop: '3rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem' }}>Resource Folders ({folders.length})</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem', alignItems: 'start' }}>
+              {/* Folders List */}
+              <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', maxHeight: '400px', overflowY: 'auto' }}>
+                {folders.map((folder) => {
+                  const parentFolder = folders.find(f => f.id === folder.parentId);
+                  return (
+                    <div key={folder.id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '1rem 1.5rem',
+                      borderBottom: '1px solid var(--border-color)'
+                    }}>
+                      <div>
+                        <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{folder.name}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
+                          ID: {folder.id} {parentFolder ? `• Parent: ${parentFolder.name}` : '• Root Folder'}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteFolder(folder.id)} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}
+                        title="Delete Folder"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add Folder Form */}
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const name = e.target.folderName.value.trim();
+                  const parentId = e.target.folderParent.value;
+                  if (!name) return;
+                  
+                  const newFolder = {
+                    id: name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                    name,
+                    parentId: parentId === 'none' ? null : parentId
+                  };
+                  
+                  await addFolder(newFolder);
+                  e.target.reset();
+                  await refreshData();
+                }}
+                className="glass-panel" 
+                style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}
+              >
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', marginTop: 0 }}>Create Folder</h3>
+                
+                <div className="input-group">
+                  <label className="input-label" style={{ fontSize: '0.8rem' }}>Folder Name *</label>
+                  <input 
+                    type="text" 
+                    name="folderName" 
+                    className="input-field" 
+                    placeholder="e.g. 5th Year" 
+                    required 
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label" style={{ fontSize: '0.8rem' }}>Parent Folder</label>
+                  <select 
+                    name="folderParent" 
+                    className="input-field"
+                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="none">None (Root Folder)</option>
+                    {folders.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', cursor: 'pointer' }}>
+                  Add Folder
+                </button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* Tab: Add news and achievement */}
+      {activeTab === 'news' && (
+        <div style={{ maxWidth: '600px' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.25rem' }}>Publish New News & Achievement</h2>
+          
+          <form onSubmit={handleCreateAchievement} className="glass-panel" style={{ padding: '2rem', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+            {formSuccess && (
+              <div style={{
+                backgroundColor: 'rgba(48, 209, 88, 0.1)',
+                border: '1px solid rgba(48, 209, 88, 0.2)',
+                color: '#30d158',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                fontSize: '0.85rem',
+                marginBottom: '1.25rem'
+              }}>
+                News/Achievement published successfully!
+              </div>
+            )}
+
+            <div className="input-group">
+              <label className="input-label">Title *</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="e.g. SPIT Team wins Hackathon 2026"
+                value={achievementForm.title}
+                onChange={(e) => setAchievementForm({ ...achievementForm, title: e.target.value })}
+                required
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="input-group">
+                <label className="input-label">Category *</label>
+                <select
+                  className="input-field"
+                  value={achievementForm.category}
+                  onChange={(e) => setAchievementForm({ ...achievementForm, category: e.target.value })}
+                  style={{ backgroundColor: 'var(--bg-secondary)' }}
+                >
+                  <option value="Hackathon Winners">Hackathon Winners</option>
+                  <option value="Placement Successes">Placement Successes</option>
+                  <option value="Internship Achievements">Internship Achievements</option>
+                  <option value="Competition Winners">Competition Winners</option>
+                  <option value="Research Publications">Research Publications</option>
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Date *</label>
+                <input
+                  type="date"
+                  className="input-field"
+                  value={achievementForm.date}
+                  onChange={(e) => setAchievementForm({ ...achievementForm, date: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Achievement Image (Upload or URL)</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                <div 
+                  onClick={() => document.getElementById('achievement-image-upload')?.click()}
+                  style={{
+                    border: '1px dashed var(--border-color)',
+                    borderRadius: '12px',
+                    padding: '1rem',
+                    textAlign: 'center',
+                    backgroundColor: 'var(--bg-secondary)',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '100px',
+                    color: 'var(--text-primary)'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--text-secondary)'}
+                  onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) processAchievementImage(file);
+                  }}
+                >
+                  <input 
+                    type="file" 
+                    id="achievement-image-upload" 
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) processAchievementImage(file);
+                    }} 
+                    style={{ display: 'none' }}
+                    accept="image/*"
+                  />
+                  {achievementForm.image ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0 0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+                          <img src={achievementForm.image} alt="Achievement Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>Image Selected</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {achievementForm.image}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAchievementForm({ ...achievementForm, image: '' });
+                        }}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem', color: '#ff453a', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        title="Remove Image"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Plus size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
+                        Click to select an image, or drop here
+                      </p>
+                    </>
+                  )}
+                </div>
+                
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  placeholder="Or paste image URL directly"
+                  value={achievementForm.image.startsWith('data:') ? '' : achievementForm.image} 
+                  onChange={(e) => setAchievementForm({ ...achievementForm, image: e.target.value })} 
+                  style={{ fontSize: '0.85rem' }}
+                />
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Description *</label>
+              <textarea
+                className="input-field"
+                rows={4}
+                placeholder="Write detail summary of achievement..."
+                value={achievementForm.description}
+                onChange={(e) => setAchievementForm({ ...achievementForm, description: e.target.value })}
+                required
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+              <Plus size={16} /> Publish News
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Tab: Users list */}
+      {activeTab === 'users' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
+          
+          {/* Add User panel */}
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem' }}>Add Platform User</h2>
+            <form onSubmit={handleAddUser} className="glass-panel" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+              <div className="input-group">
+                <label className="input-label">Email Address *</label>
+                <input 
+                  type="email" 
+                  className="input-field" 
+                  placeholder="name.surname@spit.ac.in" 
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Assigned Role *</label>
+                <select 
+                  className="input-field"
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-secondary)' }}
+                >
+                  <option value="Student">Student</option>
+                  <option value="Senior / Contributor">Senior / Contributor</option>
+                  <option value="Alumni / Contributor">Alumni / Contributor</option>
+                  <option value="Administrator">Administrator</option>
+                </select>
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                <Plus size={14} /> Add User
+              </button>
+            </form>
+          </div>
+
+          {/* Users List Table */}
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Users size={20} />
+              <span>Simulated Platform Users ({usersList.length})</span>
+            </h2>
+            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+                    <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Email Address</th>
+                    <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Assigned Role</th>
+                    <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Status</th>
+                    <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usersList.map((u, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.85rem 1.25rem', fontWeight: 500 }}>{u.email}</td>
+                      <td style={{ padding: '0.85rem 1.25rem' }}>{u.role}</td>
+                      <td style={{ padding: '0.85rem 1.25rem' }}>
+                        <span className="badge" style={{ backgroundColor: 'rgba(48, 209, 88, 0.1)', borderColor: 'rgba(48, 209, 88, 0.2)', color: '#30d158' }}>
+                          {u.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
+                        <button 
+                          onClick={() => handleRemoveUser(u.email)} 
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.35rem', color: '#ff453a', border: 'none' }}
+                          title="Remove User"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Glassmorphic Edit Details Overlay Modal */}
+      {editingItem && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%',
+            maxWidth: '650px',
+            borderRadius: '24px',
+            backgroundColor: 'var(--bg-primary)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+            padding: '2rem',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
+          }}>
+            <button 
+              onClick={() => setEditingItem(null)}
+              style={{
+                position: 'absolute',
+                top: '1.5rem',
+                right: '1.5rem',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '2rem' }}>
+              Edit {editingType === 'story' ? 'Senior Story' : editingType === 'resource' ? 'Study Resource' : 'Achievement'} Details
+            </h2>
+
+            {editingType === 'story' ? (
+              <form onSubmit={handleSaveStory}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Name</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={editStoryForm.name} 
+                      onChange={e => setEditStoryForm({ ...editStoryForm, name: e.target.value })} 
+                      required
+                    />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Company</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={editStoryForm.company} 
+                      onChange={e => setEditStoryForm({ ...editStoryForm, company: e.target.value })} 
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Role</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={editStoryForm.role} 
+                      onChange={e => setEditStoryForm({ ...editStoryForm, role: e.target.value })} 
+                      required
+                    />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Branch</label>
+                    <select 
+                      className="input-field" 
+                      value={editStoryForm.branch} 
+                      onChange={e => setEditStoryForm({ ...editStoryForm, branch: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)' }}
+                    >
+                      <option value="CSE">CSE</option>
+                      <option value="IT">IT</option>
+                      <option value="EXTC">EXTC</option>
+                      <option value="AI & DS">AI & DS</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Passout Year</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={editStoryForm.passoutYear} 
+                      onChange={e => setEditStoryForm({ ...editStoryForm, passoutYear: e.target.value })} 
+                      required
+                    />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Semester</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={editStoryForm.semester} 
+                      onChange={e => setEditStoryForm({ ...editStoryForm, semester: e.target.value })} 
+                    />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">CGPA</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={editStoryForm.cgpa} 
+                      onChange={e => setEditStoryForm({ ...editStoryForm, cgpa: e.target.value })} 
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">1st Year Strategy</label>
+                    <textarea 
+                      className="input-field" 
+                      rows={2} 
+                      value={editStoryForm.journey.firstYear} 
+                      onChange={e => setEditStoryForm({
+                        ...editStoryForm,
+                        journey: { ...editStoryForm.journey, firstYear: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">2nd Year Strategy</label>
+                    <textarea 
+                      className="input-field" 
+                      rows={2} 
+                      value={editStoryForm.journey.secondYear} 
+                      onChange={e => setEditStoryForm({
+                        ...editStoryForm,
+                        journey: { ...editStoryForm.journey, secondYear: e.target.value }
+                      })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">3rd Year Strategy</label>
+                    <textarea 
+                      className="input-field" 
+                      rows={2} 
+                      value={editStoryForm.journey.thirdYear} 
+                      onChange={e => setEditStoryForm({
+                        ...editStoryForm,
+                        journey: { ...editStoryForm.journey, thirdYear: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">4th Year Strategy</label>
+                    <textarea 
+                      className="input-field" 
+                      rows={2} 
+                      value={editStoryForm.journey.fourthYear} 
+                      onChange={e => setEditStoryForm({
+                        ...editStoryForm,
+                        journey: { ...editStoryForm.journey, fourthYear: e.target.value }
+                      })}
+                    />
+                  </div>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Preparation Strategy & Tips *</label>
+                  <textarea 
+                    className="input-field" 
+                    rows={3} 
+                    value={editStoryForm.journey.prep} 
+                    onChange={e => setEditStoryForm({
+                      ...editStoryForm,
+                      journey: { ...editStoryForm.journey, prep: e.target.value }
+                    })}
+                    required
+                  />
+                </div>
+
+                {/* Resume Section in Edit Modal */}
+                <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>
+                    Senior Resume File
+                  </h4>
+                  
+                  <div 
+                    onClick={() => document.getElementById('edit-resume-file-upload')?.click()}
+                    style={{
+                      border: '1px dashed var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '1rem',
+                      textAlign: 'center',
+                      backgroundColor: 'var(--bg-secondary)',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.2s',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '100px',
+                      color: 'var(--text-primary)'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--text-secondary)'}
+                    onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) processResumeFile(file);
+                    }}
+                  >
+                    <input 
+                      type="file" 
+                      id="edit-resume-file-upload" 
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) processResumeFile(file);
+                      }} 
+                      style={{ display: 'none' }}
+                      accept=".pdf"
+                    />
+                    {editStoryForm.resume ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0 0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
+                          <span style={{
+                            padding: '0.4rem',
+                            backgroundColor: 'var(--bg-primary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ff3b30'
+                          }}>
+                            <FileText size={18} />
+                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {typeof editStoryForm.resume === 'object' ? editStoryForm.resume.fileName : editStoryForm.resume}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              {typeof editStoryForm.resume === 'object' ? editStoryForm.resume.fileSize : '1.2 MB'}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const currentResume = editStoryForm.resume;
+                              setViewerFile({
+                                title: 'Resume',
+                                type: 'PDF',
+                                fileName: typeof currentResume === 'object' ? currentResume.fileName : currentResume,
+                                fileSize: typeof currentResume === 'object' ? currentResume.fileSize : '1.2 MB',
+                                previewUrl: typeof currentResume === 'object' ? currentResume.url : '#'
+                              });
+                            }}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                          >
+                            View Resume
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditStoryForm({ ...editStoryForm, resume: '' });
+                            }}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem', color: '#ff453a', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                            title="Remove Resume"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <FileText size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
+                          Click to upload Resume PDF
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Study Materials Section in Edit Modal */}
+                <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginBottom: '1.5rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>
+                    Study Materials / Files
+                  </h4>
+                  
+                  {editStoryForm.studyMaterials && editStoryForm.studyMaterials.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                      {editStoryForm.studyMaterials.map((material, idx) => (
+                        <div key={idx} style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '12px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
+                            <span style={{
+                              padding: '0.4rem',
+                              backgroundColor: 'var(--bg-primary)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--text-primary)'
+                            }}>
+                              <FileText size={18} />
+                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{material.title}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                {material.type} {material.fileName ? `• ${material.fileName}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <button 
+                                type="button"
+                                onClick={() => setViewerFile(material)}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                              >
+                                View File
+                              </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updatedMaterials = editStoryForm.studyMaterials.filter((_, i) => i !== idx);
+                                setEditStoryForm({ ...editStoryForm, studyMaterials: updatedMaterials });
+                              }}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem', color: '#ff453a', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                              title="Remove File"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '1.5rem', textAlign: 'left' }}>
+                      No study materials attached to this story.
+                    </p>
+                  )}
+
+                  {/* Drag and Drop File Selector inside Edit Modal */}
+                  <div style={{
+                    padding: '1.25rem',
+                    border: '1px dashed var(--border-color)',
+                    borderRadius: '16px',
+                    backgroundColor: 'var(--bg-secondary)',
+                    textAlign: 'left'
+                  }}>
+                    <h5 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+                      Add Study Material
+                    </h5>
+                    
+                    {/* Mock Dropzone Area */}
+                    <div 
+                      onClick={() => document.getElementById('edit-material-file-upload')?.click()}
+                      style={{
+                        border: '1px dashed var(--border-color)',
+                        borderRadius: '12px',
+                        padding: editMaterialInput.previewUrl ? '1rem' : '1.5rem',
+                        textAlign: 'center',
+                        backgroundColor: 'var(--bg-primary)',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: '110px',
+                        marginBottom: '1rem',
+                        color: 'var(--text-primary)'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--text-secondary)'}
+                      onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) processMaterialFile(file);
+                      }}
+                    >
+                      <input 
+                        type="file" 
+                        id="edit-material-file-upload" 
+                        onChange={handleEditFileChange} 
+                        style={{ display: 'none' }}
+                        accept=".pdf,.png,.jpg,.jpeg"
+                      />
+                      
+                      {editMaterialInput.previewUrl ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', width: '100%' }}>
+                          {editMaterialInput.type === 'Image' ? (
+                            <div style={{ position: 'relative', width: '100%', height: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                              <img 
+                                src={editMaterialInput.previewUrl} 
+                                alt="Selected preview" 
+                                style={{ maxHeight: '100%', maxWidth: '100px', objectFit: 'contain', borderRadius: '6px' }}
+                              />
+                            </div>
+                          ) : (
+                            <FileText size={36} style={{ color: 'var(--text-primary)' }} />
+                          )}
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, wordBreak: 'break-all', color: 'var(--text-primary)' }}>
+                            {editMaterialInput.fileName}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            {editMaterialInput.fileSize}
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+                          <Plus size={24} style={{ color: 'var(--text-secondary)' }} />
+                          <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                            Drag & drop study material here, or click to browse
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Supports PDF, PNG, JPG
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {editMaterialInput.previewUrl && (
+                      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.75rem' }}>
+                          <div className="input-group" style={{ marginBottom: 0 }}>
+                            <label className="input-label" style={{ fontSize: '0.7rem' }}>Material Title *</label>
+                            <input 
+                              type="text" 
+                              value={editMaterialInput.title}
+                              onChange={(e) => setEditMaterialInput({ ...editMaterialInput, title: e.target.value })}
+                              className="input-field" 
+                              placeholder="Material Title"
+                              style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', backgroundColor: 'var(--bg-primary)' }}
+                            />
+                          </div>
+                          <div className="input-group" style={{ marginBottom: 0 }}>
+                            <label className="input-label" style={{ fontSize: '0.7rem' }}>File Type *</label>
+                            <select 
+                              value={editMaterialInput.type}
+                              onChange={(e) => setEditMaterialInput({ ...editMaterialInput, type: e.target.value })}
+                              className="input-field"
+                              style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', backgroundColor: 'var(--bg-primary)' }}
+                            >
+                              <option value="PDF">PDF Document</option>
+                              <option value="Image">Image Roadmap</option>
+                              <option value="Notes">Notes File</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditMaterialInput({ title: '', type: 'PDF', fileName: '', fileSize: '', previewUrl: '' });
+                            }}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.45rem 1rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                          >
+                            Clear File
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (editMaterialInput.title.trim()) {
+                                const newMaterial = {
+                                  title: editMaterialInput.title.trim(),
+                                  type: editMaterialInput.type,
+                                  previewUrl: editMaterialInput.previewUrl,
+                                  fileName: editMaterialInput.fileName || (editMaterialInput.title.trim().toLowerCase().replace(/\s+/g, '_') + (editMaterialInput.type === 'PDF' ? '.pdf' : '.png')),
+                                  fileSize: editMaterialInput.fileSize
+                                };
+                                const updatedMaterials = [...(editStoryForm.studyMaterials || []), newMaterial];
+                                setEditStoryForm({ ...editStoryForm, studyMaterials: updatedMaterials });
+                                setEditMaterialInput({ title: '', type: 'PDF', fileName: '', fileSize: '', previewUrl: '' });
+                              } else {
+                                alert('Please provide a title for the material.');
+                              }
+                            }}
+                            className="btn btn-primary"
+                            style={{ padding: '0.45rem 1.2rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                          >
+                            Add to Story
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                  Save Story Details
+                </button>
+              </form>
+            ) : editingType === 'resource' ? (
+              <form onSubmit={handleSaveResource}>
+                <div className="input-group">
+                  <label className="input-label">Title *</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    value={editResourceForm.title} 
+                    onChange={e => setEditResourceForm({ ...editResourceForm, title: e.target.value })} 
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Category *</label>
+                    <select
+                      className="input-field"
+                      value={editResourceForm.category}
+                      onChange={e => setEditResourceForm({ ...editResourceForm, category: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="Coding">Coding</option>
+                      <option value="College Subjects">College Subjects</option>
+                      <option value="Web Development">Web Development</option>
+                      <option value="CSE">CSE</option>
+                      <option value="Placement">Placement</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">File Type *</label>
+                    <select
+                      className="input-field"
+                      value={editResourceForm.type}
+                      onChange={e => setEditResourceForm({ ...editResourceForm, type: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="PDF">PDF</option>
+                      <option value="Link">Link</option>
+                      <option value="Note">Note</option>
+                      <option value="Sheet">Sheet</option>
+                      <option value="Roadmap">Roadmap</option>
+                      <option value="Interview Questions">Interview Questions</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Folder Location *</label>
+                    <select
+                      className="input-field"
+                      value={editResourceForm.folderId}
+                      onChange={e => setEditResourceForm({ ...editResourceForm, folderId: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      {folders.map(f => (
+                        <option key={f.id} value={f.id}>{getFolderName(f.id) || f.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">File Link / URL</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={editResourceForm.link} 
+                      onChange={e => setEditResourceForm({ ...editResourceForm, link: e.target.value })} 
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                  Save Resource Details
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSaveAchievement}>
+                <div className="input-group">
+                  <label className="input-label">Title *</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    value={editAchievementForm.title} 
+                    onChange={e => setEditAchievementForm({ ...editAchievementForm, title: e.target.value })} 
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Category *</label>
+                    <select 
+                      className="input-field" 
+                      value={editAchievementForm.category} 
+                      onChange={e => setEditAchievementForm({ ...editAchievementForm, category: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)' }}
+                    >
+                      <option value="Hackathon Winners">Hackathon Winners</option>
+                      <option value="Placement Successes">Placement Successes</option>
+                      <option value="Internship Achievements">Internship Achievements</option>
+                      <option value="Competition Winners">Competition Winners</option>
+                      <option value="Research Publications">Research Publications</option>
+                    </select>
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Date *</label>
+                    <input 
+                      type="date" 
+                      className="input-field" 
+                      value={editAchievementForm.date} 
+                      onChange={e => setEditAchievementForm({ ...editAchievementForm, date: e.target.value })} 
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Achievement Image (Upload or URL)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                    <div 
+                      onClick={() => document.getElementById('edit-achievement-image-upload')?.click()}
+                      style={{
+                        border: '1px dashed var(--border-color)',
+                        borderRadius: '12px',
+                        padding: '1rem',
+                        textAlign: 'center',
+                        backgroundColor: 'var(--bg-secondary)',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: '100px',
+                        color: 'var(--text-primary)'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--text-secondary)'}
+                      onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) processEditAchievementImage(file);
+                      }}
+                    >
+                      <input 
+                        type="file" 
+                        id="edit-achievement-image-upload" 
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) processEditAchievementImage(file);
+                        }} 
+                        style={{ display: 'none' }}
+                        accept="image/*"
+                      />
+                      {editAchievementForm.image ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0 0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+                              <img src={editAchievementForm.image} alt="Achievement" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>Image Selected</span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {editAchievementForm.image}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditAchievementForm({ ...editAchievementForm, image: '' });
+                            }}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem', color: '#ff453a', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                            title="Remove Image"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <Plus size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
+                            Click to select an image, or drop here
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Or paste image URL directly"
+                      value={editAchievementForm.image.startsWith('data:') ? '' : editAchievementForm.image} 
+                      onChange={e => setEditAchievementForm({ ...editAchievementForm, image: e.target.value })} 
+                      style={{ fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Description *</label>
+                  <textarea 
+                    className="input-field" 
+                    rows={6} 
+                    value={editAchievementForm.description} 
+                    onChange={e => setEditAchievementForm({ ...editAchievementForm, description: e.target.value })} 
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                  Save Achievement Details
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Glassmorphic Preview Story Details Overlay Modal */}
+      {previewingPendingStory && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%',
+            maxWidth: '750px',
+            borderRadius: '24px',
+            backgroundColor: 'var(--bg-primary)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+            padding: '2.5rem',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
+          }}>
+            <button 
+              onClick={() => setPreviewingPendingStory(null)}
+              style={{
+                position: 'absolute',
+                top: '1.5rem',
+                right: '1.5rem',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.5rem', textAlign: 'left' }}>
+              <span className="badge" style={{ fontSize: '0.7rem', marginBottom: '0.5rem', backgroundColor: previewingPendingStory.requestType === 'delete' ? 'rgba(255, 69, 58, 0.15)' : previewingPendingStory.requestType === 'edit' ? 'rgba(0, 122, 255, 0.15)' : 'var(--bg-secondary)', color: previewingPendingStory.requestType === 'delete' ? '#ff453a' : previewingPendingStory.requestType === 'edit' ? '#0a84ff' : 'var(--text-primary)' }}>
+                {previewingPendingStory.requestType === 'delete' ? 'Deletion Approval Request' : previewingPendingStory.requestType === 'edit' ? 'Edit Approval Request' : 'Pending Senior Story Preview'}
+              </span>
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {previewingPendingStory.name}
+              </h2>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                {previewingPendingStory.branch} Class of {previewingPendingStory.passoutYear} • Placed: {previewingPendingStory.company} ({previewingPendingStory.role}) • Sem {previewingPendingStory.semester} • CGPA {previewingPendingStory.cgpa || 'N/A'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
+              {/* Journey Details */}
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                  Four-Year Journey
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingLeft: '0.5rem' }}>
+                  {previewingPendingStory.journey?.firstYear && (
+                    <p style={{ fontSize: '0.9rem', lineHeight: '1.6', margin: 0 }}>
+                      <strong>1st Year:</strong> {previewingPendingStory.journey.firstYear}
+                    </p>
+                  )}
+                  {previewingPendingStory.journey?.secondYear && (
+                    <p style={{ fontSize: '0.9rem', lineHeight: '1.6', margin: 0 }}>
+                      <strong>2nd Year:</strong> {previewingPendingStory.journey.secondYear}
+                    </p>
+                  )}
+                  {previewingPendingStory.journey?.thirdYear && (
+                    <p style={{ fontSize: '0.9rem', lineHeight: '1.6', margin: 0 }}>
+                      <strong>3rd Year:</strong> {previewingPendingStory.journey.thirdYear}
+                    </p>
+                  )}
+                  {previewingPendingStory.journey?.fourthYear && (
+                    <p style={{ fontSize: '0.9rem', lineHeight: '1.6', margin: 0 }}>
+                      <strong>4th Year:</strong> {previewingPendingStory.journey.fourthYear}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {previewingPendingStory.journey?.prep && (
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                    Preparation Strategy & Tips
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', lineHeight: '1.6', paddingLeft: '0.5rem', whiteSpace: 'pre-wrap', margin: 0 }}>
+                    {previewingPendingStory.journey.prep}
+                  </p>
+                </div>
+              )}
+
+              {previewingPendingStory.journey?.projects && (
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                    Projects Built
+                  </h3>
+                  <div style={{ paddingLeft: '0.5rem', whiteSpace: 'pre-wrap', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                    {previewingPendingStory.journey.projects}
+                  </div>
+                </div>
+              )}
+
+              {previewingPendingStory.journey?.howSecured && (
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                    How I Secured the Role
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', lineHeight: '1.6', paddingLeft: '0.5rem', margin: 0 }}>
+                    {previewingPendingStory.journey.howSecured}
+                  </p>
+                </div>
+              )}
+
+              {/* Resume File */}
+              {(previewingPendingStory.resumeFile || previewingPendingStory.resume) && (
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                    Resume
+                  </h3>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '12px',
+                    marginLeft: '0.5rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <FileText size={20} style={{ color: '#ff3b30' }} />
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                        {previewingPendingStory.resumeFile?.fileName || 
+                         (typeof previewingPendingStory.resume === 'object' ? previewingPendingStory.resume.fileName : previewingPendingStory.resume)}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const rf = previewingPendingStory.resumeFile;
+                        const cr = previewingPendingStory.resume;
+                        setViewerFile({
+                          title: 'Resume',
+                          type: 'PDF',
+                          fileName: rf?.fileName || (typeof cr === 'object' ? cr.fileName : cr),
+                          fileSize: rf?.fileSize || (typeof cr === 'object' ? cr.fileSize : '1.2 MB'),
+                          previewUrl: rf?.url || (typeof cr === 'object' ? cr.url : '#')
+                        });
+                      }}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
+                    >
+                      View Resume
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Study Materials */}
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                  Study Materials Uploaded
+                </h3>
+                {previewingPendingStory.studyMaterials && previewingPendingStory.studyMaterials.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginLeft: '0.5rem' }}>
+                    {previewingPendingStory.studyMaterials.map((mat, idx) => (
+                      <div key={idx} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.75rem 1rem',
+                        backgroundColor: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '12px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <FileText size={18} />
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{mat.title}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              {mat.type} {mat.fileName ? `• ${mat.fileName}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setViewerFile(mat)}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
+                        >
+                          View File
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginLeft: '0.5rem', margin: 0 }}>
+                    No study materials uploaded for this story.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{
+              marginTop: '2.5rem',
+              paddingTop: '1.5rem',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
+              <button
+                onClick={() => setPreviewingPendingStory(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.5rem 1.25rem', borderRadius: '10px', cursor: 'pointer' }}
+              >
+                Close Preview
+              </button>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => {
+                    handleRejectStory(previewingPendingStory.id);
+                    setPreviewingPendingStory(null);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.5rem 1.25rem', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.2)', borderRadius: '10px', cursor: 'pointer' }}
+                >
+                  <X size={14} style={{ marginRight: '0.25rem' }} /> {previewingPendingStory.requestType === 'delete' ? 'Reject Deletion' : previewingPendingStory.requestType === 'edit' ? 'Reject Edits' : 'Reject Submission'}
+                </button>
+                <button
+                  onClick={() => {
+                    handleApproveStory(previewingPendingStory.id);
+                    setPreviewingPendingStory(null);
+                  }}
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1.5rem', backgroundColor: '#30d158', borderColor: '#30d158', color: '#fff', borderRadius: '10px', cursor: 'pointer' }}
+                >
+                  <Check size={14} style={{ marginRight: '0.25rem' }} /> {previewingPendingStory.requestType === 'delete' ? 'Approve Deletion' : previewingPendingStory.requestType === 'edit' ? 'Approve Edits' : 'Approve & Publish'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Glassmorphic Preview Resource Details Overlay Modal */}
+      {previewingPendingResource && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%',
+            maxWidth: '550px',
+            borderRadius: '24px',
+            backgroundColor: 'var(--bg-primary)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+            padding: '2.5rem',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
+          }}>
+            <button 
+              onClick={() => setPreviewingPendingResource(null)}
+              style={{
+                position: 'absolute',
+                top: '1.5rem',
+                right: '1.5rem',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.5rem', textAlign: 'left' }}>
+              <span className="badge" style={{ fontSize: '0.7rem', marginBottom: '0.5rem', backgroundColor: previewingPendingResource.requestType === 'delete' ? 'rgba(255, 69, 58, 0.15)' : 'var(--bg-secondary)', color: previewingPendingResource.requestType === 'delete' ? '#ff453a' : 'var(--text-primary)' }}>
+                {previewingPendingResource.requestType === 'delete' ? 'Deletion Approval Request' : 'Pending Resource Preview'}
+              </span>
+              <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {previewingPendingResource.title}
+              </h2>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Category: {previewingPendingResource.category} • File Type: {previewingPendingResource.type}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', textAlign: 'left' }}>
+              <div>
+                <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.25rem', margin: 0 }}>
+                  Uploaded By
+                </p>
+                <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{previewingPendingResource.uploadedBy}</p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.25rem', margin: 0 }}>
+                  Target Folder / Year
+                </p>
+                <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{getFolderName(previewingPendingResource.folderId) || previewingPendingResource.folder || 'Not Specified'}</p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.25rem', margin: 0 }}>
+                  Submission Date
+                </p>
+                <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{previewingPendingResource.date || new Date().toISOString().split('T')[0]}</p>
+              </div>
+
+              <div style={{
+                marginTop: '0.5rem',
+                border: '1px dashed var(--border-color)',
+                borderRadius: '16px',
+                padding: '1.5rem',
+                textAlign: 'center',
+                backgroundColor: 'var(--bg-secondary)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem'
+              }}>
+                <FileText size={32} style={{ color: 'var(--text-secondary)' }} />
+                <div>
+                  <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>Study Material Document</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>Inspect the file content in the sandbox document viewer</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewerFile({
+                      title: previewingPendingResource.title,
+                      type: previewingPendingResource.type === 'Sheet' || previewingPendingResource.type === 'Note' || previewingPendingResource.type === 'Roadmap' ? 'PDF' : previewingPendingResource.type,
+                      fileName: previewingPendingResource.title + (previewingPendingResource.type === 'PDF' ? '.pdf' : '.png'),
+                      fileSize: '1.2 MB',
+                      previewUrl: previewingPendingResource.link || '#'
+                    });
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.45rem 1.25rem', fontSize: '0.8rem', borderRadius: '8px', cursor: 'pointer' }}
+                >
+                  Preview File Content
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{
+              marginTop: '2.5rem',
+              paddingTop: '1.5rem',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
+              <button
+                onClick={() => setPreviewingPendingResource(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.5rem 1.25rem', borderRadius: '10px', cursor: 'pointer' }}
+              >
+                Close Preview
+              </button>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => {
+                    handleRejectResource(previewingPendingResource.id);
+                    setPreviewingPendingResource(null);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.5rem 1.25rem', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.2)', borderRadius: '10px', cursor: 'pointer' }}
+                >
+                  <X size={14} style={{ marginRight: '0.25rem' }} /> {previewingPendingResource.requestType === 'delete' ? 'Reject Deletion' : 'Reject'}
+                </button>
+                <button
+                  onClick={() => {
+                    handleApproveResource(previewingPendingResource.id);
+                    setPreviewingPendingResource(null);
+                  }}
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1.5rem', backgroundColor: '#30d158', borderColor: '#30d158', color: '#fff', borderRadius: '10px', cursor: 'pointer' }}
+                >
+                  <Check size={14} style={{ marginRight: '0.25rem' }} /> {previewingPendingResource.requestType === 'delete' ? 'Approve Deletion' : 'Approve & Publish'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewerFile && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%',
+            maxWidth: '800px',
+            height: '85vh',
+            borderRadius: '24px',
+            backgroundColor: 'var(--bg-primary)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+            padding: '2.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.5)'
+          }}>
+            {/* Close Button */}
+            <button 
+              onClick={() => setViewerFile(null)}
+              style={{
+                position: 'absolute',
+                top: '1.5rem',
+                right: '1.5rem',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <X size={24} />
+            </button>
+
+            {/* Header info */}
+            <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', textAlign: 'left' }}>
+              <span className="badge" style={{ fontSize: '0.7rem', marginBottom: '0.5rem' }}>{viewerFile.type} Preview</span>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>{viewerFile.title}</h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                {viewerFile.fileName ? `File: ${viewerFile.fileName}` : ''} {viewerFile.fileSize ? ` • Size: ${viewerFile.fileSize}` : ''}
+              </p>
+            </div>
+
+            {/* Document Content Area */}
+            <div style={{ 
+              flexGrow: 1, 
+              overflowY: 'auto', 
+              backgroundColor: '#f9f9fa', 
+              color: '#111112',
+              borderRadius: '12px', 
+              border: '1px solid #e5e5e7',
+              padding: (viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#') ? '0' : '2rem',
+              fontFamily: 'var(--font-sans)',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              {((viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#')) ? (
+                // Render original uploaded file content
+                viewerFile.type === 'Image' || (viewerFile.fileName && (viewerFile.fileName.endsWith('.png') || viewerFile.fileName.endsWith('.jpg') || viewerFile.fileName.endsWith('.jpeg'))) ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexGrow: 1, padding: '1rem' }}>
+                    <img 
+                      src={viewerFile.previewUrl || viewerFile.url} 
+                      alt={viewerFile.title} 
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
+                    />
+                  </div>
+                ) : (
+                  <iframe 
+                    src={viewerFile.previewUrl || viewerFile.url} 
+                    style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none', borderRadius: '12px' }} 
+                    title={viewerFile.title}
+                  />
+                )
+              ) : (
+                // Fallback / Pre-seeded Simulated Document Preview templates
+                viewerFile.title.toLowerCase().includes('resume') || viewerFile.title.toLowerCase().includes('cv') || viewerFile.fileName?.toLowerCase().includes('resume') ? (
+                <div style={{ maxWidth: '650px', margin: '0 auto' }}>
+                  {/* CV Header */}
+                  <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0 0 0.25rem 0', letterSpacing: '-0.02em', color: '#111' }}>
+                      SWAPNIL PATIL
+                    </h2>
+                    <p style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}>
+                      swapnil.patil@spit.ac.in | +91 98765 43210 | Mumbai, India
+                    </p>
+                    <p style={{ fontSize: '0.85rem', color: '#007aff', fontWeight: 600, margin: '0.25rem 0 0 0' }}>
+                      github.com/swapnilpatil | linkedin.com/in/swapnil-patil
+                    </p>
+                  </div>
+
+                  {/* CV Section: Education */}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
+                      EDUCATION
+                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span>Sardar Patel Institute of Technology (SPIT)</span>
+                      <span>2022 – 2026</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#555' }}>
+                      <span>B.Tech in Computer Engineering</span>
+                      <span>GPA: 9.8 / 10.0</span>
+                    </div>
+                  </div>
+
+                  {/* CV Section: Experience */}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
+                      PROFESSIONAL EXPERIENCE
+                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span>NVIDIA – Software Engineer Intern</span>
+                      <span>Summer 2025</span>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: '#333', margin: '0.25rem 0 0.5rem 0', fontStyle: 'italic' }}>
+                      Deep Learning Frameworks Tools Team
+                    </p>
+                    <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem', margin: 0 }}>
+                      <li style={{ marginBottom: '0.25rem' }}>Accelerated CUDA training workloads for large-scale transformer architectures.</li>
+                      <li>Developed visualization pipeline dashboards to track tensor convergence speeds during epochs.</li>
+                    </ul>
+                  </div>
+
+                  {/* CV Section: Projects */}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
+                      PROJECTS
+                    </h3>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span>Loop SPIT Placement Portal</span>
+                    </div>
+                    <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem', margin: '0.25rem 0 0.5rem 0' }}>
+                      <li>Created a peer-to-peer portal for seniors to share preparation strategies, notes, and PDF sheets.</li>
+                      <li>Implemented a document index system with simulated resume previewing overlays.</li>
+                    </ul>
+                  </div>
+
+                  {/* CV Section: Skills */}
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
+                      TECHNICAL SKILLS
+                    </h3>
+                    <p style={{ fontSize: '0.85rem', color: '#333', margin: 0 }}>
+                      <strong>Languages:</strong> C++, Python, JavaScript (ES6+), SQL, Bash
+                    </p>
+                    <p style={{ fontSize: '0.85rem', color: '#333', margin: '0.25rem 0 0 0' }}>
+                      <strong>Technologies:</strong> React, Node.js, Express, PyTorch, Git, CUDA, Docker
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                // Generic Study Guide / Notes Viewer
+                <div style={{ maxWidth: '650px', margin: '0 auto' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#111', margin: '0 0 0.5rem 0' }}>
+                      {viewerFile.title}
+                    </h2>
+                    <p style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}>
+                      SPIT Placement & Study Resources Network
+                    </p>
+                  </div>
+
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
+                      1. CORE SYLLABUS OVERVIEW
+                    </h3>
+                    <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
+                      This document serves as a comprehensive study sheet compiled by SPIT seniors. It highlights high-yielding topics frequently asked during technical rounds, coding tests, and engineering exams.
+                    </p>
+                  </div>
+
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
+                      2. KEY FORMULAS & THEOREMS
+                    </h3>
+                    <div style={{ backgroundColor: '#f0f0f3', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'monospace', color: '#222', borderLeft: '4px solid #007aff', marginBottom: '1rem' }}>
+                      // Time Complexity Approximations<br />
+                      - Quick Sort (Average Case): O(N log N)<br />
+                      - Binary Search Tree Search: O(log N)<br />
+                      - Floyd-Warshall Algorithm: O(V³)
+                    </div>
+                    <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem' }}>
+                      <li style={{ marginBottom: '0.25rem' }}>Understand spatial invariants and reference pointers.</li>
+                      <li>Dry run edge cases including null inputs, circular arrays, and single-node structures.</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
+                      3. INTERVIEW QUESTIONS & PREPARATION TIPS
+                    </h3>
+                    <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
+                      Prepare standard behavioral answers (STAR method) and explain structural design patterns like Singleton, Observer, and Factory. Ensure you speak clearly during system design mock interviews.
+                    </p>
+                  </div>
+                </div>
+              )
+            )}
+            </div>
+            
+            {/* Viewer Footer */}
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Viewing file in secure sandbox.
+              </span>
+              <button 
+                type="button" 
+                onClick={() => setViewerFile(null)}
+                className="btn btn-primary"
+                style={{ padding: '0.5rem 1.5rem', borderRadius: '8px' }}
+              >
+                Close Viewer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
