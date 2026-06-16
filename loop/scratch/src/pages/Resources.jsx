@@ -2,6 +2,48 @@ import { useState, useEffect, Fragment } from 'react';
 import { Search, Download, Plus, X, BookOpen, CheckCircle, FileText, Globe, Code, FileSpreadsheet, Compass, Folder, Trash2, Edit } from 'lucide-react';
 import { getResources, addPendingResource, deleteResource, fileToBase64, getFolders, addFolder, updateResource } from '../utils/db';
 
+const dataURItoBlob = (dataURI) => {
+  if (!dataURI || !dataURI.startsWith('data:')) return null;
+  try {
+    const parts = dataURI.split(',');
+    const mimeString = parts[0].split(':')[1].split(';')[0];
+    const byteString = parts[0].indexOf('base64') >= 0 ? atob(parts[1]) : unescape(parts[1]);
+    const ia = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ia], { type: mimeString });
+  } catch (e) {
+    console.error("Error converting data URI to blob:", e);
+    return null;
+  }
+};
+
+const getMimeTypeFromDataURI = (dataURI) => {
+  if (!dataURI || !dataURI.startsWith('data:')) return '';
+  try {
+    return dataURI.split(',')[0].split(':')[1].split(';')[0];
+  } catch (e) {
+    return '';
+  }
+};
+
+const getExtensionFromMime = (mime) => {
+  switch (mime) {
+    case 'application/pdf': return '.pdf';
+    case 'image/jpeg':
+    case 'image/jpg': return '.jpg';
+    case 'image/png': return '.png';
+    case 'image/gif': return '.gif';
+    case 'text/plain': return '.txt';
+    case 'application/msword': return '.doc';
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': return '.docx';
+    case 'application/vnd.ms-excel': return '.xls';
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': return '.xlsx';
+    default: return '';
+  }
+};
+
 export default function Resources() {
   const [resources, setResources] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -530,11 +572,25 @@ export default function Resources() {
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button 
                       onClick={() => {
-                        const isPdf = res.type === 'PDF' || res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap';
+                        const mime = getMimeTypeFromDataURI(res.link);
+                        let fileType = res.type;
+                        let ext = '';
+                        if (mime) {
+                          ext = getExtensionFromMime(mime);
+                          if (mime.startsWith('image/')) {
+                            fileType = 'Image';
+                          } else if (mime === 'application/pdf') {
+                            fileType = 'PDF';
+                          }
+                        } else {
+                          const isPdf = res.type === 'PDF' || res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap';
+                          fileType = isPdf ? 'PDF' : res.type;
+                          ext = isPdf ? '.pdf' : '.txt';
+                        }
                         setViewerFile({
                           title: res.title,
-                          type: isPdf ? 'PDF' : res.type,
-                          fileName: res.title + (isPdf ? '.pdf' : '.txt'),
+                          type: fileType,
+                          fileName: res.title + ext,
                           fileSize: '1.2 MB',
                           previewUrl: res.link || '#'
                         });
@@ -550,14 +606,21 @@ export default function Resources() {
                       onClick={() => {
                         if (res.link && res.link !== '#') {
                           if (res.link.startsWith('data:')) {
-                            // actual base64 file data - trigger download
-                            const link = document.createElement('a');
-                            link.href = res.link;
-                            const isPdf = res.type === 'PDF' || res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap';
-                            link.download = res.title + (isPdf ? '.pdf' : '.txt');
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
+                            const blob = dataURItoBlob(res.link);
+                            if (blob) {
+                              const blobUrl = URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              const mime = getMimeTypeFromDataURI(res.link);
+                              const ext = getExtensionFromMime(mime) || '.txt';
+                              link.download = res.title + ext;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                            } else {
+                              alert('Failed to process file data.');
+                            }
                           } else {
                             // external URL - open in new tab
                             window.open(res.link, '_blank');

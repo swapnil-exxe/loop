@@ -1,17 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Lock, Mail, UserPlus, LogIn } from 'lucide-react';
+import { loginUser, requestRegistration } from '../utils/db';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    const userSession = localStorage.getItem('loop_current_user');
+    if (userSession) {
+      const parsed = JSON.parse(userSession);
+      if (parsed.onboarded) {
+        navigate('/');
+      } else {
+        navigate('/onboarding');
+      }
+    }
+  }, [navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
 
     // Validate email
     const trimmedEmail = email.trim().toLowerCase();
@@ -32,28 +48,31 @@ export default function Login() {
 
     setLoading(true);
 
-    // Mock validation delays for premium feel
-    setTimeout(() => {
-      setLoading(false);
-      
-      const isAdmin = trimmedEmail === 'admin@spit.ac.in' && password === 'admin123';
-      
-      if (trimmedEmail === 'admin@spit.ac.in' && password !== 'admin123') {
-        setError('Incorrect password for administrator');
-        return;
+    try {
+      if (isRegisterMode) {
+        await requestRegistration(trimmedEmail, password);
+        setSuccessMsg('Access request submitted successfully! Please wait for administrator approval.');
+        setEmail('');
+        setPassword('');
+        setIsRegisterMode(false);
+      } else {
+        const userData = await loginUser(trimmedEmail, password);
+        
+        // Save user session
+        localStorage.setItem('loop_current_user', JSON.stringify(userData));
+        
+        // Redirect based on onboarding status or admin status
+        if (userData.onboarded || userData.isAdmin) {
+          navigate('/');
+        } else {
+          navigate('/onboarding');
+        }
       }
-
-      // Save user session
-      const userData = {
-        email: trimmedEmail,
-        isAdmin: isAdmin
-      };
-      
-      localStorage.setItem('loop_current_user', JSON.stringify(userData));
-      
-      // Redirect to landing page
-      navigate('/');
-    }, 800);
+    } catch (err) {
+      setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -109,15 +128,15 @@ export default function Login() {
             fontSize: '0.9rem',
             fontWeight: 400
           }}>
-            Continue to the SPIT Senior Network
+            {isRegisterMode ? 'Request access to senior network' : 'Continue to the SPIT Senior Network'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {error && (
             <div style={{
-              backgroundColor: 'rgba(255, 0, 0, 0.1)',
-              border: '1px solid rgba(255, 0, 0, 0.2)',
+              backgroundColor: 'rgba(255, 69, 58, 0.1)',
+              border: '1px solid rgba(255, 69, 58, 0.2)',
               color: '#ff453a',
               borderRadius: '8px',
               padding: '0.75rem 1rem',
@@ -125,6 +144,44 @@ export default function Login() {
               textAlign: 'left'
             }}>
               {error}
+              {!isRegisterMode && error.includes('User not found') && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegisterMode(true);
+                      setError('');
+                      setSuccessMsg('');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent-color)',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      padding: 0,
+                      textDecoration: 'underline',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    Click here to request account access
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {successMsg && (
+            <div style={{
+              backgroundColor: 'rgba(48, 209, 88, 0.1)',
+              border: '1px solid rgba(48, 209, 88, 0.2)',
+              color: '#30d158',
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+              fontSize: '0.85rem',
+              textAlign: 'left'
+            }}>
+              {successMsg}
             </div>
           )}
 
@@ -191,18 +248,66 @@ export default function Login() {
               border: 'none',
               backgroundColor: 'var(--accent-color)',
               color: 'var(--accent-inverse)',
-              fontWeight: '600'
+              fontWeight: '600',
+              cursor: 'pointer'
             }}
             disabled={loading}
           >
-            {loading ? 'Authenticating...' : (
+            {loading ? (isRegisterMode ? 'Submitting Request...' : 'Authenticating...') : (
               <>
-                <span>Sign In</span>
-                <ArrowRight size={16} />
+                <span>{isRegisterMode ? 'Request Access' : 'Sign In'}</span>
+                {isRegisterMode ? <UserPlus size={16} /> : <LogIn size={16} />}
               </>
             )}
           </button>
         </form>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.25rem', fontSize: '0.9rem' }}>
+          {isRegisterMode ? (
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegisterMode(false);
+                setError('');
+                setSuccessMsg('');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--accent-color)',
+                cursor: 'pointer',
+                fontWeight: '500',
+                padding: 0,
+                textDecoration: 'underline'
+              }}
+            >
+              Back to Sign In
+            </button>
+          ) : (
+            <p style={{ color: 'var(--text-secondary)' }}>
+              Don't have access?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRegisterMode(true);
+                  setError('');
+                  setSuccessMsg('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-color)',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  padding: 0,
+                  textDecoration: 'underline'
+                }}
+              >
+                Request account access
+              </button>
+            </p>
+          )}
+        </div>
 
         {/* Demo Helper Panel */}
         <div className="glass-panel" style={{
@@ -215,9 +320,10 @@ export default function Login() {
           textAlign: 'left'
         }}>
           <p style={{ fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>Testing Credentials:</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <p>• Student: <code style={{ color: 'var(--text-primary)' }}>student@spit.ac.in</code> (Any password)</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             <p>• Admin: <code style={{ color: 'var(--text-primary)' }}>admin@spit.ac.in</code> / password: <code style={{ color: 'var(--text-primary)' }}>admin123</code></p>
+            <p>• Student: <code style={{ color: 'var(--text-primary)' }}>junior.student@spit.ac.in</code> / password: <code style={{ color: 'var(--text-primary)' }}>spit123</code></p>
+            <p>• Contributor: <code style={{ color: 'var(--text-primary)' }}>aditya.sharma@spit.ac.in</code> / password: <code style={{ color: 'var(--text-primary)' }}>spit123</code></p>
           </div>
         </div>
       </div>

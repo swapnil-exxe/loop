@@ -35,7 +35,10 @@ export const updateStory = async (id, updatedStory) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updatedStory)
   });
-  if (!res.ok) throw new Error('Failed to update story');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to update story');
+  }
   return res.json();
 };
 
@@ -52,7 +55,10 @@ export const addPendingStory = async (story) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(story)
   });
-  if (!res.ok) throw new Error('Failed to add pending story');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to add pending story');
+  }
   return res.json();
 };
 
@@ -197,6 +203,104 @@ export const deleteUser = async (email) => {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to delete user');
+  return res.json();
+};
+
+export const loginUser = async (email, password) => {
+  const res = await fetch(`${API_URL}/users/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to authenticate');
+  }
+  return res.json();
+};
+
+export const onboardUser = async (email, profileData) => {
+  const res = await fetch(`${API_URL}/users/${email}/onboard`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profileData)
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to submit onboarding form');
+  }
+  return res.json();
+};
+
+export const requestProfileEdit = async (email, profileData) => {
+  const res = await fetch(`${API_URL}/users/${email}/edit-request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profileData)
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to request profile edit');
+  }
+  return res.json();
+};
+
+export const approveProfileEdit = async (email) => {
+  const res = await fetch(`${API_URL}/users/${email}/approve-edit`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to approve profile edit');
+  }
+  return res.json();
+};
+
+export const rejectProfileEdit = async (email) => {
+  const res = await fetch(`${API_URL}/users/${email}/reject-edit`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to reject profile edit');
+  }
+  return res.json();
+};
+
+export const requestRegistration = async (email, password) => {
+  const res = await fetch(`${API_URL}/users/register-request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to submit registration request');
+  }
+  return res.json();
+};
+
+export const approveRegistration = async (email) => {
+  const res = await fetch(`${API_URL}/users/${email}/approve-registration`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to approve registration');
+  }
+  return res.json();
+};
+
+export const updateUser = async (email, userData) => {
+  const res = await fetch(`${API_URL}/users/${email}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData)
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to update user');
+  }
   return res.json();
 };
 

@@ -292,3 +292,22 @@ button, input, textarea, select {
     filter: blur(2px);
   }
 }
+
+/* Achievement Detail - Inner View Banner hover expand */
+.achievement-detail-banner {
+  height: 300px;
+  transition: height 0.48s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: zoom-in;
+}
+.achievement-detail-banner:hover {
+  height: 480px;
+  cursor: zoom-out;
+}
+.achievement-detail-banner img {
+  transition: transform 0.48s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1.0);
+}
+.achievement-detail-banner:hover img {
+  transform: scale(1.04);
+}
+

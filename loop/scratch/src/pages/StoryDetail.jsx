@@ -3,6 +3,23 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus } from 'lucide-react';
 import { getStories, updateStory, deleteStory, addPendingStory, fileToBase64 } from '../utils/db';
 
+const dataURItoBlob = (dataURI) => {
+  if (!dataURI || !dataURI.startsWith('data:')) return null;
+  try {
+    const parts = dataURI.split(',');
+    const mimeString = parts[0].split(':')[1].split(';')[0];
+    const byteString = parts[0].indexOf('base64') >= 0 ? atob(parts[1]) : unescape(parts[1]);
+    const ia = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ia], { type: mimeString });
+  } catch (e) {
+    console.error("Error converting data URI to blob:", e);
+    return null;
+  }
+};
+
 export default function StoryDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -125,7 +142,7 @@ export default function StoryDetail() {
         howSecured: story.journey?.howSecured || ''
       },
       studyMaterials: story.studyMaterials || [],
-      resume: story.resume || ''
+      resume: story.resumeFile || story.resume || ''
     });
     setEditMaterialInput({ title: '', type: 'PDF', fileName: '', fileSize: '', previewUrl: '' });
     setIsEditing(true);
@@ -154,25 +171,43 @@ export default function StoryDetail() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (isAdmin) {
-      await updateStory(story.id, editForm);
-      alert('Admin Action: Changes saved directly.');
-      setIsEditing(false);
-      // Reload current story
-      getStories().then(stories => {
-        const found = stories.find(s => String(s.id) === String(id));
-        if (found) setStory(found);
-      });
-    } else {
-      await addPendingStory({
-        ...editForm,
-        id: story.id,
-        requestType: 'edit',
-        status: 'pending_edit',
-        uploadedByEmail: currentUser.email
-      });
-      alert('Contributor Action: Your edits have been submitted to administrators for approval.');
-      setIsEditing(false);
+    try {
+      const payload = { ...editForm };
+      
+      if (payload.resume && typeof payload.resume === 'object') {
+        payload.resumeFile = {
+          fileName: payload.resume.fileName,
+          fileSize: payload.resume.fileSize,
+          url: payload.resume.url
+        };
+        payload.resume = payload.resume.fileName;
+      } else if (!payload.resume) {
+        payload.resumeFile = null;
+      }
+
+      if (isAdmin) {
+        await updateStory(story.id, payload);
+        alert('Admin Action: Changes saved directly.');
+        setIsEditing(false);
+        // Reload current story
+        getStories().then(stories => {
+          const found = stories.find(s => String(s.id) === String(id));
+          if (found) setStory(found);
+        });
+      } else {
+        await addPendingStory({
+          ...payload,
+          id: story.id,
+          requestType: 'edit',
+          status: 'pending_edit',
+          uploadedByEmail: currentUser.email
+        });
+        alert('Contributor Action: Your edits have been submitted to administrators for approval.');
+        setIsEditing(false);
+      }
+    } catch (err) {
+      console.error("Error saving story changes:", err);
+      alert(err.message || 'Failed to save changes.');
     }
   };
 
@@ -616,13 +651,28 @@ export default function StoryDetail() {
                 onClick={() => {
                   const rf = story.resumeFile;
                   if (rf?.url && rf.url !== '#') {
-                    // actual uploaded file — trigger real download
-                    const link = document.createElement('a');
-                    link.href = rf.url;
-                    link.download = rf.fileName || 'resume.pdf';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    if (rf.url.startsWith('data:')) {
+                      const blob = dataURItoBlob(rf.url);
+                      if (blob) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = rf.fileName || 'resume.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                      } else {
+                        alert('Failed to process resume file.');
+                      }
+                    } else {
+                      const link = document.createElement('a');
+                      link.href = rf.url;
+                      link.download = rf.fileName || 'resume.pdf';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
                   } else {
                     alert('No resume file was uploaded for this story.');
                   }

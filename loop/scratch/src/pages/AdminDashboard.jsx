@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText } from 'lucide-react';
+import { Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import {
   getPendingStories,
   approveStory,
@@ -24,7 +24,11 @@ import {
   getFolders,
   addFolder,
   deleteFolder,
-  fileToBase64
+  fileToBase64,
+  approveProfileEdit,
+  rejectProfileEdit,
+  approveRegistration,
+  updateUser
 } from '../utils/db';
 
 const parsePosition = (posStr) => {
@@ -44,8 +48,8 @@ const parsePosition = (posStr) => {
 
 const parseCrop = (posStr) => {
   const defaults = {
-    outer: { x: 10, y: 10, w: 80, h: 61 },
-    inner: { x: 10, y: 10, w: 80, h: 33 }
+    outer: { x: 10, y: 0, w: 80, h: 33 },
+    inner: { x: 10, y: 0, w: 80, h: 24 }
   };
   if (!posStr || !posStr.startsWith('crop:')) return defaults;
   try {
@@ -54,8 +58,8 @@ const parseCrop = (posStr) => {
       const outerParts = parts[0].split(',').map(Number);
       const innerParts = parts[1].split(',').map(Number);
       return {
-        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 10, w: outerParts[2] ?? 80, h: outerParts[3] ?? 61 },
-        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 10, w: innerParts[2] ?? 80, h: innerParts[3] ?? 33 }
+        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 0, w: outerParts[2] ?? 80, h: outerParts[3] ?? 33 },
+        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 0, w: innerParts[2] ?? 80, h: innerParts[3] ?? 24 }
       };
     }
   } catch (e) {
@@ -64,10 +68,45 @@ const parseCrop = (posStr) => {
   return defaults;
 };
 
+const parseSliders = (posStr) => {
+  const defaults = {
+    outer: { x: 48, y: 0, zoom: 1.8 },
+    inner: { x: 50, y: 50, zoom: 1.0 }
+  };
+  if (!posStr) return defaults;
+  if (posStr.startsWith('sliders:')) {
+    try {
+      const parts = posStr.replace('sliders:', '').split(';');
+      if (parts.length >= 2) {
+        const outerParts = parts[0].split(',');
+        const innerParts = parts[1].split(',');
+        return {
+          outer: {
+            x: isNaN(parseInt(outerParts[0])) ? 48 : parseInt(outerParts[0]),
+            y: isNaN(parseInt(outerParts[1])) ? 0 : parseInt(outerParts[1]),
+            zoom: isNaN(parseFloat(outerParts[2])) ? 1.8 : parseFloat(outerParts[2])
+          },
+          inner: {
+            x: isNaN(parseInt(innerParts[0])) ? 50 : parseInt(innerParts[0]),
+            y: isNaN(parseInt(innerParts[1])) ? 50 : parseInt(innerParts[1]),
+            zoom: isNaN(parseFloat(innerParts[2])) ? 1.0 : parseFloat(innerParts[2])
+          }
+        };
+      }
+    } catch (e) {
+      console.error("Error parsing sliders string:", e);
+    }
+  }
+  const p = parsePosition(posStr);
+  return {
+    outer: { ...p },
+    inner: { ...p }
+  };
+};
+
 import { useRef } from 'react';
 
-const ImageCropper = ({ imageUrl, imagePosition, onChangePosition }) => {
-  const [activeTab, setActiveTab] = useState('outer');
+const ImageCropper = ({ imageUrl, imagePosition, onChangePosition, activeTab }) => {
   const [lockAspect, setLockAspect] = useState(true);
   const containerRef = useRef(null);
 
@@ -86,7 +125,7 @@ const ImageCropper = ({ imageUrl, imagePosition, onChangePosition }) => {
     const containerRect = containerRef.current.getBoundingClientRect();
     const containerW = containerRect.width;
     const containerH = containerRect.height;
-    const aspect = activeTab === 'outer' ? 1.3 : 2.42;
+    const aspect = activeTab === 'outer' ? 2.42 : 3.33;
 
     const handleMove = (moveEvent) => {
       const currentX = isTouch ? moveEvent.touches[0].clientX : moveEvent.clientX;
@@ -205,7 +244,7 @@ const ImageCropper = ({ imageUrl, imagePosition, onChangePosition }) => {
     if (preset === 'center') {
       updated = {
         ...crops,
-        [activeTab]: activeTab === 'outer' ? { x: 10, y: 10, w: 80, h: 61 } : { x: 10, y: 10, w: 80, h: 33 }
+        [activeTab]: activeTab === 'outer' ? { x: 10, y: 24, w: 80, h: 33 } : { x: 10, y: 28, w: 80, h: 24 }
       };
     } else {
       updated = {
@@ -220,41 +259,8 @@ const ImageCropper = ({ imageUrl, imagePosition, onChangePosition }) => {
   return (
     <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            type="button"
-            className="btn"
-            style={{
-              padding: '0.4rem 0.8rem',
-              fontSize: '0.8rem',
-              borderRadius: '8px',
-              backgroundColor: activeTab === 'outer' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
-              color: activeTab === 'outer' ? '#ffffff' : 'var(--text-primary)',
-              border: '1px solid var(--border-color)',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            onClick={() => setActiveTab('outer')}
-          >
-            Outer Card Crop (Listing)
-          </button>
-          <button
-            type="button"
-            className="btn"
-            style={{
-              padding: '0.4rem 0.8rem',
-              fontSize: '0.8rem',
-              borderRadius: '8px',
-              backgroundColor: activeTab === 'inner' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
-              color: activeTab === 'inner' ? '#ffffff' : 'var(--text-primary)',
-              border: '1px solid var(--border-color)',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            onClick={() => setActiveTab('inner')}
-          >
-            Inner View Crop (Details)
-          </button>
+        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Adjusting: {activeTab === 'outer' ? 'Outer Card (Listing)' : 'Inner View (Details)'}
         </div>
         
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500 }}>
@@ -264,7 +270,7 @@ const ImageCropper = ({ imageUrl, imagePosition, onChangePosition }) => {
             onChange={(e) => setLockAspect(e.target.checked)}
             style={{ cursor: 'pointer' }}
           />
-          Lock Aspect Ratio ({activeTab === 'outer' ? '1.3:1' : '2.4:1'})
+          Lock Aspect Ratio ({activeTab === 'outer' ? '2.42:1' : '3.33:1'})
         </label>
       </div>
 
@@ -445,6 +451,16 @@ export default function AdminDashboard() {
     return false;
   });
   const [activeTab, setActiveTab] = useState('approvals');
+  const [createTab, setCreateTab] = useState('outer');
+  const [editTab, setEditTab] = useState('outer');
+  
+  // Expand/collapse and search states for admin active content management
+  const [storiesExpanded, setStoriesExpanded] = useState(true);
+  const [resourcesExpanded, setResourcesExpanded] = useState(true);
+  const [achievementsExpanded, setAchievementsExpanded] = useState(true);
+  const [storiesSearch, setStoriesSearch] = useState('');
+  const [resourcesSearch, setResourcesSearch] = useState('');
+  const [achievementsSearch, setAchievementsSearch] = useState('');
   
   // Db data states
   const [pendingStories, setPendingStories] = useState([]);
@@ -455,6 +471,16 @@ export default function AdminDashboard() {
   const [usersList, setUsersList] = useState([]);
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [editUserForm, setEditUserForm] = useState({
+    name: '',
+    password: '',
+    role: 'Student',
+    branch: 'CSE',
+    currentYear: 'First Year',
+    status: 'Active',
+    onboarded: false
+  });
 
   const getFolderName = (folderId) => {
     if (!folderId) return '';
@@ -738,6 +764,69 @@ export default function AdminDashboard() {
       await deleteUser(email);
       await refreshData();
     }
+  };
+
+  const handleApproveProfileEdit = async (email) => {
+    try {
+      await approveProfileEdit(email);
+      await refreshData();
+    } catch (err) {
+      alert(err.message || 'Failed to approve profile edit');
+    }
+  };
+
+  const handleRejectProfileEdit = async (email) => {
+    try {
+      await rejectProfileEdit(email);
+      await refreshData();
+    } catch (err) {
+      alert(err.message || 'Failed to reject profile edit');
+    }
+  };
+
+  const handleApproveRegistration = async (email) => {
+    try {
+      await approveRegistration(email);
+      await refreshData();
+    } catch (err) {
+      alert(err.message || 'Failed to approve registration');
+    }
+  };
+
+  const handleRejectRegistration = async (email) => {
+    if (window.confirm(`Are you sure you want to reject and remove access request for "${email}"?`)) {
+      try {
+        await deleteUser(email);
+        await refreshData();
+      } catch (err) {
+        alert(err.message || 'Failed to reject registration');
+      }
+    }
+  };
+
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    try {
+      await updateUser(editingItem.email, editUserForm);
+      setEditingItem(null);
+      await refreshData();
+    } catch (err) {
+      alert(err.message || 'Failed to update user');
+    }
+  };
+
+  const startEditUser = (u) => {
+    setEditingType('user');
+    setEditingItem(u);
+    setEditUserForm({
+      name: u.name || '',
+      password: '', // default to blank, keep original password on backend if empty
+      role: u.role || 'Student',
+      branch: u.branch || 'CSE',
+      currentYear: u.currentYear || 'First Year',
+      status: u.status || 'Active',
+      onboarded: !!u.onboarded
+    });
   };
 
   // Editing helpers
@@ -1088,133 +1177,275 @@ export default function AdminDashboard() {
       {activeTab === 'active' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
           
-          {/* Active Stories */}
-          <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Active Senior Stories ({activeStories.length})</h2>
-            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-              {activeStories.map((story) => (
-                <div key={story.id} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '1rem 1.5rem',
-                  borderBottom: '1px solid var(--border-color)'
-                }}>
-                  <div>
-                    <p style={{ fontWeight: 600 }}>{story.name} ({story.company})</p>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{story.branch} • Year: {story.passoutYear} • Role: {story.role}</p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button 
-                      onClick={() => startEditStory(story)} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none' }}
-                      title="Edit Story"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteStory(story.id)} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.4rem', color: '#ff453a', border: 'none' }}
-                      title="Delete Story"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {(() => {
+            const filteredActiveStories = activeStories.filter((story) => {
+              const query = storiesSearch.toLowerCase();
+              return (
+                story.name.toLowerCase().includes(query) ||
+                story.company.toLowerCase().includes(query) ||
+                (story.role && story.role.toLowerCase().includes(query)) ||
+                (story.branch && story.branch.toLowerCase().includes(query))
+              );
+            });
 
-          {/* Active Resources */}
-          <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Active Resources ({activeResources.length})</h2>
-            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-              {activeResources.map((res) => (
-                <div key={res.id} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '1rem 1.5rem',
-                  borderBottom: '1px solid var(--border-color)'
-                }}>
-                  <div>
-                    <p style={{ fontWeight: 600 }}>{res.title}</p>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      {res.category} • Folder: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getFolderName(res.folderId) || res.folder || 'None'}</span> • Type: {res.type} • Shared by: {res.uploadedBy}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => setViewerFile({
-                        title: res.title,
-                        type: res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap' ? 'PDF' : res.type,
-                        fileName: res.title + '.pdf',
-                        fileSize: '1.2 MB',
-                        previewUrl: res.link || '#'
-                      })}
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
-                    >
-                      View File
-                    </button>
-                    <button 
-                      onClick={() => startEditResource(res)} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none', cursor: 'pointer' }}
-                      title="Edit Resource"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button onClick={() => handleDeleteResource(res.id)} className="btn btn-secondary" style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}>
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+            const filteredActiveResources = activeResources.filter((res) => {
+              const query = resourcesSearch.toLowerCase();
+              return (
+                res.title.toLowerCase().includes(query) ||
+                res.category.toLowerCase().includes(query) ||
+                (res.uploadedBy && res.uploadedBy.toLowerCase().includes(query))
+              );
+            });
 
-          {/* Active Achievements */}
-          <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1rem' }}>Active Achievements/News ({activeAchievements.length})</h2>
-            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-              {activeAchievements.map((item) => (
-                <div key={item.id} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '1rem 1.5rem',
-                  borderBottom: '1px solid var(--border-color)'
-                }}>
-                  <div>
-                    <p style={{ fontWeight: 600 }}>{item.title}</p>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.category} • Date: {item.date}</p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button 
-                      onClick={() => startEditAchievement(item)} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none' }}
-                      title="Edit Achievement"
+            const filteredActiveAchievements = activeAchievements.filter((item) => {
+              const query = achievementsSearch.toLowerCase();
+              return (
+                item.title.toLowerCase().includes(query) ||
+                item.category.toLowerCase().includes(query) ||
+                (item.description && item.description.toLowerCase().includes(query))
+              );
+            });
+
+            return (
+              <>
+                {/* Active Stories */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }} 
+                      onClick={() => setStoriesExpanded(!storiesExpanded)}
                     >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteAchievement(item.id)} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.4rem', color: '#ff453a', border: 'none' }}
-                      title="Delete Achievement"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Active Senior Stories ({filteredActiveStories.length})</h2>
+                      {storiesExpanded ? <ChevronUp size={20} style={{ color: 'var(--text-secondary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--text-secondary)' }} />}
+                    </div>
+                    {storiesExpanded && (
+                      <div style={{ position: 'relative', minWidth: '240px' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                        <input
+                          type="text"
+                          placeholder="Search senior stories..."
+                          value={storiesSearch}
+                          onChange={(e) => setStoriesSearch(e.target.value)}
+                          style={{
+                            padding: '0.4rem 0.75rem 0.4rem 2rem',
+                            fontSize: '0.85rem',
+                            borderRadius: '20px',
+                            border: '1px solid var(--border-color)',
+                            backgroundColor: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            outline: 'none',
+                            width: '100%'
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
+                  
+                  {storiesExpanded && (
+                    <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                      {filteredActiveStories.length > 0 ? (
+                        filteredActiveStories.map((story) => (
+                          <div key={story.id} style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1rem 1.5rem',
+                            borderBottom: '1px solid var(--border-color)'
+                          }}>
+                            <div>
+                              <p style={{ fontWeight: 600 }}>{story.name} ({story.company})</p>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{story.branch} • Year: {story.passoutYear} • Role: {story.role}</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button 
+                                onClick={() => startEditStory(story)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none', cursor: 'pointer' }}
+                                title="Edit Story"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteStory(story.id)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}
+                                title="Delete Story"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p style={{ padding: '1.5rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>No stories found.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
+
+                {/* Active Resources */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }} 
+                      onClick={() => setResourcesExpanded(!resourcesExpanded)}
+                    >
+                      <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Active Resources ({filteredActiveResources.length})</h2>
+                      {resourcesExpanded ? <ChevronUp size={20} style={{ color: 'var(--text-secondary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--text-secondary)' }} />}
+                    </div>
+                    {resourcesExpanded && (
+                      <div style={{ position: 'relative', minWidth: '240px' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                        <input
+                          type="text"
+                          placeholder="Search study resources..."
+                          value={resourcesSearch}
+                          onChange={(e) => setResourcesSearch(e.target.value)}
+                          style={{
+                            padding: '0.4rem 0.75rem 0.4rem 2rem',
+                            fontSize: '0.85rem',
+                            borderRadius: '20px',
+                            border: '1px solid var(--border-color)',
+                            backgroundColor: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            outline: 'none',
+                            width: '100%'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {resourcesExpanded && (
+                    <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                      {filteredActiveResources.length > 0 ? (
+                        filteredActiveResources.map((res) => (
+                          <div key={res.id} style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1rem 1.5rem',
+                            borderBottom: '1px solid var(--border-color)'
+                          }}>
+                            <div>
+                              <p style={{ fontWeight: 600 }}>{res.title}</p>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                {res.category} • Folder: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getFolderName(res.folderId) || res.folder || 'None'}</span> • Type: {res.type} • Shared by: {res.uploadedBy}
+                              </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <button 
+                                type="button" 
+                                onClick={() => setViewerFile({
+                                  title: res.title,
+                                  type: res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap' ? 'PDF' : res.type,
+                                  fileName: res.title + '.pdf',
+                                  fileSize: '1.2 MB',
+                                  previewUrl: res.link || '#'
+                                })}
+                                className="btn btn-secondary" 
+                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
+                              >
+                                View File
+                              </button>
+                              <button 
+                                onClick={() => startEditResource(res)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none', cursor: 'pointer' }}
+                                title="Edit Resource"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button onClick={() => handleDeleteResource(res.id)} className="btn btn-secondary" style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}>
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p style={{ padding: '1.5rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>No resources found.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Active Achievements */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }} 
+                      onClick={() => setAchievementsExpanded(!achievementsExpanded)}
+                    >
+                      <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Active Achievements/News ({filteredActiveAchievements.length})</h2>
+                      {achievementsExpanded ? <ChevronUp size={20} style={{ color: 'var(--text-secondary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--text-secondary)' }} />}
+                    </div>
+                    {achievementsExpanded && (
+                      <div style={{ position: 'relative', minWidth: '240px' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                        <input
+                          type="text"
+                          placeholder="Search achievements..."
+                          value={achievementsSearch}
+                          onChange={(e) => setAchievementsSearch(e.target.value)}
+                          style={{
+                            padding: '0.4rem 0.75rem 0.4rem 2rem',
+                            fontSize: '0.85rem',
+                            borderRadius: '20px',
+                            border: '1px solid var(--border-color)',
+                            backgroundColor: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            outline: 'none',
+                            width: '100%'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {achievementsExpanded && (
+                    <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                      {filteredActiveAchievements.length > 0 ? (
+                        filteredActiveAchievements.map((item) => (
+                          <div key={item.id} style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1rem 1.5rem',
+                            borderBottom: '1px solid var(--border-color)'
+                          }}>
+                            <div>
+                              <p style={{ fontWeight: 600 }}>{item.title}</p>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.category} • Date: {item.date}</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button 
+                                onClick={() => startEditAchievement(item)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none', cursor: 'pointer' }}
+                                title="Edit Achievement"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteAchievement(item.id)} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}
+                                title="Delete Achievement"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p style={{ padding: '1.5rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>No achievements found.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
 
           {/* Manage Folders */}
           <div style={{ marginTop: '3rem' }}>
@@ -1458,7 +1689,8 @@ export default function AdminDashboard() {
             </div>
 
             {(() => {
-              const createPos = parsePosition(achievementForm.imagePosition);
+              const slidersData = parseSliders(achievementForm.imagePosition);
+              const activeSlider = createTab === 'outer' ? slidersData.outer : slidersData.inner;
               return (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
@@ -1473,13 +1705,13 @@ export default function AdminDashboard() {
                             setAchievementForm({ 
                               ...achievementForm, 
                               imageFit: 'crop', 
-                              imagePosition: 'crop:10,10,80,61;10,10,80,33'
+                              imagePosition: 'crop:10,0,80,33;10,0,80,24'
                             });
                           } else if (val === 'cover') {
                             setAchievementForm({ 
                               ...achievementForm, 
                               imageFit: 'cover', 
-                              imagePosition: '50% 50% 1.0'
+                              imagePosition: 'sliders:48,0,1.8;50,50,1.0'
                             });
                           } else {
                             setAchievementForm({ 
@@ -1505,7 +1737,7 @@ export default function AdminDashboard() {
                         onChange={(e) => {
                           const val = e.target.value;
                           if (val === 'custom') {
-                            setAchievementForm({ ...achievementForm, imagePosition: '50% 50% 1.0' });
+                            setAchievementForm({ ...achievementForm, imagePosition: 'sliders:48,0,1.8;50,50,1.0', imageFit: 'cover' });
                           } else {
                             setAchievementForm({ ...achievementForm, imagePosition: val, imageFit: 'cover' });
                           }
@@ -1523,57 +1755,123 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  {['crop', 'cover'].includes(achievementForm.imageFit) && achievementForm.image && (
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{
+                          padding: '0.4rem 0.8rem',
+                          fontSize: '0.8rem',
+                          borderRadius: '8px',
+                          backgroundColor: createTab === 'outer' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
+                          color: createTab === 'outer' ? '#ffffff' : 'var(--text-primary)',
+                          border: '1px solid var(--border-color)',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setCreateTab('outer')}
+                      >
+                        {achievementForm.imageFit === 'crop' ? 'Outer Card Crop (Listing)' : 'Outer Card Sliders (Listing)'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{
+                          padding: '0.4rem 0.8rem',
+                          fontSize: '0.8rem',
+                          borderRadius: '8px',
+                          backgroundColor: createTab === 'inner' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
+                          color: createTab === 'inner' ? '#ffffff' : 'var(--text-primary)',
+                          border: '1px solid var(--border-color)',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setCreateTab('inner')}
+                      >
+                        {achievementForm.imageFit === 'crop' ? 'Inner View Crop (Details)' : 'Inner View Sliders (Details)'}
+                      </button>
+                    </div>
+                  )}
+
                   {achievementForm.imageFit === 'crop' && achievementForm.image && (
                     <div style={{ marginBottom: '1.25rem' }}>
-                      <label className="input-label" style={{ fontWeight: 600 }}>Visual Crop Selector</label>
                       <ImageCropper
                         imageUrl={achievementForm.image}
                         imagePosition={achievementForm.imagePosition}
                         onChangePosition={(posStr) => setAchievementForm({ ...achievementForm, imagePosition: posStr })}
+                        activeTab={createTab}
                       />
                     </div>
                   )}
 
-                  {achievementForm.imageFit === 'cover' && (
+                  {achievementForm.imageFit === 'cover' && achievementForm.image && (
                     <div style={{ padding: '1rem', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', marginBottom: '1.25rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                            <span>Horizontal Offset (X-Axis): {createPos.x}%</span>
+                            <span>Horizontal Offset (X-Axis): {activeSlider.x}%</span>
                           </div>
                           <input 
                             type="range" 
                             min="0" 
                             max="100" 
-                            value={createPos.x} 
-                            onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: `${e.target.value}% ${createPos.y}% ${createPos.zoom}` })}
+                            value={activeSlider.x} 
+                            onChange={(e) => {
+                              const updated = {
+                                ...slidersData,
+                                [createTab]: { ...activeSlider, x: parseInt(e.target.value) }
+                              };
+                              setAchievementForm({ 
+                                ...achievementForm, 
+                                imagePosition: `sliders:${updated.outer.x},${updated.outer.y},${updated.outer.zoom};${updated.inner.x},${updated.inner.y},${updated.inner.zoom}` 
+                              });
+                            }}
                             style={{ width: '100%', cursor: 'pointer' }}
                           />
                         </div>
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                            <span>Vertical Offset (Y-Axis): {createPos.y}%</span>
+                            <span>Vertical Offset (Y-Axis): {activeSlider.y}%</span>
                           </div>
                           <input 
                             type="range" 
                             min="0" 
                             max="100" 
-                            value={createPos.y} 
-                            onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: `${createPos.x}% ${e.target.value}% ${createPos.zoom}` })}
+                            value={activeSlider.y} 
+                            onChange={(e) => {
+                              const updated = {
+                                ...slidersData,
+                                [createTab]: { ...activeSlider, y: parseInt(e.target.value) }
+                              };
+                              setAchievementForm({ 
+                                ...achievementForm, 
+                                imagePosition: `sliders:${updated.outer.x},${updated.outer.y},${updated.outer.zoom};${updated.inner.x},${updated.inner.y},${updated.inner.zoom}` 
+                              });
+                            }}
                             style={{ width: '100%', cursor: 'pointer' }}
                           />
                         </div>
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                            <span>Zoom Scale: {createPos.zoom}x</span>
+                            <span>Zoom Scale: {activeSlider.zoom}x</span>
                           </div>
                           <input 
                             type="range" 
                             min="1.0" 
                             max="3.0" 
                             step="0.1"
-                            value={createPos.zoom} 
-                            onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: `${createPos.x}% ${createPos.y}% ${e.target.value}` })}
+                            value={activeSlider.zoom} 
+                            onChange={(e) => {
+                              const updated = {
+                                ...slidersData,
+                                [createTab]: { ...activeSlider, zoom: parseFloat(e.target.value) }
+                              };
+                              setAchievementForm({ 
+                                ...achievementForm, 
+                                imagePosition: `sliders:${updated.outer.x},${updated.outer.y},${updated.outer.zoom};${updated.inner.x},${updated.inner.y},${updated.inner.zoom}` 
+                              });
+                            }}
                             style={{ width: '100%', cursor: 'pointer' }}
                           />
                         </div>
@@ -1592,16 +1890,16 @@ export default function AdminDashboard() {
                       <h4 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
                         Live Crop & Fitting Previews
                       </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1.5rem', alignItems: 'start' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
                         <div>
                           <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
-                            Outer Card (Listing) - Aspect Ratio ~1.3
+                            Outer Card (Listing) - Aspect Ratio ~2.42
                           </span>
                           <div style={{
-                            height: '200px',
-                            width: '260px',
+                            height: '110px',
+                            width: '264px',
                             overflow: 'hidden',
-                            borderRadius: '12px',
+                            borderRadius: '8px',
                             border: '1px solid var(--border-color)',
                             position: 'relative',
                             backgroundColor: 'var(--bg-primary)'
@@ -1626,17 +1924,19 @@ export default function AdminDashboard() {
                                   />
                                 );
                               }
+                              const p = slidersData.outer;
                               return (
                                 <img 
                                   src={achievementForm.image} 
                                   alt="Outer Card Preview" 
                                   style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: achievementForm.imageFit || 'cover',
-                                    objectPosition: `${createPos.x}% ${createPos.y}%`,
-                                    transform: `scale(${createPos.zoom})`,
-                                    transformOrigin: 'center'
+                                    position: 'absolute',
+                                    width: `${p.zoom * 100}%`,
+                                    height: `${p.zoom * 100}%`,
+                                    left: `${-p.x * (p.zoom - 1)}%`,
+                                    top: `${-p.y * (p.zoom - 1)}%`,
+                                    objectFit: 'cover',
+                                    objectPosition: `${p.x}% ${p.y}%`
                                   }}
                                 />
                               );
@@ -1645,13 +1945,13 @@ export default function AdminDashboard() {
                         </div>
                         <div>
                           <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
-                            Inner View (Details) - Aspect Ratio ~2.4
+                            Inner View (Details) - Aspect Ratio ~3.33
                           </span>
                           <div style={{
-                            height: '110px',
-                            width: '264px',
+                            height: '78px',
+                            width: '260px',
                             overflow: 'hidden',
-                            borderRadius: '8px',
+                            borderRadius: '12px',
                             border: '1px solid var(--border-color)',
                             position: 'relative',
                             backgroundColor: 'var(--bg-primary)'
@@ -1676,17 +1976,19 @@ export default function AdminDashboard() {
                                   />
                                 );
                               }
+                              const p = slidersData.inner;
                               return (
                                 <img 
                                   src={achievementForm.image} 
                                   alt="Inner View Preview" 
                                   style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: achievementForm.imageFit || 'cover',
-                                    objectPosition: `${createPos.x}% ${createPos.y}%`,
-                                    transform: `scale(${createPos.zoom})`,
-                                    transformOrigin: 'center'
+                                    position: 'absolute',
+                                    width: `${p.zoom * 100}%`,
+                                    height: `${p.zoom * 100}%`,
+                                    left: `${-p.x * (p.zoom - 1)}%`,
+                                    top: `${-p.y * (p.zoom - 1)}%`,
+                                    objectFit: 'cover',
+                                    objectPosition: `${p.x}% ${p.y}%`
                                   }}
                                 />
                               );
@@ -1721,7 +2023,77 @@ export default function AdminDashboard() {
 
       {/* Tab: Users list */}
       {activeTab === 'users' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
+        <>
+          {/* Pending Registration Requests Section */}
+          {usersList.some(u => u.status === 'Pending') && (
+            <div style={{ marginBottom: '2.5rem' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Clock size={20} style={{ color: '#ff9500' }} />
+                <span>Pending Access Requests ({usersList.filter(u => u.status === 'Pending').length})</span>
+              </h2>
+              <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+                      <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Email Address</th>
+                      <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Default Role</th>
+                      <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usersList.filter(u => u.status === 'Pending').map((u, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.85rem 1.25rem', fontWeight: 500 }}>{u.email}</td>
+                        <td style={{ padding: '0.85rem 1.25rem' }}>{u.role}</td>
+                        <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                            <button
+                              onClick={() => handleApproveRegistration(u.email)}
+                              className="btn btn-primary"
+                              style={{
+                                padding: '0.35rem 0.75rem',
+                                fontSize: '0.8rem',
+                                backgroundColor: '#30d158',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Check size={14} /> Approve
+                            </button>
+                            <button
+                              onClick={() => handleRejectRegistration(u.email)}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '0.35rem 0.75rem',
+                                fontSize: '0.8rem',
+                                backgroundColor: 'rgba(255, 69, 58, 0.1)',
+                                color: '#ff453a',
+                                border: '1px solid rgba(255, 69, 58, 0.2)',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <X size={14} /> Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
           
           {/* Add User panel */}
           <div>
@@ -1760,47 +2132,221 @@ export default function AdminDashboard() {
 
           {/* Users List Table */}
           <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Users size={20} />
-              <span>Simulated Platform Users ({usersList.length})</span>
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                <Users size={20} />
+                <span>Simulated Platform Users ({usersList.filter(u => u.status !== 'Pending').length})</span>
+              </h2>
+              {/* Search Bar */}
+              <div style={{ position: 'relative', width: '250px' }}>
+                <Search size={16} style={{
+                  position: 'absolute',
+                  left: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-secondary)',
+                  pointerEvents: 'none'
+                }} />
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Search email, name..."
+                  value={usersSearch}
+                  onChange={(e) => setUsersSearch(e.target.value)}
+                  style={{
+                    paddingLeft: '2.25rem',
+                    paddingTop: '0.45rem',
+                    paddingBottom: '0.45rem',
+                    margin: 0,
+                    borderRadius: '10px',
+                    fontSize: '0.85rem'
+                  }}
+                />
+              </div>
+            </div>
+
             <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
                     <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Email Address</th>
                     <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Assigned Role</th>
+                    <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Profile Details</th>
                     <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)' }}>Status</th>
                     <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {usersList.map((u, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '0.85rem 1.25rem', fontWeight: 500 }}>{u.email}</td>
-                      <td style={{ padding: '0.85rem 1.25rem' }}>{u.role}</td>
-                      <td style={{ padding: '0.85rem 1.25rem' }}>
-                        <span className="badge" style={{ backgroundColor: 'rgba(48, 209, 88, 0.1)', borderColor: 'rgba(48, 209, 88, 0.2)', color: '#30d158' }}>
-                          {u.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
-                        <button 
-                          onClick={() => handleRemoveUser(u.email)} 
-                          className="btn btn-secondary" 
-                          style={{ padding: '0.35rem', color: '#ff453a', border: 'none' }}
-                          title="Remove User"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                  {usersList.filter(u => u.status !== 'Pending').filter(u => {
+                    const search = usersSearch.toLowerCase();
+                    return (
+                      (u.email && u.email.toLowerCase().includes(search)) ||
+                      (u.name && u.name.toLowerCase().includes(search)) ||
+                      (u.role && u.role.toLowerCase().includes(search)) ||
+                      (u.branch && u.branch.toLowerCase().includes(search)) ||
+                      (u.currentYear && u.currentYear.toLowerCase().includes(search))
+                    );
+                  }).length === 0 ? (
+                    <tr>
+                      <td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                        No users found
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    usersList.filter(u => u.status !== 'Pending').filter(u => {
+                      const search = usersSearch.toLowerCase();
+                      return (
+                        (u.email && u.email.toLowerCase().includes(search)) ||
+                        (u.name && u.name.toLowerCase().includes(search)) ||
+                        (u.role && u.role.toLowerCase().includes(search)) ||
+                        (u.branch && u.branch.toLowerCase().includes(search)) ||
+                        (u.currentYear && u.currentYear.toLowerCase().includes(search))
+                      );
+                    }).map((u, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.85rem 1.25rem', fontWeight: 500 }}>{u.email}</td>
+                        <td style={{ padding: '0.85rem 1.25rem' }}>{u.role}</td>
+                        <td style={{ padding: '0.85rem 1.25rem' }}>
+                          {u.name || u.branch || u.currentYear ? (
+                            `${u.name || 'N/A'} | ${u.branch || 'N/A'} | ${u.currentYear || 'N/A'}`
+                          ) : (
+                            <span style={{ color: 'var(--text-secondary)', opacity: 0.6, fontStyle: 'italic' }}>Not onboarded</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.85rem 1.25rem' }}>
+                          <span className="badge" style={{ 
+                            backgroundColor: u.status === 'Active' ? 'rgba(48, 209, 88, 0.1)' : 'rgba(255, 69, 58, 0.1)', 
+                            borderColor: u.status === 'Active' ? 'rgba(48, 209, 88, 0.2)' : 'rgba(255, 69, 58, 0.2)', 
+                            color: u.status === 'Active' ? '#30d158' : '#ff453a' 
+                          }}>
+                            {u.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                            <button 
+                              onClick={() => startEditUser(u)} 
+                              className="btn btn-secondary" 
+                              style={{ padding: '0.35rem', color: 'var(--text-primary)', border: 'none', background: 'transparent' }}
+                              title="Edit User"
+                            >
+                              <Edit size={15} />
+                            </button>
+                            <button 
+                              onClick={() => handleRemoveUser(u.email)} 
+                              className="btn btn-secondary" 
+                              style={{ padding: '0.35rem', color: '#ff453a', border: 'none', background: 'transparent' }}
+                              title="Remove User"
+                              disabled={u.email.toLowerCase() === 'admin@spit.ac.in'}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
+
+        {/* Pending Profile Edits */}
+        {usersList.some(u => u.hasPendingEdit) && (
+          <div style={{ marginTop: '3rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ShieldAlert size={20} style={{ color: '#ff9500' }} />
+              <span>Pending Profile Edit Requests ({usersList.filter(u => u.hasPendingEdit).length})</span>
+            </h2>
+            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', padding: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {usersList.filter(u => u.hasPendingEdit).map((u, i) => (
+                  <div key={i} className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+                      <div>
+                        <p style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{u.email}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Status: Active</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          onClick={() => handleApproveProfileEdit(u.email)}
+                          className="btn btn-primary"
+                          style={{ 
+                            padding: '0.45rem 1rem', 
+                            fontSize: '0.8rem', 
+                            backgroundColor: '#30d158', 
+                            color: '#ffffff', 
+                            border: 'none',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Check size={14} />
+                          <span>Approve</span>
+                        </button>
+                        <button 
+                          onClick={() => handleRejectProfileEdit(u.email)}
+                          className="btn btn-secondary"
+                          style={{ 
+                            padding: '0.45rem 1rem', 
+                            fontSize: '0.8rem', 
+                            backgroundColor: 'rgba(255, 69, 58, 0.1)', 
+                            color: '#ff453a', 
+                            border: '1px solid rgba(255, 69, 58, 0.2)',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <X size={14} />
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Side-by-side comparison */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                      {/* Current Profile */}
+                      <div style={{ borderRight: '1px solid var(--border-color)', paddingRight: '1rem' }}>
+                        <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '0.5rem' }}>
+                          Current Details
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.85rem' }}>
+                          <p><strong>Name:</strong> {u.name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Not set</span>}</p>
+                          <p><strong>Role:</strong> {u.role}</p>
+                          <p><strong>Branch:</strong> {u.branch || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Not set</span>}</p>
+                          <p><strong>Year:</strong> {u.currentYear || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Not set</span>}</p>
+                        </div>
+                      </div>
+
+                      {/* Proposed Profile */}
+                      <div>
+                        <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#ff9500', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '0.5rem' }}>
+                          Proposed Details
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.85rem' }}>
+                          <p><strong>Name:</strong> <span style={{ color: u.name !== u.pendingName ? '#ff9500' : 'var(--text-primary)', fontWeight: u.name !== u.pendingName ? 600 : 400 }}>{u.pendingName}</span></p>
+                          <p><strong>Role:</strong> <span style={{ color: u.role !== u.pendingRole ? '#ff9500' : 'var(--text-primary)', fontWeight: u.role !== u.pendingRole ? 600 : 400 }}>{u.pendingRole}</span></p>
+                          <p><strong>Branch:</strong> <span style={{ color: u.branch !== u.pendingBranch ? '#ff9500' : 'var(--text-primary)', fontWeight: u.branch !== u.pendingBranch ? 600 : 400 }}>{u.pendingBranch}</span></p>
+                          <p><strong>Year:</strong> <span style={{ color: u.currentYear !== u.pendingCurrentYear ? '#ff9500' : 'var(--text-primary)', fontWeight: u.currentYear !== u.pendingCurrentYear ? 600 : 400 }}>{u.pendingCurrentYear}</span></p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* Glassmorphic Edit Details Overlay Modal */}
@@ -2416,6 +2962,128 @@ export default function AdminDashboard() {
                   Save Resource Details
                 </button>
               </form>
+            ) : editingType === 'user' ? (
+              <form onSubmit={handleSaveUser}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Email Address (Read-only)</label>
+                    <input 
+                      type="email" 
+                      className="input-field" 
+                      value={editingItem.email} 
+                      disabled 
+                      style={{ opacity: 0.7 }}
+                    />
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Password</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Leave blank to keep current password"
+                      value={editUserForm.password} 
+                      onChange={e => setEditUserForm({ ...editUserForm, password: e.target.value })} 
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Full Name</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="User's name"
+                      value={editUserForm.name} 
+                      onChange={e => setEditUserForm({ ...editUserForm, name: e.target.value })} 
+                    />
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Role</label>
+                    <select
+                      className="input-field"
+                      value={editUserForm.role}
+                      onChange={e => setEditUserForm({ ...editUserForm, role: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                      disabled={editingItem.email.toLowerCase() === 'admin@spit.ac.in'}
+                    >
+                      <option value="Student">Student</option>
+                      <option value="Senior / Contributor">Senior / Contributor</option>
+                      <option value="Alumni / Contributor">Alumni / Contributor</option>
+                      <option value="Administrator">Administrator</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Branch</label>
+                    <select
+                      className="input-field"
+                      value={editUserForm.branch}
+                      onChange={e => setEditUserForm({ ...editUserForm, branch: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="CSE">CSE</option>
+                      <option value="CSE AI">CSE AI</option>
+                      <option value="CSE DS">CSE DS</option>
+                      <option value="CE">CE</option>
+                      <option value="EXTC">EXTC</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Current Year</label>
+                    <select
+                      className="input-field"
+                      value={editUserForm.currentYear}
+                      onChange={e => setEditUserForm({ ...editUserForm, currentYear: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="First Year">First Year</option>
+                      <option value="Second Year">Second Year</option>
+                      <option value="Third Year">Third Year</option>
+                      <option value="Fourth Year">Fourth Year</option>
+                      <option value="Alumnus / Graduate">Alumnus / Graduate</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Status</label>
+                    <select
+                      className="input-field"
+                      value={editUserForm.status}
+                      onChange={e => setEditUserForm({ ...editUserForm, status: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Onboarding Completed</label>
+                    <select
+                      className="input-field"
+                      value={editUserForm.onboarded ? "true" : "false"}
+                      onChange={e => setEditUserForm({ ...editUserForm, onboarded: e.target.value === "true" })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="true">Yes (True)</option>
+                      <option value="false">No (False)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                  Save User Details
+                </button>
+              </form>
             ) : (
               <form onSubmit={handleSaveAchievement}>
                 <div className="input-group">
@@ -2544,7 +3212,8 @@ export default function AdminDashboard() {
                   </div>
 
                   {(() => {
-                    const editPos = parsePosition(editAchievementForm.imagePosition);
+                    const slidersData = parseSliders(editAchievementForm.imagePosition);
+                    const activeSlider = editTab === 'outer' ? slidersData.outer : slidersData.inner;
                     return (
                       <>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
@@ -2553,49 +3222,49 @@ export default function AdminDashboard() {
                             <select
                               className="input-field"
                               value={editAchievementForm.imageFit || 'crop'}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === 'crop') {
-                                  setEditAchievementForm({ 
-                                    ...editAchievementForm, 
-                                    imageFit: 'crop', 
-                                    imagePosition: 'crop:10,10,80,61;10,10,80,33'
-                                  });
-                                } else if (val === 'cover') {
-                                  setEditAchievementForm({ 
-                                    ...editAchievementForm, 
-                                    imageFit: 'cover', 
-                                    imagePosition: '50% 50% 1.0'
-                                  });
-                                } else {
-                                  setEditAchievementForm({ 
-                                    ...editAchievementForm, 
-                                    imageFit: 'contain', 
-                                    imagePosition: 'center'
-                                  });
-                                }
-                              }}
-                              style={{ backgroundColor: 'var(--bg-secondary)' }}
-                            >
-                              <option value="crop">Visual Crop Tool (Recommended)</option>
-                              <option value="cover">Presets / Manual Sliders (Cover)</option>
-                              <option value="contain">Show Full Image (Contain)</option>
-                            </select>
-                          </div>
+                               onChange={(e) => {
+                                 const val = e.target.value;
+                                 if (val === 'crop') {
+                                   setEditAchievementForm({ 
+                                     ...editAchievementForm, 
+                                     imageFit: 'crop', 
+                                     imagePosition: 'crop:10,0,80,33;10,0,80,24'
+                                   });
+                                 } else if (val === 'cover') {
+                                   setEditAchievementForm({ 
+                                     ...editAchievementForm, 
+                                     imageFit: 'cover', 
+                                     imagePosition: 'sliders:48,0,1.8;50,50,1.0'
+                                   });
+                                 } else {
+                                   setEditAchievementForm({ 
+                                     ...editAchievementForm, 
+                                     imageFit: 'contain', 
+                                     imagePosition: 'center'
+                                   });
+                                 }
+                               }}
+                               style={{ backgroundColor: 'var(--bg-secondary)' }}
+                             >
+                               <option value="crop">Visual Crop Tool (Recommended)</option>
+                               <option value="cover">Presets / Manual Sliders (Cover)</option>
+                               <option value="contain">Show Full Image (Contain)</option>
+                             </select>
+                           </div>
 
-                          <div className="input-group">
-                            <label className="input-label">Image Presets / Manual</label>
-                            <select
-                              className="input-field"
-                              value={['center', 'top', 'bottom', 'left', 'right'].includes(editAchievementForm.imagePosition) ? editAchievementForm.imagePosition : 'custom'}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === 'custom') {
-                                  setEditAchievementForm({ ...editAchievementForm, imagePosition: '50% 50% 1.0' });
-                                } else {
-                                  setEditAchievementForm({ ...editAchievementForm, imagePosition: val, imageFit: 'cover' });
-                                }
-                              }}
+                           <div className="input-group">
+                             <label className="input-label">Image Presets / Manual</label>
+                             <select
+                               className="input-field"
+                               value={['center', 'top', 'bottom', 'left', 'right'].includes(editAchievementForm.imagePosition) ? editAchievementForm.imagePosition : 'custom'}
+                               onChange={(e) => {
+                                 const val = e.target.value;
+                                 if (val === 'custom') {
+                                   setEditAchievementForm({ ...editAchievementForm, imagePosition: 'sliders:48,0,1.8;50,50,1.0', imageFit: 'cover' });
+                                 } else {
+                                   setEditAchievementForm({ ...editAchievementForm, imagePosition: val, imageFit: 'cover' });
+                                 }
+                               }}
                               style={{ backgroundColor: 'var(--bg-secondary)' }}
                               disabled={editAchievementForm.imageFit === 'contain' || editAchievementForm.imageFit === 'crop'}
                             >
@@ -2609,57 +3278,123 @@ export default function AdminDashboard() {
                           </div>
                         </div>
 
+                        {['crop', 'cover'].includes(editAchievementForm.imageFit) && editAchievementForm.image && (
+                          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{
+                                padding: '0.4rem 0.8rem',
+                                fontSize: '0.8rem',
+                                borderRadius: '8px',
+                                backgroundColor: editTab === 'outer' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
+                                color: editTab === 'outer' ? '#ffffff' : 'var(--text-primary)',
+                                border: '1px solid var(--border-color)',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => setEditTab('outer')}
+                            >
+                              {editAchievementForm.imageFit === 'crop' ? 'Outer Card Crop (Listing)' : 'Outer Card Sliders (Listing)'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{
+                                padding: '0.4rem 0.8rem',
+                                fontSize: '0.8rem',
+                                borderRadius: '8px',
+                                backgroundColor: editTab === 'inner' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
+                                color: editTab === 'inner' ? '#ffffff' : 'var(--text-primary)',
+                                border: '1px solid var(--border-color)',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => setEditTab('inner')}
+                            >
+                              {editAchievementForm.imageFit === 'crop' ? 'Inner View Crop (Details)' : 'Inner View Sliders (Details)'}
+                            </button>
+                          </div>
+                        )}
+
                         {editAchievementForm.imageFit === 'crop' && editAchievementForm.image && (
                           <div style={{ marginBottom: '1.25rem' }}>
-                            <label className="input-label" style={{ fontWeight: 600 }}>Visual Crop Selector</label>
                             <ImageCropper
                               imageUrl={editAchievementForm.image}
                               imagePosition={editAchievementForm.imagePosition}
                               onChangePosition={(posStr) => setEditAchievementForm({ ...editAchievementForm, imagePosition: posStr })}
+                              activeTab={editTab}
                             />
                           </div>
                         )}
 
-                        {editAchievementForm.imageFit === 'cover' && (
+                        {editAchievementForm.imageFit === 'cover' && editAchievementForm.image && (
                           <div style={{ padding: '1rem', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', marginBottom: '1.25rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                               <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                  <span>Horizontal Offset (X-Axis): {editPos.x}%</span>
+                                  <span>Horizontal Offset (X-Axis): {activeSlider.x}%</span>
                                 </div>
                                 <input 
                                   type="range" 
                                   min="0" 
                                   max="100" 
-                                  value={editPos.x} 
-                                  onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: `${e.target.value}% ${editPos.y}% ${editPos.zoom}` })}
+                                  value={activeSlider.x} 
+                                  onChange={(e) => {
+                                    const updated = {
+                                      ...slidersData,
+                                      [editTab]: { ...activeSlider, x: parseInt(e.target.value) }
+                                    };
+                                    setEditAchievementForm({ 
+                                      ...editAchievementForm, 
+                                      imagePosition: `sliders:${updated.outer.x},${updated.outer.y},${updated.outer.zoom};${updated.inner.x},${updated.inner.y},${updated.inner.zoom}` 
+                                    });
+                                  }}
                                   style={{ width: '100%', cursor: 'pointer' }}
                                 />
                               </div>
                               <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                  <span>Vertical Offset (Y-Axis): {editPos.y}%</span>
+                                  <span>Vertical Offset (Y-Axis): {activeSlider.y}%</span>
                                 </div>
                                 <input 
                                   type="range" 
                                   min="0" 
                                   max="100" 
-                                  value={editPos.y} 
-                                  onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: `${editPos.x}% ${e.target.value}% ${editPos.zoom}` })}
+                                  value={activeSlider.y} 
+                                  onChange={(e) => {
+                                    const updated = {
+                                      ...slidersData,
+                                      [editTab]: { ...activeSlider, y: parseInt(e.target.value) }
+                                    };
+                                    setEditAchievementForm({ 
+                                      ...editAchievementForm, 
+                                      imagePosition: `sliders:${updated.outer.x},${updated.outer.y},${updated.outer.zoom};${updated.inner.x},${updated.inner.y},${updated.inner.zoom}` 
+                                    });
+                                  }}
                                   style={{ width: '100%', cursor: 'pointer' }}
                                 />
                               </div>
                               <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                  <span>Zoom Scale: {editPos.zoom}x</span>
+                                  <span>Zoom Scale: {activeSlider.zoom}x</span>
                                 </div>
                                 <input 
                                   type="range" 
                                   min="1.0" 
                                   max="3.0" 
                                   step="0.1"
-                                  value={editPos.zoom} 
-                                  onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: `${editPos.x}% ${editPos.y}% ${e.target.value}` })}
+                                  value={activeSlider.zoom} 
+                                  onChange={(e) => {
+                                    const updated = {
+                                      ...slidersData,
+                                      [editTab]: { ...activeSlider, zoom: parseFloat(e.target.value) }
+                                    };
+                                    setEditAchievementForm({ 
+                                      ...editAchievementForm, 
+                                      imagePosition: `sliders:${updated.outer.x},${updated.outer.y},${updated.outer.zoom};${updated.inner.x},${updated.inner.y},${updated.inner.zoom}` 
+                                    });
+                                  }}
                                   style={{ width: '100%', cursor: 'pointer' }}
                                 />
                               </div>
@@ -2678,16 +3413,16 @@ export default function AdminDashboard() {
                             <h4 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
                               Live Crop & Fitting Previews
                             </h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1.5rem', alignItems: 'start' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
                               <div>
                                 <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
-                                  Outer Card (Listing) - Aspect Ratio ~1.3
+                                  Outer Card (Listing) - Aspect Ratio ~2.42
                                 </span>
                                 <div style={{
-                                  height: '200px',
-                                  width: '260px',
+                                  height: '110px',
+                                  width: '264px',
                                   overflow: 'hidden',
-                                  borderRadius: '12px',
+                                  borderRadius: '8px',
                                   border: '1px solid var(--border-color)',
                                   position: 'relative',
                                   backgroundColor: 'var(--bg-primary)'
@@ -2712,17 +3447,19 @@ export default function AdminDashboard() {
                                         />
                                       );
                                     }
+                                    const p = slidersData.outer;
                                     return (
                                       <img 
                                         src={editAchievementForm.image} 
                                         alt="Outer Card Preview" 
                                         style={{
-                                          width: '100%',
-                                          height: '100%',
-                                          objectFit: editAchievementForm.imageFit || 'cover',
-                                          objectPosition: `${editPos.x}% ${editPos.y}%`,
-                                          transform: `scale(${editPos.zoom})`,
-                                          transformOrigin: 'center'
+                                          position: 'absolute',
+                                          width: `${p.zoom * 100}%`,
+                                          height: `${p.zoom * 100}%`,
+                                          left: `${-p.x * (p.zoom - 1)}%`,
+                                          top: `${-p.y * (p.zoom - 1)}%`,
+                                          objectFit: 'cover',
+                                          objectPosition: `${p.x}% ${p.y}%`
                                         }}
                                       />
                                     );
@@ -2731,13 +3468,13 @@ export default function AdminDashboard() {
                               </div>
                               <div>
                                 <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
-                                  Inner View (Details) - Aspect Ratio ~2.4
+                                  Inner View (Details) - Aspect Ratio ~3.33
                                 </span>
                                 <div style={{
-                                  height: '110px',
-                                  width: '264px',
+                                  height: '78px',
+                                  width: '260px',
                                   overflow: 'hidden',
-                                  borderRadius: '8px',
+                                  borderRadius: '12px',
                                   border: '1px solid var(--border-color)',
                                   position: 'relative',
                                   backgroundColor: 'var(--bg-primary)'
@@ -2762,17 +3499,19 @@ export default function AdminDashboard() {
                                         />
                                       );
                                     }
+                                    const p = slidersData.inner;
                                     return (
                                       <img 
                                         src={editAchievementForm.image} 
                                         alt="Inner View Preview" 
                                         style={{
-                                          width: '100%',
-                                          height: '100%',
-                                          objectFit: editAchievementForm.imageFit || 'cover',
-                                          objectPosition: `${editPos.x}% ${editPos.y}%`,
-                                          transform: `scale(${editPos.zoom})`,
-                                          transformOrigin: 'center'
+                                          position: 'absolute',
+                                          width: `${p.zoom * 100}%`,
+                                          height: `${p.zoom * 100}%`,
+                                          left: `${-p.x * (p.zoom - 1)}%`,
+                                          top: `${-p.y * (p.zoom - 1)}%`,
+                                          objectFit: 'cover',
+                                          objectPosition: `${p.x}% ${p.y}%`
                                         }}
                                       />
                                     );

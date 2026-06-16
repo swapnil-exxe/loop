@@ -9,6 +9,7 @@ import Resources from './pages/Resources';
 import Achievements from './pages/Achievements';
 import AchievementDetail from './pages/AchievementDetail';
 import AdminDashboard from './pages/AdminDashboard';
+import Onboarding from './pages/Onboarding';
 
 // Route Guard Component
 function ProtectedRoute({ children }) {
@@ -20,13 +21,20 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  const user = JSON.parse(userSession);
+  
+  // If not onboarded, not an admin, and not currently on the onboarding page, redirect to onboarding
+  if (!user.onboarded && !user.isAdmin && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   return children;
 }
 
 // Layout wrapper to easily render footer and manage pages
 function AppLayout() {
   const location = useLocation();
-  const isLoginPage = location.pathname === '/login';
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/onboarding';
 
   return (
     <div style={{
@@ -43,8 +51,19 @@ function AppLayout() {
           {/* Public Login Route */}
           <Route path="/login" element={<Login />} />
 
-          {/* Public Routes */}
-          <Route path="/" element={<Landing />} />
+          {/* Onboarding Route (requires login but not completed onboarding) */}
+          <Route path="/onboarding" element={
+            <ProtectedRoute>
+              <Onboarding />
+            </ProtectedRoute>
+          } />
+
+          {/* Protected Main Routes */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Landing />
+            </ProtectedRoute>
+          } />
           <Route path="/stories" element={
             <ProtectedRoute>
               <Stories />
@@ -82,7 +101,7 @@ function AppLayout() {
       </main>
 
       {/* Modern Monochrome Footer */}
-      {!isLoginPage && (
+      {!isAuthPage && (
         <footer style={{
           borderTop: '1px solid var(--border-color)',
           padding: '3rem 0',

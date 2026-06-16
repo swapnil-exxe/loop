@@ -20,8 +20,8 @@ const parsePosition = (posStr) => {
 
 const parseCrop = (posStr) => {
   const defaults = {
-    outer: { x: 10, y: 10, w: 80, h: 61 },
-    inner: { x: 10, y: 10, w: 80, h: 33 }
+    outer: { x: 10, y: 0, w: 80, h: 33 },
+    inner: { x: 10, y: 0, w: 80, h: 24 }
   };
   if (!posStr || !posStr.startsWith('crop:')) return defaults;
   try {
@@ -30,14 +30,50 @@ const parseCrop = (posStr) => {
       const outerParts = parts[0].split(',').map(Number);
       const innerParts = parts[1].split(',').map(Number);
       return {
-        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 10, w: outerParts[2] ?? 80, h: outerParts[3] ?? 61 },
-        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 10, w: innerParts[2] ?? 80, h: innerParts[3] ?? 33 }
+        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 0, w: outerParts[2] ?? 80, h: outerParts[3] ?? 33 },
+        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 0, w: innerParts[2] ?? 80, h: innerParts[3] ?? 24 }
       };
     }
   } catch (e) {
     console.error("Error parsing crop string:", e);
   }
   return defaults;
+};
+
+const parseSliders = (posStr) => {
+  const defaults = {
+    outer: { x: 48, y: 0, zoom: 1.8 },
+    inner: { x: 50, y: 50, zoom: 1.0 }
+  };
+  if (!posStr) return defaults;
+  if (posStr.startsWith('sliders:')) {
+    try {
+      const parts = posStr.replace('sliders:', '').split(';');
+      if (parts.length >= 2) {
+        const outerParts = parts[0].split(',');
+        const innerParts = parts[1].split(',');
+        return {
+          outer: {
+            x: isNaN(parseInt(outerParts[0])) ? 48 : parseInt(outerParts[0]),
+            y: isNaN(parseInt(outerParts[1])) ? 0 : parseInt(outerParts[1]),
+            zoom: isNaN(parseFloat(outerParts[2])) ? 1.8 : parseFloat(outerParts[2])
+          },
+          inner: {
+            x: isNaN(parseInt(innerParts[0])) ? 50 : parseInt(innerParts[0]),
+            y: isNaN(parseInt(innerParts[1])) ? 50 : parseInt(innerParts[1]),
+            zoom: isNaN(parseFloat(innerParts[2])) ? 1.0 : parseFloat(innerParts[2])
+          }
+        };
+      }
+    } catch (e) {
+      console.error("Error parsing sliders string:", e);
+    }
+  }
+  const p = parsePosition(posStr);
+  return {
+    outer: { ...p },
+    inner: { ...p }
+  };
 };
 
 export default function Achievements() {
@@ -327,11 +363,12 @@ export default function Achievements() {
 
               {/* Image under text */}
               <div style={{
-                height: '260px',
                 width: '100%',
+                aspectRatio: '2.42 / 1',
                 overflow: 'hidden',
                 borderRadius: '12px',
-                position: 'relative'
+                position: 'relative',
+                backgroundColor: 'var(--bg-secondary)'
               }}>
                 {(() => {
                   const isCrop = item.imageFit === 'crop' && item.imagePosition && item.imagePosition.startsWith('crop:');
@@ -349,6 +386,30 @@ export default function Achievements() {
                           left: `${-x * (100 / w)}%`,
                           top: `${-y * (100 / h)}%`,
                           objectFit: 'cover',
+                          transition: 'transform 0.5s ease',
+                          transformOrigin: 'center',
+                          '--zoom-scale': 1.0,
+                          transform: 'scale(var(--zoom-scale))'
+                        }}
+                        className="achievement-image"
+                      />
+                    );
+                  }
+                  if (item.imageFit === 'cover') {
+                    const slidersData = parseSliders(item.imagePosition);
+                    const p = slidersData.outer;
+                    return (
+                      <img 
+                        src={item.image} 
+                        alt={item.title} 
+                        style={{
+                          position: 'absolute',
+                          width: `${p.zoom * 100}%`,
+                          height: `${p.zoom * 100}%`,
+                          left: `${-p.x * (p.zoom - 1)}%`,
+                          top: `${-p.y * (p.zoom - 1)}%`,
+                          objectFit: 'cover',
+                          objectPosition: `${p.x}% ${p.y}%`,
                           transition: 'transform 0.5s ease',
                           transformOrigin: 'center',
                           '--zoom-scale': 1.0,

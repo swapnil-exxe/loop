@@ -4,7 +4,17 @@ const mongoose = require('mongoose');
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   role: { type: String, required: true },
-  status: { type: String, default: 'Active' }
+  status: { type: String, default: 'Active' },
+  password: { type: String, default: 'spit123' },
+  name: { type: String, default: '' },
+  branch: { type: String, default: '' },
+  currentYear: { type: String, default: '' },
+  onboarded: { type: Boolean, default: false },
+  pendingName: { type: String, default: '' },
+  pendingRole: { type: String, default: '' },
+  pendingBranch: { type: String, default: '' },
+  pendingCurrentYear: { type: String, default: '' },
+  hasPendingEdit: { type: Boolean, default: false }
 });
 
 // Journey Subschema

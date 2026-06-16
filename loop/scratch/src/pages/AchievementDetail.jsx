@@ -20,8 +20,8 @@ const parsePosition = (posStr) => {
 
 const parseCrop = (posStr) => {
   const defaults = {
-    outer: { x: 10, y: 10, w: 80, h: 61 },
-    inner: { x: 10, y: 10, w: 80, h: 33 }
+    outer: { x: 10, y: 0, w: 80, h: 33 },
+    inner: { x: 10, y: 0, w: 80, h: 24 }
   };
   if (!posStr || !posStr.startsWith('crop:')) return defaults;
   try {
@@ -30,14 +30,50 @@ const parseCrop = (posStr) => {
       const outerParts = parts[0].split(',').map(Number);
       const innerParts = parts[1].split(',').map(Number);
       return {
-        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 10, w: outerParts[2] ?? 80, h: outerParts[3] ?? 61 },
-        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 10, w: innerParts[2] ?? 80, h: innerParts[3] ?? 33 }
+        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 0, w: outerParts[2] ?? 80, h: outerParts[3] ?? 33 },
+        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 0, w: innerParts[2] ?? 80, h: innerParts[3] ?? 24 }
       };
     }
   } catch (e) {
     console.error("Error parsing crop string:", e);
   }
   return defaults;
+};
+
+const parseSliders = (posStr) => {
+  const defaults = {
+    outer: { x: 48, y: 0, zoom: 1.8 },
+    inner: { x: 50, y: 50, zoom: 1.0 }
+  };
+  if (!posStr) return defaults;
+  if (posStr.startsWith('sliders:')) {
+    try {
+      const parts = posStr.replace('sliders:', '').split(';');
+      if (parts.length >= 2) {
+        const outerParts = parts[0].split(',');
+        const innerParts = parts[1].split(',');
+        return {
+          outer: {
+            x: isNaN(parseInt(outerParts[0])) ? 48 : parseInt(outerParts[0]),
+            y: isNaN(parseInt(outerParts[1])) ? 0 : parseInt(outerParts[1]),
+            zoom: isNaN(parseFloat(outerParts[2])) ? 1.8 : parseFloat(outerParts[2])
+          },
+          inner: {
+            x: isNaN(parseInt(innerParts[0])) ? 50 : parseInt(innerParts[0]),
+            y: isNaN(parseInt(innerParts[1])) ? 50 : parseInt(innerParts[1]),
+            zoom: isNaN(parseFloat(innerParts[2])) ? 1.0 : parseFloat(innerParts[2])
+          }
+        };
+      }
+    } catch (e) {
+      console.error("Error parsing sliders string:", e);
+    }
+  }
+  const p = parsePosition(posStr);
+  return {
+    outer: { ...p },
+    inner: { ...p }
+  };
 };
 
 export default function AchievementDetail() {
@@ -102,60 +138,36 @@ export default function AchievementDetail() {
         <span>Back to Achievements</span>
       </button>
 
-      {/* Image (Top - Under back link) */}
+      {/* Image (Top - Under back link) — Inner View, hover expands height */}
       {(() => {
-        const isCrop = achievement.imageFit === 'crop' && achievement.imagePosition && achievement.imagePosition.startsWith('crop:');
-        if (isCrop) {
-          const cropData = parseCrop(achievement.imagePosition);
-          const { x, y, w, h } = cropData.inner;
-          return (
-            <div style={{
+        // Use inner slider values saved from admin panel
+        const slidersData = parseSliders(achievement.imagePosition);
+        const p = slidersData.inner;
+        // Absolute positioning formula mirrors admin preview exactly
+        return (
+          <div
+            className="achievement-detail-banner"
+            style={{
               width: '100%',
-              height: '380px',
               borderRadius: '24px',
               overflow: 'hidden',
               border: '1px solid var(--border-color)',
               backgroundColor: 'var(--bg-secondary)',
               marginBottom: '3.5rem',
               position: 'relative'
-            }}>
-              <img 
-                src={achievement.image} 
-                alt={achievement.title} 
-                style={{
-                  position: 'absolute',
-                  width: `${10000 / w}%`,
-                  height: `${10000 / h}%`,
-                  left: `${-x * (100 / w)}%`,
-                  top: `${-y * (100 / h)}%`,
-                  objectFit: 'cover'
-                }}
-              />
-            </div>
-          );
-        }
-        
-        const p = parsePosition(achievement.imagePosition);
-        return (
-          <div style={{
-            width: '100%',
-            borderRadius: '24px',
-            overflow: 'hidden',
-            border: '1px solid var(--border-color)',
-            backgroundColor: 'var(--bg-secondary)',
-            marginBottom: '3.5rem'
-          }}>
-            <img 
-              src={achievement.image} 
-              alt={achievement.title} 
+            }}
+          >
+            <img
+              src={achievement.image}
+              alt={achievement.title}
               style={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '500px',
-                objectFit: achievement.imageFit || 'cover',
+                position: 'absolute',
+                width: `${p.zoom * 100}%`,
+                height: `${p.zoom * 100}%`,
+                left: `${-p.x * (p.zoom - 1)}%`,
+                top: `${-p.y * (p.zoom - 1)}%`,
+                objectFit: 'cover',
                 objectPosition: `${p.x}% ${p.y}%`,
-                transform: `scale(${p.zoom})`,
-                transformOrigin: 'center',
                 display: 'block'
               }}
             />

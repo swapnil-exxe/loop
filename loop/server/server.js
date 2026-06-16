@@ -110,10 +110,177 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const user = await User.create(req.body);
+    const userData = { ...req.body };
+    if (!userData.password) {
+      userData.password = 'spit123';
+    }
+    const user = await User.create(userData);
     res.status(201).json(user);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+    
+    // Case-insensitive, trimmed email search
+    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(401).json({ error: 'User not found in the database. Please contact an administrator.' });
+    }
+    
+    if (user.status === 'Pending') {
+      return res.status(403).json({ error: 'Your registration request is pending administrator approval.' });
+    }
+    
+    if (user.status !== 'Active') {
+      return res.status(403).json({ error: 'Your account is currently inactive. Please contact an administrator.' });
+    }
+    
+    if (user.password !== password) {
+      return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+    }
+    
+    // Return session data
+    const isUserAdmin = user.email.toLowerCase() === 'admin@spit.ac.in' || user.role === 'Administrator' || user.role === 'Admin';
+    res.json({
+      email: user.email,
+      role: isUserAdmin ? 'Administrator' : user.role,
+      status: user.status,
+      name: user.name,
+      branch: user.branch,
+      currentYear: user.currentYear,
+      onboarded: isUserAdmin ? true : user.onboarded,
+      isAdmin: isUserAdmin
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/register-request', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+    
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail.endsWith('@spit.ac.in')) {
+      return res.status(400).json({ error: 'Please use your official SPIT email address (@spit.ac.in).' });
+    }
+    
+    const existingUser = await User.findOne({ email: new RegExp('^' + trimmedEmail + '$', 'i') });
+    if (existingUser) {
+      return res.status(400).json({ error: 'This email is already registered. Please try logging in.' });
+    }
+    
+    const user = await User.create({
+      email: trimmedEmail,
+      password: password.trim(),
+      role: 'Student',
+      status: 'Pending',
+      onboarded: false
+    });
+    
+    res.status(201).json({ message: 'Registration request submitted successfully.', user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/:email/approve-registration', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    user.status = 'Active';
+    await user.save();
+    
+    res.json({ message: 'User registration approved successfully.', user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:email', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { name, role, branch, currentYear, status, password } = req.body;
+    
+    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    if (name !== undefined) user.name = name.trim();
+    if (branch !== undefined) user.branch = branch.trim();
+    if (currentYear !== undefined) user.currentYear = currentYear.trim();
+    if (status !== undefined) user.status = status;
+    if (password !== undefined && password.trim()) user.password = password.trim();
+    
+    // Prevent changing admin's role
+    if (email.trim().toLowerCase() !== 'admin@spit.ac.in') {
+      if (role !== undefined) user.role = role.trim();
+    }
+    
+    await user.save();
+    
+    res.json({ message: 'User updated successfully.', user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:email/onboard', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { name, role, branch, currentYear } = req.body;
+    
+    if (!name || !role || !branch || !currentYear) {
+      return res.status(400).json({ error: 'Name, role, branch, and current year are all required for onboarding.' });
+    }
+    
+    // Case-insensitive check
+    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    user.name = name.trim();
+    // Do not allow changing admin@spit.ac.in's role
+    if (email.trim().toLowerCase() !== 'admin@spit.ac.in') {
+      user.role = role.trim();
+    } else {
+      user.role = 'Administrator';
+    }
+    user.branch = branch.trim();
+    user.currentYear = currentYear.trim();
+    user.onboarded = true;
+    
+    await user.save();
+    
+    const isUserAdmin = user.email.toLowerCase() === 'admin@spit.ac.in' || user.role === 'Administrator' || user.role === 'Admin';
+    res.json({
+      email: user.email,
+      role: isUserAdmin ? 'Administrator' : user.role,
+      status: user.status,
+      name: user.name,
+      branch: user.branch,
+      currentYear: user.currentYear,
+      onboarded: user.onboarded,
+      isAdmin: isUserAdmin
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -121,6 +288,113 @@ app.delete('/api/users/:email', async (req, res) => {
   try {
     await User.deleteOne({ email: req.params.email });
     res.json({ message: 'User deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/:email/edit-request', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { name, role, branch, currentYear } = req.body;
+    
+    if (!name || !role || !branch || !currentYear) {
+      return res.status(400).json({ error: 'Name, role, branch, and current year are all required.' });
+    }
+    
+    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    // Set pending fields
+    user.pendingName = name.trim();
+    // Do not allow admin@spit.ac.in to change their Administrator role
+    if (email.trim().toLowerCase() !== 'admin@spit.ac.in') {
+      user.pendingRole = role.trim();
+    } else {
+      user.pendingRole = 'Administrator';
+    }
+    user.pendingBranch = branch.trim();
+    user.pendingCurrentYear = currentYear.trim();
+    user.hasPendingEdit = true;
+    
+    await user.save();
+    
+    const isUserAdmin = user.email.toLowerCase() === 'admin@spit.ac.in' || user.role === 'Administrator' || user.role === 'Admin';
+    res.json({
+      email: user.email,
+      role: isUserAdmin ? 'Administrator' : user.role,
+      status: user.status,
+      name: user.name,
+      branch: user.branch,
+      currentYear: user.currentYear,
+      onboarded: user.onboarded,
+      isAdmin: isUserAdmin,
+      pendingName: user.pendingName,
+      pendingRole: user.pendingRole,
+      pendingBranch: user.pendingBranch,
+      pendingCurrentYear: user.pendingCurrentYear,
+      hasPendingEdit: user.hasPendingEdit
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/:email/approve-edit', async (req, res) => {
+  try {
+    const email = req.params.email;
+    
+    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    if (!user.hasPendingEdit) {
+      return res.status(400).json({ error: 'No pending edit request found for this user.' });
+    }
+    
+    // Copy pending fields to active fields
+    user.name = user.pendingName;
+    user.role = user.pendingRole;
+    user.branch = user.pendingBranch;
+    user.currentYear = user.pendingCurrentYear;
+    
+    // Clear pending fields
+    user.pendingName = '';
+    user.pendingRole = '';
+    user.pendingBranch = '';
+    user.pendingCurrentYear = '';
+    user.hasPendingEdit = false;
+    
+    await user.save();
+    
+    res.json({ message: 'User profile edit approved successfully.', user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/:email/reject-edit', async (req, res) => {
+  try {
+    const email = req.params.email;
+    
+    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    // Clear pending fields
+    user.pendingName = '';
+    user.pendingRole = '';
+    user.pendingBranch = '';
+    user.pendingCurrentYear = '';
+    user.hasPendingEdit = false;
+    
+    await user.save();
+    
+    res.json({ message: 'User profile edit rejected successfully.', user });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

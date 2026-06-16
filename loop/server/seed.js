@@ -3,12 +3,12 @@ const mongoose = require('mongoose');
 const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
 
 const defaultUsers = [
-  { email: 'aditya.sharma@spit.ac.in', role: 'Senior / Contributor', status: 'Active' },
-  { email: 'neha.patel@spit.ac.in', role: 'Senior / Contributor', status: 'Active' },
-  { email: 'rohan.mehta@spit.ac.in', role: 'Alumni / Contributor', status: 'Active' },
-  { email: 'simran.kaur@spit.ac.in', role: 'Senior / Contributor', status: 'Active' },
-  { email: 'junior.student@spit.ac.in', role: 'Student', status: 'Active' },
-  { email: 'admin@spit.ac.in', role: 'Administrator', status: 'Active' }
+  { email: 'aditya.sharma@spit.ac.in', role: 'Senior / Contributor', status: 'Active', password: 'spit123', onboarded: false },
+  { email: 'neha.patel@spit.ac.in', role: 'Senior / Contributor', status: 'Active', password: 'spit123', onboarded: false },
+  { email: 'rohan.mehta@spit.ac.in', role: 'Alumni / Contributor', status: 'Active', password: 'spit123', onboarded: false },
+  { email: 'simran.kaur@spit.ac.in', role: 'Senior / Contributor', status: 'Active', password: 'spit123', onboarded: false },
+  { email: 'junior.student@spit.ac.in', role: 'Student', status: 'Active', password: 'spit123', onboarded: false },
+  { email: 'admin@spit.ac.in', role: 'Administrator', status: 'Active', password: 'admin123', onboarded: true }
 ];
 
 const sampleStories = [
