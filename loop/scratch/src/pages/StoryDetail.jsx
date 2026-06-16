@@ -25,8 +25,68 @@ export default function StoryDetail() {
   const navigate = useNavigate();
   const [activePreviewImage, setActivePreviewImage] = useState(null);
   const [viewerFile, setViewerFile] = useState(null);
+  const [iframeUrl, setIframeUrl] = useState(null);
   const [story, setStory] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const handleDownloadFile = (fileName, url) => {
+    if (!url || url === '#') {
+      alert('No file available for download.');
+      return;
+    }
+    try {
+      if (url.startsWith('data:')) {
+        const blob = dataURItoBlob(url);
+        if (blob) {
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName || 'file';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        } else {
+          alert('Failed to process file for download.');
+        }
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName || 'file';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (e) {
+      console.error("Download failed:", e);
+      alert("Failed to download file.");
+    }
+  };
+
+  useEffect(() => {
+    let blobUrl = null;
+    const fileUrl = viewerFile?.previewUrl || viewerFile?.url;
+    if (fileUrl) {
+      if (fileUrl.startsWith('data:')) {
+        const blob = dataURItoBlob(fileUrl);
+        if (blob) {
+          blobUrl = URL.createObjectURL(blob);
+          setIframeUrl(blobUrl);
+        } else {
+          setIframeUrl(fileUrl);
+        }
+      } else {
+        setIframeUrl(fileUrl);
+      }
+    } else {
+      setIframeUrl(null);
+    }
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [viewerFile]);
 
   useEffect(() => {
     getStories().then(stories => {
@@ -731,19 +791,19 @@ export default function StoryDetail() {
                         <button 
                           onClick={() => {
                             if (mat.url && mat.url !== '#') {
-                              setActivePreviewImage({ title: mat.title, url: mat.url });
+                              handleDownloadFile(mat.fileName || mat.title + '.png', mat.url);
                             } else {
-                              alert(`Downloading ${mat.title} (mock download success)`);
+                              alert('No image file available.');
                             }
                           }}
                           className="btn btn-secondary"
-                          style={{ padding: '0.4rem', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="Download / View Full Image"
+                          style={{ padding: '0.4rem', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          title="Download Image"
                         >
                           <Download size={12} />
                         </button>
                       </div>
-
+ 
                       <div 
                         onClick={() => setActivePreviewImage({ title: mat.title, url: mat.url })}
                         style={{ 
@@ -783,7 +843,7 @@ export default function StoryDetail() {
                     </div>
                   );
                 }
-
+ 
                 return (
                   <div key={index} className="glass-panel" style={{
                     padding: '1.25rem',
@@ -825,24 +885,38 @@ export default function StoryDetail() {
                         </div>
                       </div>
                     </div>
-
-                    <button 
-                      onClick={() => {
-                        setViewerFile({
-                          title: mat.title,
-                          type: mat.type,
-                          fileName: mat.fileName || mat.title + (mat.type === 'PDF' ? '.pdf' : '.txt'),
-                          fileSize: mat.fileSize || '1.2 MB',
-                          previewUrl: mat.url
-                        });
-                      }}
-                      className="btn btn-secondary"
-                      style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
-                      title="View File"
-                    >
-                      <FileText size={14} />
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>View File</span>
-                    </button>
+ 
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button 
+                        onClick={() => {
+                          setViewerFile({
+                            title: mat.title,
+                            type: mat.type,
+                            fileName: mat.fileName || mat.title + (mat.type === 'PDF' ? '.pdf' : '.txt'),
+                            fileSize: mat.fileSize || '1.2 MB',
+                            previewUrl: mat.url
+                          });
+                        }}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+                        title="View File"
+                      >
+                        <FileText size={14} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>View File</span>
+                      </button>
+                      {mat.url && mat.url !== '#' && (
+                        <button 
+                          onClick={() => {
+                            handleDownloadFile(mat.fileName || mat.title + (mat.type === 'PDF' ? '.pdf' : '.txt'), mat.url);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', width: '32px', height: '32px' }}
+                          title="Download File"
+                        >
+                          <Download size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1501,7 +1575,7 @@ export default function StoryDetail() {
                   </div>
                 ) : (
                   <iframe 
-                    src={viewerFile.previewUrl || viewerFile.url} 
+                    src={iframeUrl} 
                     style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none', borderRadius: '12px' }} 
                     title={viewerFile.title}
                   />
@@ -1567,18 +1641,31 @@ export default function StoryDetail() {
             </div>
             
             {/* Viewer Footer */}
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 Viewing file in secure sandbox.
               </span>
-              <button 
-                type="button" 
-                onClick={() => setViewerFile(null)}
-                className="btn btn-primary"
-                style={{ padding: '0.5rem 1.5rem', borderRadius: '8px' }}
-              >
-                Close Viewer
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                {((viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#')) && (
+                  <button 
+                    type="button" 
+                    onClick={() => handleDownloadFile(viewerFile.fileName || viewerFile.title, viewerFile.previewUrl || viewerFile.url)}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+                  >
+                    <Download size={14} />
+                    <span>Download File</span>
+                  </button>
+                )}
+                <button 
+                  type="button" 
+                  onClick={() => setViewerFile(null)}
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1.5rem', borderRadius: '8px' }}
+                >
+                  Close Viewer
+                </button>
+              </div>
             </div>
           </div>
         </div>

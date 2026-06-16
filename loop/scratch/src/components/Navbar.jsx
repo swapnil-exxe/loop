@@ -111,7 +111,7 @@ export default function Navbar() {
           display: 'flex',
           alignItems: 'center',
           gap: '2rem',
-          fontFamily: 'var(--font-display)',
+          fontFamily: 'var(--font-sans)',
           fontSize: '0.9rem',
           fontWeight: 600,
           letterSpacing: '0.03em'
@@ -140,7 +140,7 @@ export default function Navbar() {
           <Link to="/" style={{
             fontSize: '1.65rem',
             fontWeight: 800,
-            fontFamily: 'var(--font-display)',
+            fontFamily: 'var(--font-sans)',
             letterSpacing: '0.2em',
             textTransform: 'uppercase',
             display: 'flex',
@@ -166,7 +166,7 @@ export default function Navbar() {
           alignItems: 'center',
           justifyContent: 'flex-end',
           gap: '1.5rem',
-          fontFamily: 'var(--font-display)',
+          fontFamily: 'var(--font-sans)',
           fontSize: '0.9rem',
           fontWeight: 600
         }}>
