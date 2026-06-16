@@ -3,6 +3,43 @@ import { Calendar, ArrowUpRight, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAchievements } from '../utils/db';
 
+const parsePosition = (posStr) => {
+  if (!posStr) return { x: 50, y: 50, zoom: 1.0 };
+  if (posStr === 'center') return { x: 50, y: 50, zoom: 1.0 };
+  if (posStr === 'top') return { x: 50, y: 0, zoom: 1.0 };
+  if (posStr === 'bottom') return { x: 50, y: 100, zoom: 1.0 };
+  if (posStr === 'left') return { x: 0, y: 50, zoom: 1.0 };
+  if (posStr === 'right') return { x: 100, y: 50, zoom: 1.0 };
+  if (posStr.startsWith('crop:')) return { x: 50, y: 50, zoom: 1.0 };
+  const parts = posStr.split(' ');
+  const x = parseInt(parts[0]) || 50;
+  const y = parseInt(parts[1]) || 50;
+  const zoom = parseFloat(parts[2]) || 1.0;
+  return { x, y, zoom };
+};
+
+const parseCrop = (posStr) => {
+  const defaults = {
+    outer: { x: 10, y: 10, w: 80, h: 61 },
+    inner: { x: 10, y: 10, w: 80, h: 33 }
+  };
+  if (!posStr || !posStr.startsWith('crop:')) return defaults;
+  try {
+    const parts = posStr.replace('crop:', '').split(';');
+    if (parts.length >= 2) {
+      const outerParts = parts[0].split(',').map(Number);
+      const innerParts = parts[1].split(',').map(Number);
+      return {
+        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 10, w: outerParts[2] ?? 80, h: outerParts[3] ?? 61 },
+        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 10, w: innerParts[2] ?? 80, h: innerParts[3] ?? 33 }
+      };
+    }
+  } catch (e) {
+    console.error("Error parsing crop string:", e);
+  }
+  return defaults;
+};
+
 export default function Achievements() {
   const [achievements, setAchievements] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -296,18 +333,50 @@ export default function Achievements() {
                 borderRadius: '12px',
                 position: 'relative'
               }}>
-                <img 
-                  src={item.image} 
-                  alt={item.title} 
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: item.imageFit || 'cover',
-                    objectPosition: item.imagePosition || 'center',
-                    transition: 'transform 0.5s ease'
-                  }}
-                  className="achievement-image"
-                />
+                {(() => {
+                  const isCrop = item.imageFit === 'crop' && item.imagePosition && item.imagePosition.startsWith('crop:');
+                  if (isCrop) {
+                    const cropData = parseCrop(item.imagePosition);
+                    const { x, y, w, h } = cropData.outer;
+                    return (
+                      <img 
+                        src={item.image} 
+                        alt={item.title} 
+                        style={{
+                          position: 'absolute',
+                          width: `${10000 / w}%`,
+                          height: `${10000 / h}%`,
+                          left: `${-x * (100 / w)}%`,
+                          top: `${-y * (100 / h)}%`,
+                          objectFit: 'cover',
+                          transition: 'transform 0.5s ease',
+                          transformOrigin: 'center',
+                          '--zoom-scale': 1.0,
+                          transform: 'scale(var(--zoom-scale))'
+                        }}
+                        className="achievement-image"
+                      />
+                    );
+                  }
+                  const p = parsePosition(item.imagePosition);
+                  return (
+                    <img 
+                      src={item.image} 
+                      alt={item.title} 
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: item.imageFit || 'cover',
+                        objectPosition: `${p.x}% ${p.y}%`,
+                        transition: 'transform 0.5s ease',
+                        transformOrigin: 'center',
+                        '--zoom-scale': p.zoom,
+                        transform: 'scale(var(--zoom-scale))'
+                      }}
+                      className="achievement-image"
+                    />
+                  );
+                })()}
               </div>
 
               {/* Footer action */}
@@ -359,7 +428,7 @@ export default function Achievements() {
           box-shadow: var(--card-shadow);
         }
         .achievement-card:hover .achievement-image {
-          transform: scale(1.02);
+          transform: scale(calc(var(--zoom-scale, 1) * 1.02)) !important;
         }
         .search-input:focus {
           border-color: var(--text-primary) !important;

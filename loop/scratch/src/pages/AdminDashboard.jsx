@@ -27,6 +27,413 @@ import {
   fileToBase64
 } from '../utils/db';
 
+const parsePosition = (posStr) => {
+  if (!posStr) return { x: 50, y: 50, zoom: 1.0 };
+  if (posStr === 'center') return { x: 50, y: 50, zoom: 1.0 };
+  if (posStr === 'top') return { x: 50, y: 0, zoom: 1.0 };
+  if (posStr === 'bottom') return { x: 50, y: 100, zoom: 1.0 };
+  if (posStr === 'left') return { x: 0, y: 50, zoom: 1.0 };
+  if (posStr === 'right') return { x: 100, y: 50, zoom: 1.0 };
+  if (posStr.startsWith('crop:')) return { x: 50, y: 50, zoom: 1.0 };
+  const parts = posStr.split(' ');
+  const x = parseInt(parts[0]) || 50;
+  const y = parseInt(parts[1]) || 50;
+  const zoom = parseFloat(parts[2]) || 1.0;
+  return { x, y, zoom };
+};
+
+const parseCrop = (posStr) => {
+  const defaults = {
+    outer: { x: 10, y: 10, w: 80, h: 61 },
+    inner: { x: 10, y: 10, w: 80, h: 33 }
+  };
+  if (!posStr || !posStr.startsWith('crop:')) return defaults;
+  try {
+    const parts = posStr.replace('crop:', '').split(';');
+    if (parts.length >= 2) {
+      const outerParts = parts[0].split(',').map(Number);
+      const innerParts = parts[1].split(',').map(Number);
+      return {
+        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 10, w: outerParts[2] ?? 80, h: outerParts[3] ?? 61 },
+        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 10, w: innerParts[2] ?? 80, h: innerParts[3] ?? 33 }
+      };
+    }
+  } catch (e) {
+    console.error("Error parsing crop string:", e);
+  }
+  return defaults;
+};
+
+import { useRef } from 'react';
+
+const ImageCropper = ({ imageUrl, imagePosition, onChangePosition }) => {
+  const [activeTab, setActiveTab] = useState('outer');
+  const [lockAspect, setLockAspect] = useState(true);
+  const containerRef = useRef(null);
+
+  const crops = parseCrop(imagePosition);
+  const currentCrop = activeTab === 'outer' ? crops.outer : crops.inner;
+
+  const handleDragStart = (e, action) => {
+    e.preventDefault();
+    if (!containerRef.current) return;
+
+    const isTouch = e.type.startsWith('touch');
+    const startX = isTouch ? e.touches[0].clientX : e.clientX;
+    const startY = isTouch ? e.touches[0].clientY : e.clientY;
+
+    const initialCrop = { ...currentCrop };
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const containerW = containerRect.width;
+    const containerH = containerRect.height;
+    const aspect = activeTab === 'outer' ? 1.3 : 2.42;
+
+    const handleMove = (moveEvent) => {
+      const currentX = isTouch ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const currentY = isTouch ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+      const deltaX = ((currentX - startX) / containerW) * 100;
+      const deltaY = ((currentY - startY) / containerH) * 100;
+
+      let newX = initialCrop.x;
+      let newY = initialCrop.y;
+      let newW = initialCrop.w;
+      let newH = initialCrop.h;
+
+      if (action === 'move') {
+        newX = Math.max(0, Math.min(100 - initialCrop.w, initialCrop.x + deltaX));
+        newY = Math.max(0, Math.min(100 - initialCrop.h, initialCrop.y + deltaY));
+      } else if (action === 'br') {
+        if (lockAspect) {
+          newW = Math.max(10, Math.min(100 - initialCrop.x, initialCrop.w + deltaX));
+          newH = (newW * containerW) / (containerH * aspect);
+          if (newH > 100 - initialCrop.y) {
+            newH = 100 - initialCrop.y;
+            newW = (newH * containerH * aspect) / containerW;
+          }
+        } else {
+          newW = Math.max(10, Math.min(100 - initialCrop.x, initialCrop.w + deltaX));
+          newH = Math.max(10, Math.min(100 - initialCrop.y, initialCrop.h + deltaY));
+        }
+      } else if (action === 'bl') {
+        if (lockAspect) {
+          const maxDeltaX = initialCrop.x;
+          const actualDeltaX = Math.max(-maxDeltaX, Math.min(initialCrop.w - 10, deltaX));
+          newX = initialCrop.x + actualDeltaX;
+          newW = initialCrop.w - actualDeltaX;
+          newH = (newW * containerW) / (containerH * aspect);
+          if (newH > 100 - initialCrop.y) {
+            newH = 100 - initialCrop.y;
+            newW = (newH * containerH * aspect) / containerW;
+            newX = initialCrop.x + (initialCrop.w - newW);
+          }
+        } else {
+          const maxDeltaX = initialCrop.x;
+          const actualDeltaX = Math.max(-maxDeltaX, Math.min(initialCrop.w - 10, deltaX));
+          newX = initialCrop.x + actualDeltaX;
+          newW = initialCrop.w - actualDeltaX;
+          newH = Math.max(10, Math.min(100 - initialCrop.y, initialCrop.h + deltaY));
+        }
+      } else if (action === 'tr') {
+        if (lockAspect) {
+          newW = Math.max(10, Math.min(100 - initialCrop.x, initialCrop.w + deltaX));
+          newH = (newW * containerW) / (containerH * aspect);
+          if (newH > initialCrop.h + initialCrop.y) {
+            newH = initialCrop.h + initialCrop.y;
+            newW = (newH * containerH * aspect) / containerW;
+          }
+          newY = initialCrop.y + (initialCrop.h - newH);
+        } else {
+          const maxDeltaY = initialCrop.y;
+          const actualDeltaY = Math.max(-maxDeltaY, Math.min(initialCrop.h - 10, deltaY));
+          newY = initialCrop.y + actualDeltaY;
+          newH = initialCrop.h - actualDeltaY;
+          newW = Math.max(10, Math.min(100 - initialCrop.x, initialCrop.w + deltaX));
+        }
+      } else if (action === 'tl') {
+        if (lockAspect) {
+          const maxDeltaX = initialCrop.x;
+          const actualDeltaX = Math.max(-maxDeltaX, Math.min(initialCrop.w - 10, deltaX));
+          newX = initialCrop.x + actualDeltaX;
+          newW = initialCrop.w - actualDeltaX;
+          newH = (newW * containerW) / (containerH * aspect);
+          if (newH > initialCrop.h + initialCrop.y) {
+            newH = initialCrop.h + initialCrop.y;
+            newW = (newH * containerH * aspect) / containerW;
+            newX = initialCrop.x + (initialCrop.w - newW);
+          }
+          newY = initialCrop.y + (initialCrop.h - newH);
+        } else {
+          const maxDeltaX = initialCrop.x;
+          const actualDeltaX = Math.max(-maxDeltaX, Math.min(initialCrop.w - 10, deltaX));
+          const maxDeltaY = initialCrop.y;
+          const actualDeltaY = Math.max(-maxDeltaY, Math.min(initialCrop.h - 10, deltaY));
+          newX = initialCrop.x + actualDeltaX;
+          newW = initialCrop.w - actualDeltaX;
+          newY = initialCrop.y + actualDeltaY;
+          newH = initialCrop.h - actualDeltaY;
+        }
+      }
+
+      const rounded = {
+        x: Math.max(0, Math.min(100, Math.round(newX))),
+        y: Math.max(0, Math.min(100, Math.round(newY))),
+        w: Math.max(5, Math.min(100, Math.round(newW))),
+        h: Math.max(5, Math.min(100, Math.round(newH)))
+      };
+
+      const updatedCrops = {
+        ...crops,
+        [activeTab]: rounded
+      };
+      
+      const val = `crop:${updatedCrops.outer.x},${updatedCrops.outer.y},${updatedCrops.outer.w},${updatedCrops.outer.h};${updatedCrops.inner.x},${updatedCrops.inner.y},${updatedCrops.inner.w},${updatedCrops.inner.h}`;
+      onChangePosition(val);
+    };
+
+    const handleEnd = () => {
+      document.removeEventListener(isTouch ? 'touchmove' : 'mousemove', handleMove);
+      document.removeEventListener(isTouch ? 'touchend' : 'mouseup', handleEnd);
+    };
+
+    document.addEventListener(isTouch ? 'touchmove' : 'mousemove', handleMove);
+    document.addEventListener(isTouch ? 'touchend' : 'mouseup', handleEnd);
+  };
+
+  const handlePreset = (preset) => {
+    let updated;
+    if (preset === 'center') {
+      updated = {
+        ...crops,
+        [activeTab]: activeTab === 'outer' ? { x: 10, y: 10, w: 80, h: 61 } : { x: 10, y: 10, w: 80, h: 33 }
+      };
+    } else {
+      updated = {
+        ...crops,
+        [activeTab]: { x: 0, y: 0, w: 100, h: 100 }
+      };
+    }
+    const val = `crop:${updated.outer.x},${updated.outer.y},${updated.outer.w},${updated.outer.h};${updated.inner.x},${updated.inner.y},${updated.inner.w},${updated.inner.h}`;
+    onChangePosition(val);
+  };
+
+  return (
+    <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn"
+            style={{
+              padding: '0.4rem 0.8rem',
+              fontSize: '0.8rem',
+              borderRadius: '8px',
+              backgroundColor: activeTab === 'outer' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
+              color: activeTab === 'outer' ? '#ffffff' : 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            onClick={() => setActiveTab('outer')}
+          >
+            Outer Card Crop (Listing)
+          </button>
+          <button
+            type="button"
+            className="btn"
+            style={{
+              padding: '0.4rem 0.8rem',
+              fontSize: '0.8rem',
+              borderRadius: '8px',
+              backgroundColor: activeTab === 'inner' ? 'var(--accent-color, #007aff)' : 'var(--bg-secondary)',
+              color: activeTab === 'inner' ? '#ffffff' : 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            onClick={() => setActiveTab('inner')}
+          >
+            Inner View Crop (Details)
+          </button>
+        </div>
+        
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500 }}>
+          <input
+            type="checkbox"
+            checked={lockAspect}
+            onChange={(e) => setLockAspect(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          Lock Aspect Ratio ({activeTab === 'outer' ? '1.3:1' : '2.4:1'})
+        </label>
+      </div>
+
+      <div 
+        ref={containerRef}
+        style={{
+          position: 'relative',
+          width: '100%',
+          overflow: 'hidden',
+          backgroundColor: '#111111',
+          borderRadius: '12px',
+          border: '1px solid var(--border-color)',
+          userSelect: 'none',
+          touchAction: 'none'
+        }}
+      >
+        <img
+          src={imageUrl}
+          alt="Cropper Source"
+          style={{
+            width: '100%',
+            display: 'block',
+            userSelect: 'none',
+            pointerEvents: 'none'
+          }}
+        />
+
+        <div
+          onMouseDown={(e) => handleDragStart(e, 'move')}
+          onTouchStart={(e) => handleDragStart(e, 'move')}
+          style={{
+            position: 'absolute',
+            left: `${currentCrop.x}%`,
+            top: `${currentCrop.y}%`,
+            width: `${currentCrop.w}%`,
+            height: `${currentCrop.h}%`,
+            border: '2px dashed #00e5ff',
+            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.65)',
+            cursor: 'move',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.25)' }} />
+            <div style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTop: '1px dashed rgba(255,255,255,0.25)' }} />
+            <div style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeft: '1px dashed rgba(255,255,255,0.25)' }} />
+            <div style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeft: '1px dashed rgba(255,255,255,0.25)' }} />
+          </div>
+
+          <div style={{
+            position: 'absolute',
+            top: '4px',
+            left: '4px',
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            color: '#fff',
+            fontSize: '0.65rem',
+            padding: '2px 4px',
+            borderRadius: '4px',
+            pointerEvents: 'none',
+            fontWeight: 600
+          }}>
+            {activeTab === 'outer' ? 'Outer Listing' : 'Inner Details'}: {currentCrop.w}%×{currentCrop.h}%
+          </div>
+
+          <div
+            onMouseDown={(e) => { e.stopPropagation(); handleDragStart(e, 'tl'); }}
+            onTouchStart={(e) => { e.stopPropagation(); handleDragStart(e, 'tl'); }}
+            style={{
+              position: 'absolute',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#ffffff',
+              border: '2px solid #00e5ff',
+              borderRadius: '50%',
+              top: '-6px',
+              left: '-6px',
+              cursor: 'nwse-resize',
+              zIndex: 10
+            }}
+          />
+          <div
+            onMouseDown={(e) => { e.stopPropagation(); handleDragStart(e, 'tr'); }}
+            onTouchStart={(e) => { e.stopPropagation(); handleDragStart(e, 'tr'); }}
+            style={{
+              position: 'absolute',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#ffffff',
+              border: '2px solid #00e5ff',
+              borderRadius: '50%',
+              top: '-6px',
+              right: '-6px',
+              cursor: 'nesw-resize',
+              zIndex: 10
+            }}
+          />
+          <div
+            onMouseDown={(e) => { e.stopPropagation(); handleDragStart(e, 'bl'); }}
+            onTouchStart={(e) => { e.stopPropagation(); handleDragStart(e, 'bl'); }}
+            style={{
+              position: 'absolute',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#ffffff',
+              border: '2px solid #00e5ff',
+              borderRadius: '50%',
+              bottom: '-6px',
+              left: '-6px',
+              cursor: 'nesw-resize',
+              zIndex: 10
+            }}
+          />
+          <div
+            onMouseDown={(e) => { e.stopPropagation(); handleDragStart(e, 'br'); }}
+            onTouchStart={(e) => { e.stopPropagation(); handleDragStart(e, 'br'); }}
+            style={{
+              position: 'absolute',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#ffffff',
+              border: '2px solid #00e5ff',
+              borderRadius: '50%',
+              bottom: '-6px',
+              right: '-6px',
+              cursor: 'nwse-resize',
+              zIndex: 10
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
+        <button
+          type="button"
+          className="btn"
+          style={{
+            padding: '0.35rem 0.7rem',
+            fontSize: '0.75rem',
+            borderRadius: '6px',
+            backgroundColor: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-color)',
+            cursor: 'pointer'
+          }}
+          onClick={() => handlePreset('center')}
+        >
+          Center Preset
+        </button>
+        <button
+          type="button"
+          className="btn"
+          style={{
+            padding: '0.35rem 0.7rem',
+            fontSize: '0.75rem',
+            borderRadius: '6px',
+            backgroundColor: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-color)',
+            cursor: 'pointer'
+          }}
+          onClick={() => handlePreset('full')}
+        >
+          Use Full Image
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [isAdmin] = useState(() => {
@@ -1050,37 +1457,248 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
-              <div className="input-group">
-                <label className="input-label">Image Fitting Selection</label>
-                <select
-                  className="input-field"
-                  value={achievementForm.imageFit || 'cover'}
-                  onChange={(e) => setAchievementForm({ ...achievementForm, imageFit: e.target.value })}
-                  style={{ backgroundColor: 'var(--bg-secondary)' }}
-                >
-                  <option value="cover">Crop to Fill (Cover)</option>
-                  <option value="contain">Show Full Image (Contain)</option>
-                </select>
-              </div>
+            {(() => {
+              const createPos = parsePosition(achievementForm.imagePosition);
+              return (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                    <div className="input-group">
+                      <label className="input-label">Image Fitting Selection</label>
+                      <select
+                        className="input-field"
+                        value={achievementForm.imageFit || 'crop'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'crop') {
+                            setAchievementForm({ 
+                              ...achievementForm, 
+                              imageFit: 'crop', 
+                              imagePosition: 'crop:10,10,80,61;10,10,80,33'
+                            });
+                          } else if (val === 'cover') {
+                            setAchievementForm({ 
+                              ...achievementForm, 
+                              imageFit: 'cover', 
+                              imagePosition: '50% 50% 1.0'
+                            });
+                          } else {
+                            setAchievementForm({ 
+                              ...achievementForm, 
+                              imageFit: 'contain', 
+                              imagePosition: 'center'
+                            });
+                          }
+                        }}
+                        style={{ backgroundColor: 'var(--bg-secondary)' }}
+                      >
+                        <option value="crop">Visual Crop Tool (Recommended)</option>
+                        <option value="cover">Presets / Manual Sliders (Cover)</option>
+                        <option value="contain">Show Full Image (Contain)</option>
+                      </select>
+                    </div>
 
-              <div className="input-group">
-                <label className="input-label">Image Crop Position</label>
-                <select
-                  className="input-field"
-                  value={achievementForm.imagePosition || 'center'}
-                  onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: e.target.value })}
-                  style={{ backgroundColor: 'var(--bg-secondary)' }}
-                  disabled={achievementForm.imageFit === 'contain'}
-                >
-                  <option value="center">Center</option>
-                  <option value="top">Top</option>
-                  <option value="bottom">Bottom</option>
-                  <option value="left">Left</option>
-                  <option value="right">Right</option>
-                </select>
-              </div>
-            </div>
+                    <div className="input-group">
+                      <label className="input-label">Image Presets / Manual</label>
+                      <select
+                        className="input-field"
+                        value={['center', 'top', 'bottom', 'left', 'right'].includes(achievementForm.imagePosition) ? achievementForm.imagePosition : 'custom'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'custom') {
+                            setAchievementForm({ ...achievementForm, imagePosition: '50% 50% 1.0' });
+                          } else {
+                            setAchievementForm({ ...achievementForm, imagePosition: val, imageFit: 'cover' });
+                          }
+                        }}
+                        style={{ backgroundColor: 'var(--bg-secondary)' }}
+                        disabled={achievementForm.imageFit === 'contain' || achievementForm.imageFit === 'crop'}
+                      >
+                        <option value="center">Center</option>
+                        <option value="top">Top</option>
+                        <option value="bottom">Bottom</option>
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                        <option value="custom">Manual Sliders (X, Y & Zoom)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {achievementForm.imageFit === 'crop' && achievementForm.image && (
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <label className="input-label" style={{ fontWeight: 600 }}>Visual Crop Selector</label>
+                      <ImageCropper
+                        imageUrl={achievementForm.image}
+                        imagePosition={achievementForm.imagePosition}
+                        onChangePosition={(posStr) => setAchievementForm({ ...achievementForm, imagePosition: posStr })}
+                      />
+                    </div>
+                  )}
+
+                  {achievementForm.imageFit === 'cover' && (
+                    <div style={{ padding: '1rem', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                            <span>Horizontal Offset (X-Axis): {createPos.x}%</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max="100" 
+                            value={createPos.x} 
+                            onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: `${e.target.value}% ${createPos.y}% ${createPos.zoom}` })}
+                            style={{ width: '100%', cursor: 'pointer' }}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                            <span>Vertical Offset (Y-Axis): {createPos.y}%</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max="100" 
+                            value={createPos.y} 
+                            onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: `${createPos.x}% ${e.target.value}% ${createPos.zoom}` })}
+                            style={{ width: '100%', cursor: 'pointer' }}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                            <span>Zoom Scale: {createPos.zoom}x</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="1.0" 
+                            max="3.0" 
+                            step="0.1"
+                            value={createPos.zoom} 
+                            onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: `${createPos.x}% ${createPos.y}% ${e.target.value}` })}
+                            style={{ width: '100%', cursor: 'pointer' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {achievementForm.image && (
+                    <div style={{
+                      marginBottom: '1.25rem',
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '16px'
+                    }}>
+                      <h4 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Live Crop & Fitting Previews
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1.5rem', alignItems: 'start' }}>
+                        <div>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Outer Card (Listing) - Aspect Ratio ~1.3
+                          </span>
+                          <div style={{
+                            height: '200px',
+                            width: '260px',
+                            overflow: 'hidden',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border-color)',
+                            position: 'relative',
+                            backgroundColor: 'var(--bg-primary)'
+                          }}>
+                            {(() => {
+                              const isCrop = achievementForm.imageFit === 'crop' && achievementForm.imagePosition && achievementForm.imagePosition.startsWith('crop:');
+                              if (isCrop) {
+                                const cropData = parseCrop(achievementForm.imagePosition);
+                                const { x, y, w, h } = cropData.outer;
+                                return (
+                                  <img 
+                                    src={achievementForm.image} 
+                                    alt="Outer Card Preview" 
+                                    style={{
+                                      position: 'absolute',
+                                      width: `${10000 / w}%`,
+                                      height: `${10000 / h}%`,
+                                      left: `${-x * (100 / w)}%`,
+                                      top: `${-y * (100 / h)}%`,
+                                      objectFit: 'cover'
+                                    }}
+                                  />
+                                );
+                              }
+                              return (
+                                <img 
+                                  src={achievementForm.image} 
+                                  alt="Outer Card Preview" 
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: achievementForm.imageFit || 'cover',
+                                    objectPosition: `${createPos.x}% ${createPos.y}%`,
+                                    transform: `scale(${createPos.zoom})`,
+                                    transformOrigin: 'center'
+                                  }}
+                                />
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Inner View (Details) - Aspect Ratio ~2.4
+                          </span>
+                          <div style={{
+                            height: '110px',
+                            width: '264px',
+                            overflow: 'hidden',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color)',
+                            position: 'relative',
+                            backgroundColor: 'var(--bg-primary)'
+                          }}>
+                            {(() => {
+                              const isCrop = achievementForm.imageFit === 'crop' && achievementForm.imagePosition && achievementForm.imagePosition.startsWith('crop:');
+                              if (isCrop) {
+                                const cropData = parseCrop(achievementForm.imagePosition);
+                                const { x, y, w, h } = cropData.inner;
+                                return (
+                                  <img 
+                                    src={achievementForm.image} 
+                                    alt="Inner View Preview" 
+                                    style={{
+                                      position: 'absolute',
+                                      width: `${10000 / w}%`,
+                                      height: `${10000 / h}%`,
+                                      left: `${-x * (100 / w)}%`,
+                                      top: `${-y * (100 / h)}%`,
+                                      objectFit: 'cover'
+                                    }}
+                                  />
+                                );
+                              }
+                              return (
+                                <img 
+                                  src={achievementForm.image} 
+                                  alt="Inner View Preview" 
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: achievementForm.imageFit || 'cover',
+                                    objectPosition: `${createPos.x}% ${createPos.y}%`,
+                                    transform: `scale(${createPos.zoom})`,
+                                    transformOrigin: 'center'
+                                  }}
+                                />
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="input-group">
               <label className="input-label">Description *</label>
@@ -1925,37 +2543,248 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
-                    <div className="input-group">
-                      <label className="input-label">Image Fitting Selection</label>
-                      <select
-                        className="input-field"
-                        value={editAchievementForm.imageFit || 'cover'}
-                        onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imageFit: e.target.value })}
-                        style={{ backgroundColor: 'var(--bg-secondary)' }}
-                      >
-                        <option value="cover">Crop to Fill (Cover)</option>
-                        <option value="contain">Show Full Image (Contain)</option>
-                      </select>
-                    </div>
+                  {(() => {
+                    const editPos = parsePosition(editAchievementForm.imagePosition);
+                    return (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                          <div className="input-group">
+                            <label className="input-label">Image Fitting Selection</label>
+                            <select
+                              className="input-field"
+                              value={editAchievementForm.imageFit || 'crop'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'crop') {
+                                  setEditAchievementForm({ 
+                                    ...editAchievementForm, 
+                                    imageFit: 'crop', 
+                                    imagePosition: 'crop:10,10,80,61;10,10,80,33'
+                                  });
+                                } else if (val === 'cover') {
+                                  setEditAchievementForm({ 
+                                    ...editAchievementForm, 
+                                    imageFit: 'cover', 
+                                    imagePosition: '50% 50% 1.0'
+                                  });
+                                } else {
+                                  setEditAchievementForm({ 
+                                    ...editAchievementForm, 
+                                    imageFit: 'contain', 
+                                    imagePosition: 'center'
+                                  });
+                                }
+                              }}
+                              style={{ backgroundColor: 'var(--bg-secondary)' }}
+                            >
+                              <option value="crop">Visual Crop Tool (Recommended)</option>
+                              <option value="cover">Presets / Manual Sliders (Cover)</option>
+                              <option value="contain">Show Full Image (Contain)</option>
+                            </select>
+                          </div>
 
-                    <div className="input-group">
-                      <label className="input-label">Image Crop Position</label>
-                      <select
-                        className="input-field"
-                        value={editAchievementForm.imagePosition || 'center'}
-                        onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: e.target.value })}
-                        style={{ backgroundColor: 'var(--bg-secondary)' }}
-                        disabled={editAchievementForm.imageFit === 'contain'}
-                      >
-                        <option value="center">Center</option>
-                        <option value="top">Top</option>
-                        <option value="bottom">Bottom</option>
-                        <option value="left">Left</option>
-                        <option value="right">Right</option>
-                      </select>
-                    </div>
-                  </div>
+                          <div className="input-group">
+                            <label className="input-label">Image Presets / Manual</label>
+                            <select
+                              className="input-field"
+                              value={['center', 'top', 'bottom', 'left', 'right'].includes(editAchievementForm.imagePosition) ? editAchievementForm.imagePosition : 'custom'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'custom') {
+                                  setEditAchievementForm({ ...editAchievementForm, imagePosition: '50% 50% 1.0' });
+                                } else {
+                                  setEditAchievementForm({ ...editAchievementForm, imagePosition: val, imageFit: 'cover' });
+                                }
+                              }}
+                              style={{ backgroundColor: 'var(--bg-secondary)' }}
+                              disabled={editAchievementForm.imageFit === 'contain' || editAchievementForm.imageFit === 'crop'}
+                            >
+                              <option value="center">Center</option>
+                              <option value="top">Top</option>
+                              <option value="bottom">Bottom</option>
+                              <option value="left">Left</option>
+                              <option value="right">Right</option>
+                              <option value="custom">Manual Sliders (X, Y & Zoom)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {editAchievementForm.imageFit === 'crop' && editAchievementForm.image && (
+                          <div style={{ marginBottom: '1.25rem' }}>
+                            <label className="input-label" style={{ fontWeight: 600 }}>Visual Crop Selector</label>
+                            <ImageCropper
+                              imageUrl={editAchievementForm.image}
+                              imagePosition={editAchievementForm.imagePosition}
+                              onChangePosition={(posStr) => setEditAchievementForm({ ...editAchievementForm, imagePosition: posStr })}
+                            />
+                          </div>
+                        )}
+
+                        {editAchievementForm.imageFit === 'cover' && (
+                          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', marginBottom: '1.25rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                                  <span>Horizontal Offset (X-Axis): {editPos.x}%</span>
+                                </div>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="100" 
+                                  value={editPos.x} 
+                                  onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: `${e.target.value}% ${editPos.y}% ${editPos.zoom}` })}
+                                  style={{ width: '100%', cursor: 'pointer' }}
+                                />
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                                  <span>Vertical Offset (Y-Axis): {editPos.y}%</span>
+                                </div>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="100" 
+                                  value={editPos.y} 
+                                  onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: `${editPos.x}% ${e.target.value}% ${editPos.zoom}` })}
+                                  style={{ width: '100%', cursor: 'pointer' }}
+                                />
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                                  <span>Zoom Scale: {editPos.zoom}x</span>
+                                </div>
+                                <input 
+                                  type="range" 
+                                  min="1.0" 
+                                  max="3.0" 
+                                  step="0.1"
+                                  value={editPos.zoom} 
+                                  onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: `${editPos.x}% ${editPos.y}% ${e.target.value}` })}
+                                  style={{ width: '100%', cursor: 'pointer' }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {editAchievementForm.image && (
+                          <div style={{
+                            marginBottom: '1.25rem',
+                            padding: '1rem',
+                            backgroundColor: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '16px'
+                          }}>
+                            <h4 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
+                              Live Crop & Fitting Previews
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1.5rem', alignItems: 'start' }}>
+                              <div>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                                  Outer Card (Listing) - Aspect Ratio ~1.3
+                                </span>
+                                <div style={{
+                                  height: '200px',
+                                  width: '260px',
+                                  overflow: 'hidden',
+                                  borderRadius: '12px',
+                                  border: '1px solid var(--border-color)',
+                                  position: 'relative',
+                                  backgroundColor: 'var(--bg-primary)'
+                                }}>
+                                  {(() => {
+                                    const isCrop = editAchievementForm.imageFit === 'crop' && editAchievementForm.imagePosition && editAchievementForm.imagePosition.startsWith('crop:');
+                                    if (isCrop) {
+                                      const cropData = parseCrop(editAchievementForm.imagePosition);
+                                      const { x, y, w, h } = cropData.outer;
+                                      return (
+                                        <img 
+                                          src={editAchievementForm.image} 
+                                          alt="Outer Card Preview" 
+                                          style={{
+                                            position: 'absolute',
+                                            width: `${10000 / w}%`,
+                                            height: `${10000 / h}%`,
+                                            left: `${-x * (100 / w)}%`,
+                                            top: `${-y * (100 / h)}%`,
+                                            objectFit: 'cover'
+                                          }}
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <img 
+                                        src={editAchievementForm.image} 
+                                        alt="Outer Card Preview" 
+                                        style={{
+                                          width: '100%',
+                                          height: '100%',
+                                          objectFit: editAchievementForm.imageFit || 'cover',
+                                          objectPosition: `${editPos.x}% ${editPos.y}%`,
+                                          transform: `scale(${editPos.zoom})`,
+                                          transformOrigin: 'center'
+                                        }}
+                                      />
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                              <div>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                                  Inner View (Details) - Aspect Ratio ~2.4
+                                </span>
+                                <div style={{
+                                  height: '110px',
+                                  width: '264px',
+                                  overflow: 'hidden',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  position: 'relative',
+                                  backgroundColor: 'var(--bg-primary)'
+                                }}>
+                                  {(() => {
+                                    const isCrop = editAchievementForm.imageFit === 'crop' && editAchievementForm.imagePosition && editAchievementForm.imagePosition.startsWith('crop:');
+                                    if (isCrop) {
+                                      const cropData = parseCrop(editAchievementForm.imagePosition);
+                                      const { x, y, w, h } = cropData.inner;
+                                      return (
+                                        <img 
+                                          src={editAchievementForm.image} 
+                                          alt="Inner View Preview" 
+                                          style={{
+                                            position: 'absolute',
+                                            width: `${10000 / w}%`,
+                                            height: `${10000 / h}%`,
+                                            left: `${-x * (100 / w)}%`,
+                                            top: `${-y * (100 / h)}%`,
+                                            objectFit: 'cover'
+                                          }}
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <img 
+                                        src={editAchievementForm.image} 
+                                        alt="Inner View Preview" 
+                                        style={{
+                                          width: '100%',
+                                          height: '100%',
+                                          objectFit: editAchievementForm.imageFit || 'cover',
+                                          objectPosition: `${editPos.x}% ${editPos.y}%`,
+                                          transform: `scale(${editPos.zoom})`,
+                                          transformOrigin: 'center'
+                                        }}
+                                      />
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   <div className="input-group">
                   <label className="input-label">Description *</label>

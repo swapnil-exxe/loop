@@ -3,6 +3,43 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getAchievements } from '../utils/db';
 import { ArrowLeft, Calendar } from 'lucide-react';
 
+const parsePosition = (posStr) => {
+  if (!posStr) return { x: 50, y: 50, zoom: 1.0 };
+  if (posStr === 'center') return { x: 50, y: 50, zoom: 1.0 };
+  if (posStr === 'top') return { x: 50, y: 0, zoom: 1.0 };
+  if (posStr === 'bottom') return { x: 50, y: 100, zoom: 1.0 };
+  if (posStr === 'left') return { x: 0, y: 50, zoom: 1.0 };
+  if (posStr === 'right') return { x: 100, y: 50, zoom: 1.0 };
+  if (posStr.startsWith('crop:')) return { x: 50, y: 50, zoom: 1.0 };
+  const parts = posStr.split(' ');
+  const x = parseInt(parts[0]) || 50;
+  const y = parseInt(parts[1]) || 50;
+  const zoom = parseFloat(parts[2]) || 1.0;
+  return { x, y, zoom };
+};
+
+const parseCrop = (posStr) => {
+  const defaults = {
+    outer: { x: 10, y: 10, w: 80, h: 61 },
+    inner: { x: 10, y: 10, w: 80, h: 33 }
+  };
+  if (!posStr || !posStr.startsWith('crop:')) return defaults;
+  try {
+    const parts = posStr.replace('crop:', '').split(';');
+    if (parts.length >= 2) {
+      const outerParts = parts[0].split(',').map(Number);
+      const innerParts = parts[1].split(',').map(Number);
+      return {
+        outer: { x: outerParts[0] ?? 10, y: outerParts[1] ?? 10, w: outerParts[2] ?? 80, h: outerParts[3] ?? 61 },
+        inner: { x: innerParts[0] ?? 10, y: innerParts[1] ?? 10, w: innerParts[2] ?? 80, h: innerParts[3] ?? 33 }
+      };
+    }
+  } catch (e) {
+    console.error("Error parsing crop string:", e);
+  }
+  return defaults;
+};
+
 export default function AchievementDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -66,27 +103,65 @@ export default function AchievementDetail() {
       </button>
 
       {/* Image (Top - Under back link) */}
-      <div style={{
-        width: '100%',
-        borderRadius: '24px',
-        overflow: 'hidden',
-        border: '1px solid var(--border-color)',
-        backgroundColor: 'var(--bg-secondary)',
-        marginBottom: '3.5rem'
-      }}>
-        <img 
-          src={achievement.image} 
-          alt={achievement.title} 
-          style={{
+      {(() => {
+        const isCrop = achievement.imageFit === 'crop' && achievement.imagePosition && achievement.imagePosition.startsWith('crop:');
+        if (isCrop) {
+          const cropData = parseCrop(achievement.imagePosition);
+          const { x, y, w, h } = cropData.inner;
+          return (
+            <div style={{
+              width: '100%',
+              height: '380px',
+              borderRadius: '24px',
+              overflow: 'hidden',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-secondary)',
+              marginBottom: '3.5rem',
+              position: 'relative'
+            }}>
+              <img 
+                src={achievement.image} 
+                alt={achievement.title} 
+                style={{
+                  position: 'absolute',
+                  width: `${10000 / w}%`,
+                  height: `${10000 / h}%`,
+                  left: `${-x * (100 / w)}%`,
+                  top: `${-y * (100 / h)}%`,
+                  objectFit: 'cover'
+                }}
+              />
+            </div>
+          );
+        }
+        
+        const p = parsePosition(achievement.imagePosition);
+        return (
+          <div style={{
             width: '100%',
-            height: 'auto',
-            maxHeight: '500px',
-            objectFit: achievement.imageFit || 'cover',
-            objectPosition: achievement.imagePosition || 'center',
-            display: 'block'
-          }}
-        />
-      </div>
+            borderRadius: '24px',
+            overflow: 'hidden',
+            border: '1px solid var(--border-color)',
+            backgroundColor: 'var(--bg-secondary)',
+            marginBottom: '3.5rem'
+          }}>
+            <img 
+              src={achievement.image} 
+              alt={achievement.title} 
+              style={{
+                width: '100%',
+                height: 'auto',
+                maxHeight: '500px',
+                objectFit: achievement.imageFit || 'cover',
+                objectPosition: `${p.x}% ${p.y}%`,
+                transform: `scale(${p.zoom})`,
+                transformOrigin: 'center',
+                display: 'block'
+              }}
+            />
+          </div>
+        );
+      })()}
 
       {/* Two Column Layout Block */}
       <div className="achievement-detail-grid" style={{
