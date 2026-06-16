@@ -674,6 +674,17 @@ export default function AdminDashboard() {
     refreshData().finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (editingItem || previewingPendingStory || previewingPendingResource || viewerFile) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [editingItem, previewingPendingStory, previewingPendingResource, viewerFile]);
+
   const handleApproveStory = async (id) => {
     await approveStory(id);
     await refreshData();
@@ -951,7 +962,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
+    <>
+      <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
       
       {/* Header */}
       <div style={{ marginBottom: '3.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '2rem' }}>
@@ -2348,9 +2360,10 @@ export default function AdminDashboard() {
         )}
         </>
       )}
+    </div>
 
-      {/* Glassmorphic Edit Details Overlay Modal */}
-      {editingItem && (
+    {/* Glassmorphic Edit Details Overlay Modal */}
+    {editingItem && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -4182,6 +4195,6 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

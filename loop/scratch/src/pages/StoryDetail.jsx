@@ -99,6 +99,17 @@ export default function StoryDetail() {
     });
   }, [id]);
 
+  useEffect(() => {
+    if (isEditing || viewerFile || activePreviewImage) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isEditing, viewerFile, activePreviewImage]);
+
   // Auth and Ownership
   const userSession = localStorage.getItem('loop_current_user');
   const currentUser = userSession ? JSON.parse(userSession) : null;
@@ -301,7 +312,8 @@ export default function StoryDetail() {
   };
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '6rem', maxWidth: '900px' }}>
+    <>
+      <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '6rem', maxWidth: '900px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         {/* Back button */}
         <button 
@@ -925,8 +937,9 @@ export default function StoryDetail() {
         )}
 
       </main>
+    </div>
 
-      {/* Lightbox / Zoom Image Modal */}
+    {/* Lightbox / Zoom Image Modal */}
       {activePreviewImage && (
         <div 
           onClick={() => setActivePreviewImage(null)}
@@ -1698,6 +1711,6 @@ export default function StoryDetail() {
           }
         }
       `}</style>
-    </div>
+    </>
   );
 }

@@ -64,6 +64,17 @@ export default function Resources() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    if (isModalOpen || isNewFolderModalOpen || viewerFile || editingResource) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isModalOpen, isNewFolderModalOpen, viewerFile, editingResource]);
   
   const [currentFolderId, setCurrentFolderId] = useState(null); // null means root/all
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
@@ -309,7 +320,8 @@ export default function Resources() {
   };
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
+    <>
+      <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
       
       {/* Header and Add button */}
       <div style={{
@@ -674,9 +686,10 @@ export default function Resources() {
           </button>
         </div>
       )}
+    </div>
 
-      {/* Upload Modal */}
-      {isModalOpen && (
+    {/* Upload Modal */}
+    {isModalOpen && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -1413,6 +1426,6 @@ export default function Resources() {
           box-shadow: var(--card-shadow);
         }
       `}</style>
-    </div>
+    </>
   );
 }
