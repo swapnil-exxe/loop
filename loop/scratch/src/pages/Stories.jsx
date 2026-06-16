@@ -266,7 +266,7 @@ export default function Stories() {
   };
 
   return (
-    <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+    <div className="container" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
       {/* Header and Filter panel */}
       <div style={{
         display: 'flex',

@@ -8,10 +8,21 @@ export default function Achievements() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
+  const fetchAchievements = () => {
+    setError(null);
+    getAchievements()
+      .then(setAchievements)
+      .catch(err => {
+        console.error(err);
+        setError('Connection issue: Unable to fetch achievements from server.');
+      });
+  };
+
   useEffect(() => {
-    getAchievements().then(setAchievements).catch(console.error);
+    fetchAchievements();
   }, []);
 
   const categories = [
@@ -38,7 +49,7 @@ export default function Achievements() {
   });
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
       
       {/* Page Header */}
       <div style={{ marginBottom: '2.5rem' }}>
@@ -49,6 +60,34 @@ export default function Achievements() {
           Celebrating excellence, academic milestones, and student leadership across various domains.
         </p>
       </div>
+
+      {error && (
+        <div style={{
+          backgroundColor: 'rgba(255, 69, 58, 0.1)',
+          border: '1px solid rgba(255, 69, 58, 0.2)',
+          color: '#ff453a',
+          borderRadius: '12px',
+          padding: '1rem 1.5rem',
+          marginBottom: '2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '0.9rem',
+          gap: '1rem',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ fontWeight: 500 }}>⚠️ Connection Issue: Unable to connect to the server. Please check your database connection or backend status.</span>
+          <button 
+            onClick={fetchAchievements} 
+            className="btn btn-secondary" 
+            style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderColor: '#ff453a', color: '#ff453a', borderRadius: '8px', background: 'transparent' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 69, 58, 0.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {/* Search and Sort Filter Block */}
       <div style={{
@@ -263,7 +302,8 @@ export default function Achievements() {
                   style={{
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover',
+                    objectFit: item.imageFit || 'cover',
+                    objectPosition: item.imagePosition || 'center',
                     transition: 'transform 0.5s ease'
                   }}
                   className="achievement-image"

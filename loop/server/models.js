@@ -127,7 +127,9 @@ const AchievementSchema = new mongoose.Schema({
   description: String,
   date: String,
   category: String,
-  image: String
+  image: String,
+  imageFit: { type: String, default: 'cover' },
+  imagePosition: { type: String, default: 'center' }
 });
 
 // Folder Schema

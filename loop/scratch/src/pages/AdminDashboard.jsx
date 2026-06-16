@@ -88,7 +88,9 @@ export default function AdminDashboard() {
     category: 'Hackathon Winners',
     description: '',
     date: new Date().toISOString().split('T')[0],
-    image: ''
+    image: '',
+    imageFit: 'cover',
+    imagePosition: 'center'
   });
 
   const [formSuccess, setFormSuccess] = useState(false);
@@ -121,7 +123,9 @@ export default function AdminDashboard() {
     category: 'Hackathon Winners',
     description: '',
     date: '',
-    image: ''
+    image: '',
+    imageFit: 'cover',
+    imagePosition: 'center'
   });
 
   const [editMaterialInput, setEditMaterialInput] = useState({
@@ -302,7 +306,9 @@ export default function AdminDashboard() {
         category: 'Hackathon Winners',
         description: '',
         date: new Date().toISOString().split('T')[0],
-        image: ''
+        image: '',
+        imageFit: 'cover',
+        imagePosition: 'center'
       });
     }, 1500);
   };
@@ -311,14 +317,13 @@ export default function AdminDashboard() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!newUserEmail.trim()) return;
-
-    await addUser({
-      email: newUserEmail.trim(),
-      role: newUserRole
-    });
-
-    setNewUserEmail('');
-    await refreshData();
+    try {
+      await addUser({ email: newUserEmail.trim(), role: newUserRole });
+      setNewUserEmail('');
+      await refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const handleRemoveUser = async (email) => {
@@ -328,28 +333,47 @@ export default function AdminDashboard() {
     }
   };
 
-  // Editing mode triggers
-  const startEditStory = (story) => {
+  // Editing helpers
+  const startEditStory = (item) => {
     setEditingType('story');
-    setEditingItem(story);
-    setEditMaterialInput({ title: '', type: 'PDF', fileName: '', fileSize: '', previewUrl: '' });
+    setEditingItem(item);
     setEditStoryForm({
-      name: story.name || '',
-      company: story.company || '',
-      role: story.role || '',
-      branch: story.branch || 'CSE',
-      passoutYear: story.passoutYear || '',
-      semester: story.semester || '',
-      cgpa: story.cgpa || '',
+      name: item.name || '',
+      company: item.company || '',
+      role: item.role || '',
+      branch: item.branch || 'CSE',
+      subBranch: item.subBranch || 'CSE',
+      passoutYear: item.passoutYear || '',
+      semester: item.semester || '',
+      cgpa: item.cgpa || '',
       journey: {
-        firstYear: story.journey?.firstYear || '',
-        secondYear: story.journey?.secondYear || '',
-        thirdYear: story.journey?.thirdYear || '',
-        fourthYear: story.journey?.fourthYear || '',
-        prep: story.journey?.prep || ''
+        firstYear: item.journey?.firstYear || '',
+        secondYear: item.journey?.secondYear || '',
+        thirdYear: item.journey?.thirdYear || '',
+        fourthYear: item.journey?.fourthYear || '',
+        prep: item.journey?.prep || '',
+        projects: item.journey?.projects || '',
+        howSecured: item.journey?.howSecured || ''
       },
-      studyMaterials: story.studyMaterials || [],
-      resume: story.resumeFile || story.resume || ''
+      resources: item.resources || [],
+      resume: item.resume || '',
+      resumeFile: item.resumeFile || { fileName: '', fileSize: '', url: '' },
+      studyMaterials: item.studyMaterials || [],
+      customSections: item.customSections || []
+    });
+  };
+
+  const startEditAchievement = (item) => {
+    setEditingType('achievement');
+    setEditingItem(item);
+    setEditAchievementForm({
+      title: item.title || '',
+      category: item.category || 'Hackathon Winners',
+      description: item.description || '',
+      date: item.date || '',
+      image: item.image || '',
+      imageFit: item.imageFit || 'cover',
+      imagePosition: item.imagePosition || 'center'
     });
   };
 
@@ -374,17 +398,6 @@ export default function AdminDashboard() {
     await refreshData();
   };
 
-  const startEditAchievement = (item) => {
-    setEditingType('achievement');
-    setEditingItem(item);
-    setEditAchievementForm({
-      title: item.title || '',
-      category: item.category || 'Hackathon Winners',
-      description: item.description || '',
-      date: item.date || '',
-      image: item.image || ''
-    });
-  };
 
   const handleSaveAchievement = async (e) => {
     e.preventDefault();
@@ -442,7 +455,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
       
       {/* Header */}
       <div style={{ marginBottom: '3.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '2rem' }}>
@@ -1034,6 +1047,38 @@ export default function AdminDashboard() {
                   onChange={(e) => setAchievementForm({ ...achievementForm, image: e.target.value })} 
                   style={{ fontSize: '0.85rem' }}
                 />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div className="input-group">
+                <label className="input-label">Image Fitting Selection</label>
+                <select
+                  className="input-field"
+                  value={achievementForm.imageFit || 'cover'}
+                  onChange={(e) => setAchievementForm({ ...achievementForm, imageFit: e.target.value })}
+                  style={{ backgroundColor: 'var(--bg-secondary)' }}
+                >
+                  <option value="cover">Crop to Fill (Cover)</option>
+                  <option value="contain">Show Full Image (Contain)</option>
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Image Crop Position</label>
+                <select
+                  className="input-field"
+                  value={achievementForm.imagePosition || 'center'}
+                  onChange={(e) => setAchievementForm({ ...achievementForm, imagePosition: e.target.value })}
+                  style={{ backgroundColor: 'var(--bg-secondary)' }}
+                  disabled={achievementForm.imageFit === 'contain'}
+                >
+                  <option value="center">Center</option>
+                  <option value="top">Top</option>
+                  <option value="bottom">Bottom</option>
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </select>
               </div>
             </div>
 
@@ -1869,18 +1914,50 @@ export default function AdminDashboard() {
                       )}
                     </div>
                     
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="Or paste image URL directly"
-                      value={editAchievementForm.image.startsWith('data:') ? '' : editAchievementForm.image} 
-                      onChange={e => setEditAchievementForm({ ...editAchievementForm, image: e.target.value })} 
-                      style={{ fontSize: '0.85rem' }}
-                    />
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="Or paste image URL directly"
+                        value={editAchievementForm.image.startsWith('data:') ? '' : editAchievementForm.image} 
+                        onChange={e => setEditAchievementForm({ ...editAchievementForm, image: e.target.value })} 
+                        style={{ fontSize: '0.85rem' }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="input-group">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                    <div className="input-group">
+                      <label className="input-label">Image Fitting Selection</label>
+                      <select
+                        className="input-field"
+                        value={editAchievementForm.imageFit || 'cover'}
+                        onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imageFit: e.target.value })}
+                        style={{ backgroundColor: 'var(--bg-secondary)' }}
+                      >
+                        <option value="cover">Crop to Fill (Cover)</option>
+                        <option value="contain">Show Full Image (Contain)</option>
+                      </select>
+                    </div>
+
+                    <div className="input-group">
+                      <label className="input-label">Image Crop Position</label>
+                      <select
+                        className="input-field"
+                        value={editAchievementForm.imagePosition || 'center'}
+                        onChange={(e) => setEditAchievementForm({ ...editAchievementForm, imagePosition: e.target.value })}
+                        style={{ backgroundColor: 'var(--bg-secondary)' }}
+                        disabled={editAchievementForm.imageFit === 'contain'}
+                      >
+                        <option value="center">Center</option>
+                        <option value="top">Top</option>
+                        <option value="bottom">Bottom</option>
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="input-group">
                   <label className="input-label">Description *</label>
                   <textarea 
                     className="input-field" 

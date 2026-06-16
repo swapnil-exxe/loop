@@ -40,7 +40,7 @@ export default function AchievementDetail() {
   }
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '3rem', paddingBottom: '6rem', maxWidth: '1000px' }}>
+    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '6rem', maxWidth: '1000px' }}>
       
       {/* Back link */}
       <button 
@@ -81,7 +81,8 @@ export default function AchievementDetail() {
             width: '100%',
             height: 'auto',
             maxHeight: '500px',
-            objectFit: 'cover',
+            objectFit: achievement.imageFit || 'cover',
+            objectPosition: achievement.imagePosition || 'center',
             display: 'block'
           }}
         />

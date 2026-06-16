@@ -267,7 +267,7 @@ export default function Resources() {
   };
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
       
       {/* Header and Add button */}
       <div style={{

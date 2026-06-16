@@ -206,7 +206,7 @@ export default function StoryDetail() {
   };
 
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '2.5rem', paddingBottom: '6rem', maxWidth: '900px' }}>
+    <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '6rem', maxWidth: '900px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         {/* Back button */}
         <button 
