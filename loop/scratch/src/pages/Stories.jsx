@@ -178,7 +178,7 @@ export default function Stories() {
       return;
     }
 
-    const photoUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=400&h=400';
+    const photoUrl = '/images/file-1.jpg';
 
     // Auto-add staged material if user selected a file but forgot to click '+'
     let finalStudyMaterials = [...formData.studyMaterials];

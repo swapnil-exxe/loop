@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, CornerRightDown } from 'lucide-react';
-import heroImage from '../assets/hero_student_life.png';
-import labImage from '../assets/student_collaboration.png';
+const heroImage = '/images/spit-college.jpg';
+const labImage = '/images/tpo-team.jpg';
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -425,7 +425,7 @@ export default function Landing() {
               zIndex: 1
             }}>
               <img 
-                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=400&h=600" 
+                src="/images/file-1.jpg" 
                 alt="Students studying" 
                 style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)' }}
               />
@@ -444,7 +444,7 @@ export default function Landing() {
               zIndex: 3
             }}>
               <img 
-                src="https://images.unsplash.com/photo-1531497865144-0464ef8fb9a9?auto=format&fit=crop&q=80&w=400&h=600" 
+                src="/images/file-2.jpg" 
                 alt="Working at a table" 
                 style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)' }}
               />
@@ -464,7 +464,7 @@ export default function Landing() {
               zIndex: 2
             }}>
               <img 
-                src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=400&h=600" 
+                src="/images/file-3.jpg" 
                 alt="Student presenting code" 
                 style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)' }}
               />

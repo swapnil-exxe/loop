@@ -733,7 +733,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    const imgUrl = achievementForm.image.trim() || 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=600&h=400';
+    const imgUrl = achievementForm.image.trim() || '/images/placement-record.jpg';
 
     await addAchievement({
       ...achievementForm,

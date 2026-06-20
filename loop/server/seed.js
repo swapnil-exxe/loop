@@ -22,7 +22,7 @@ const sampleStories = [
     role: 'AI Research Engineer',
     semester: '7',
     cgpa: '9.6',
-    photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=400&h=400',
+    photo: '/images/file-1.jpg',
     journey: {
       firstYear: 'Spent the first year getting familiar with college life. Explored web development and basic C++ programming. Joined the SPIT Coding Club and began participating in local hackathons to understand teamwork.',
       secondYear: 'Fascinated by Machine Learning, I completed Andrew Karpathy\'s neural networks series. Maintained a high GPA while taking statistics and linear algebra courses, which laid the foundation for DL.',
@@ -40,7 +40,7 @@ const sampleStories = [
     resume: 'aditya_sharma_nvidia.pdf',
     studyMaterials: [
       { title: 'NVIDIA Interview Prep Cheat Sheet', type: 'PDF', fileName: 'nvidia_prep_sheet.pdf', fileSize: '1.24 MB', url: '#' },
-      { title: 'Deep Learning & Math Roadmap', type: 'Image', fileName: 'dl_math_roadmap.png', fileSize: '3.42 MB', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&q=80&w=600&h=400' }
+      { title: 'Deep Learning & Math Roadmap', type: 'Image', fileName: 'dl_math_roadmap.png', fileSize: '3.42 MB', url: '/images/file-5.jpg' }
     ]
   },
   {
@@ -53,7 +53,7 @@ const sampleStories = [
     role: 'Software Engineer',
     semester: '7',
     cgpa: '9.2',
-    photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=400&h=400',
+    photo: '/images/file-2.jpg',
     journey: {
       firstYear: 'Learnt Python and HTML/CSS. Participated in my first SPIT coding contest. Made great friends and focused on adapting to the college curriculum.',
       secondYear: 'Dived into Data Structures and Algorithms. Started resolving LeetCode problems daily. Built a full-stack React project for the SPIT Hackathon, winning the runner-up prize.',
@@ -71,7 +71,7 @@ const sampleStories = [
     resume: 'neha_patel_microsoft.pdf',
     studyMaterials: [
       { title: 'Microsoft Interview Questions & Answers', type: 'PDF', fileName: 'ms_interview_questions.pdf', fileSize: '0.92 MB', url: '#' },
-      { title: 'System Design Interview Cheatsheet', type: 'Image', fileName: 'system_design_cheatsheet.jpg', fileSize: '2.15 MB', url: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&q=80&w=600&h=400' }
+      { title: 'System Design Interview Cheatsheet', type: 'Image', fileName: 'system_design_cheatsheet.jpg', fileSize: '2.15 MB', url: '/images/file-6.jpg' }
     ]
   },
   {
@@ -84,7 +84,7 @@ const sampleStories = [
     role: 'Quantitative Analyst',
     semester: '8',
     cgpa: '9.4',
-    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400&h=400',
+    photo: '/images/file-3.jpg',
     journey: {
       firstYear: 'Learnt Java and OOPs concepts. Maintained strict study schedules to keep the CGPA above 9.5. Joined the college finance club to learn quantitative analysis.',
       secondYear: 'Mastered advanced DSA. Read extensively about algorithms, statistics, and probability. Built a stock market portfolio simulator using React and Express.',
@@ -102,7 +102,7 @@ const sampleStories = [
     resume: 'rohan_mehta_jpmc.pdf',
     studyMaterials: [
       { title: 'Quantitative Interview Preparation Booklets', type: 'PDF', fileName: 'quant_prep_booklet.pdf', fileSize: '4.80 MB', url: '#' },
-      { title: 'Probability & Statistics Formulas Cheat Sheet', type: 'Image', fileName: 'probability_formulas.png', fileSize: '1.85 MB', url: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&q=80&w=600&h=400' }
+      { title: 'Probability & Statistics Formulas Cheat Sheet', type: 'Image', fileName: 'probability_formulas.png', fileSize: '1.85 MB', url: '/images/record.jpg' }
     ]
   },
   {
@@ -115,7 +115,7 @@ const sampleStories = [
     role: 'Hardware Design Engineer',
     semester: '7',
     cgpa: '8.9',
-    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400&h=400',
+    photo: '/images/file-4.jpg',
     journey: {
       firstYear: 'Explored core electronics. Learnt breadboarding and basic circuits. Practiced standard college lab work and learned C programming.',
       secondYear: 'Started learning Verilog and FPGA design. Built digital clock circuits and worked on microcontroller projects (Arduino & Raspberry Pi).',
@@ -132,7 +132,7 @@ const sampleStories = [
     ],
     resume: 'simran_kaur_qualcomm.pdf',
     studyMaterials: [
-      { title: 'Digital Logic and Verilog Reference Sheet', type: 'Image', fileName: 'verilog_reference_sheet.png', fileSize: '2.30 MB', url: 'https://images.unsplash.com/photo-1507668077129-56e32842fceb?auto=format&fit=crop&q=80&w=600&h=400' },
+      { title: 'Digital Logic and Verilog Reference Sheet', type: 'Image', fileName: 'verilog_reference_sheet.png', fileSize: '2.30 MB', url: '/images/spit-college.jpg' },
       { title: 'Qualcomm Technical Interview Questions', type: 'PDF', fileName: 'qualcomm_questions.pdf', fileSize: '1.10 MB', url: '#' }
     ]
   }
@@ -145,7 +145,7 @@ const sampleAchievements = [
     description: 'A team of six SPIT students won the first prize of Rs 1 Lakh at the SIH 2025 Finals held in Bangalore for their AI-driven agricultural mapping solution.',
     date: '2025-12-18',
     category: 'Hackathon Winners',
-    image: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?auto=format&fit=crop&q=80&w=600&h=400'
+    image: '/images/bnc-principal.jpg'
   },
   {
     id: '2',
@@ -153,7 +153,7 @@ const sampleAchievements = [
     description: 'SPIT records 95% placement in the current academic year with an average package of 15 LPA for CSE, CE, and EXTC branches, and a highest package of 44 LPA.',
     date: '2026-04-10',
     category: 'Placement Successes',
-    image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=600&h=400'
+    image: '/images/placement-record.jpg'
   },
   {
     id: '3',
@@ -161,7 +161,7 @@ const sampleAchievements = [
     description: 'Eight students from Sardar Patel Institute of Technology have been selected for Google Summer of Code 2025, working with Apache, Linux, and CNCF.',
     date: '2025-05-04',
     category: 'Internship Achievements',
-    image: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&q=80&w=600&h=400'
+    image: '/images/companies.jpg'
   },
   {
     id: '4',
@@ -169,7 +169,7 @@ const sampleAchievements = [
     description: 'Team "SPIT_Overflow" represented the college at the ICPC Amritapuri Regionals, securing a rank in the top 30 coding teams across India.',
     date: '2025-11-23',
     category: 'Competition Winners',
-    image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=600&h=400'
+    image: '/images/record.jpg'
   }
 ];
 
