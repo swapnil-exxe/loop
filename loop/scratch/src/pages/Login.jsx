@@ -309,23 +309,27 @@ export default function Login() {
           )}
         </div>
 
-        {/* Demo Helper Panel */}
-        <div className="glass-panel" style={{
-          marginTop: '2rem',
-          padding: '1rem',
-          borderRadius: '12px',
-          fontSize: '0.75rem',
-          color: 'var(--text-secondary)',
-          border: '1px solid var(--border-color)',
-          textAlign: 'left'
-        }}>
-          <p style={{ fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>Testing Credentials:</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <p>• Admin: <code style={{ color: 'var(--text-primary)' }}>admin@spit.ac.in</code> / password: <code style={{ color: 'var(--text-primary)' }}>admin123</code></p>
-            <p>• Student: <code style={{ color: 'var(--text-primary)' }}>junior.student@spit.ac.in</code> / password: <code style={{ color: 'var(--text-primary)' }}>spit123</code></p>
-            <p>• Contributor: <code style={{ color: 'var(--text-primary)' }}>aditya.sharma@spit.ac.in</code> / password: <code style={{ color: 'var(--text-primary)' }}>spit123</code></p>
+
+        {/* Demo Helper Panel — only rendered when VITE_SHOW_DEMO_CREDENTIALS=true */}
+        {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (
+          <div className="glass-panel" style={{
+            marginTop: '2rem',
+            padding: '1rem',
+            borderRadius: '12px',
+            fontSize: '0.75rem',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-color)',
+            textAlign: 'left'
+          }}>
+            <p style={{ fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>Testing Credentials:</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <p>• Admin: <code style={{ color: 'var(--text-primary)' }}>{import.meta.env.VITE_DEMO_ADMIN_EMAIL}</code> / password: <code style={{ color: 'var(--text-primary)' }}>{import.meta.env.VITE_DEMO_ADMIN_PASS}</code></p>
+              <p>• Student: <code style={{ color: 'var(--text-primary)' }}>{import.meta.env.VITE_DEMO_STUDENT_EMAIL}</code> / password: <code style={{ color: 'var(--text-primary)' }}>{import.meta.env.VITE_DEMO_STUDENT_PASS}</code></p>
+              <p>• Contributor: <code style={{ color: 'var(--text-primary)' }}>{import.meta.env.VITE_DEMO_CONTRIB_EMAIL}</code> / password: <code style={{ color: 'var(--text-primary)' }}>{import.meta.env.VITE_DEMO_CONTRIB_PASS}</code></p>
+            </div>
           </div>
-        </div>
+        )}
+
       </div>
     </div>
   );

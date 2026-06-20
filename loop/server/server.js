@@ -128,10 +128,17 @@ app.delete('/api/folders/:id', async (req, res) => {
   }
 });
 
+// Helper: strip password from a user document before sending to client
+function sanitizeUser(user) {
+  const obj = user.toObject ? user.toObject() : { ...user };
+  delete obj.password;
+  return obj;
+}
+
 // 2. Users
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await User.find({});
+    const users = await User.find({}).select('-password');
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -140,12 +147,37 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const userData = { ...req.body };
-    if (!userData.password) {
-      userData.password = 'spit123';
+    const { email, role, password, name, branch, currentYear, status } = req.body;
+
+    // Required field check
+    if (!email || !role) {
+      return res.status(400).json({ error: 'Email and role are required.' });
     }
+    if (typeof email !== 'string' || email.length > 200) {
+      return res.status(400).json({ error: 'Invalid email.' });
+    }
+    if (typeof role !== 'string' || role.length > 100) {
+      return res.status(400).json({ error: 'Invalid role.' });
+    }
+    if (name && (typeof name !== 'string' || name.length > 200)) {
+      return res.status(400).json({ error: 'Invalid name.' });
+    }
+    if (branch && (typeof branch !== 'string' || branch.length > 100)) {
+      return res.status(400).json({ error: 'Invalid branch.' });
+    }
+
+    const userData = {
+      email: email.trim().toLowerCase(),
+      role: role.trim(),
+      password: (password && typeof password === 'string') ? password.trim() : 'spit123',
+      name: name ? name.trim() : '',
+      branch: branch ? branch.trim() : '',
+      currentYear: currentYear ? String(currentYear).trim() : '',
+      status: status || 'Active',
+    };
+
     const user = await User.create(userData);
-    res.status(201).json(user);
+    res.status(201).json(sanitizeUser(user));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -261,6 +293,20 @@ app.put('/api/users/:email', async (req, res) => {
   try {
     const email = req.params.email;
     const { name, role, branch, currentYear, status, password } = req.body;
+
+    // Input size limits
+    if (name !== undefined && (typeof name !== 'string' || name.length > 200)) {
+      return res.status(400).json({ error: 'Invalid name.' });
+    }
+    if (role !== undefined && (typeof role !== 'string' || role.length > 100)) {
+      return res.status(400).json({ error: 'Invalid role.' });
+    }
+    if (branch !== undefined && (typeof branch !== 'string' || branch.length > 100)) {
+      return res.status(400).json({ error: 'Invalid branch.' });
+    }
+    if (password !== undefined && (typeof password !== 'string' || password.length > 100)) {
+      return res.status(400).json({ error: 'Invalid password.' });
+    }
     
     const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
     if (!user) {
@@ -269,7 +315,7 @@ app.put('/api/users/:email', async (req, res) => {
     
     if (name !== undefined) user.name = name.trim();
     if (branch !== undefined) user.branch = branch.trim();
-    if (currentYear !== undefined) user.currentYear = currentYear.trim();
+    if (currentYear !== undefined) user.currentYear = String(currentYear).trim();
     if (status !== undefined) user.status = status;
     if (password !== undefined && password.trim()) user.password = password.trim();
     
@@ -280,7 +326,7 @@ app.put('/api/users/:email', async (req, res) => {
     
     await user.save();
     
-    res.json({ message: 'User updated successfully.', user });
+    res.json({ message: 'User updated successfully.', user: sanitizeUser(user) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -416,7 +462,7 @@ app.post('/api/users/:email/approve-edit', async (req, res) => {
     
     await user.save();
     
-    res.json({ message: 'User profile edit approved successfully.', user });
+    res.json({ message: 'User profile edit approved successfully.', user: sanitizeUser(user) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -458,7 +504,20 @@ app.get('/api/stories', async (req, res) => {
 
 app.post('/api/stories', async (req, res) => {
   try {
-    const story = await Story.create(req.body);
+    const { name, branch, id } = req.body;
+    // Required field check
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Story name is required.' });
+    }
+    if (name.length > 300) {
+      return res.status(400).json({ error: 'Story name is too long.' });
+    }
+    if (branch && (typeof branch !== 'string' || branch.length > 100)) {
+      return res.status(400).json({ error: 'Invalid branch value.' });
+    }
+    const storyData = { ...req.body, name: name.trim() };
+    if (!storyData.id) storyData.id = String(Date.now());
+    const story = await Story.create(storyData);
     res.status(201).json(story);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -570,7 +629,21 @@ app.get('/api/resources', async (req, res) => {
 
 app.post('/api/resources', async (req, res) => {
   try {
-    const resourceData = { ...req.body };
+    const { title, folderId, link } = req.body;
+    // Required fields
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      return res.status(400).json({ error: 'Resource title is required.' });
+    }
+    if (title.length > 500) {
+      return res.status(400).json({ error: 'Resource title is too long.' });
+    }
+    if (!folderId || typeof folderId !== 'string') {
+      return res.status(400).json({ error: 'folderId is required.' });
+    }
+    if (link && (typeof link !== 'string' || link.length > 2000)) {
+      return res.status(400).json({ error: 'Resource link is invalid or too long.' });
+    }
+    const resourceData = { ...req.body, title: title.trim() };
     if (!resourceData.id) resourceData.id = String(Date.now());
     if (!resourceData.date) resourceData.date = new Date().toISOString().split('T')[0];
     
@@ -686,7 +759,18 @@ app.get('/api/achievements', async (req, res) => {
 
 app.post('/api/achievements', async (req, res) => {
   try {
-    const achievementData = { ...req.body };
+    const { title, description } = req.body;
+    // Required field check
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      return res.status(400).json({ error: 'Achievement title is required.' });
+    }
+    if (title.length > 500) {
+      return res.status(400).json({ error: 'Achievement title is too long.' });
+    }
+    if (description && (typeof description !== 'string' || description.length > 5000)) {
+      return res.status(400).json({ error: 'Achievement description is too long (max 5000 chars).' });
+    }
+    const achievementData = { ...req.body, title: title.trim() };
     if (!achievementData.id) achievementData.id = String(Date.now());
     if (!achievementData.date) achievementData.date = new Date().toISOString().split('T')[0];
     
