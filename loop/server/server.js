@@ -2,14 +2,44 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
 const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Define Global Rate Limiter (Max 100 requests per 15 min per IP)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 100, 
+  standardHeaders: true, 
+  legacyHeaders: false, 
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' }
+});
+
+// Define Login/Auth Rate Limiter (Max 5 attempts per 15 min per IP)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 5, 
+  standardHeaders: true, 
+  legacyHeaders: false, 
+  message: { error: 'Too many login attempts from this IP, please try again after 15 minutes.' }
+});
+
 // Middlewares
 app.use(cors());
-app.use(express.json({ limit: '100mb' })); // support base64 images
+app.use(express.json({ limit: '15mb' })); // support base64 images under a safe 15MB limit
+
+// Apply Global Limiter to all API endpoints
+app.use('/api/', globalLimiter);
+
+// Apply strict rate limiting to login and registration routes
+app.use('/api/users/login', loginLimiter);
+app.use('/api/users/register-request', loginLimiter);
+
+// Prevent NoSQL query injection by stripping keys starting with $ or .
+app.use(mongoSanitize());
 
 // Database connection
 const primaryUri = process.env.MONGODB_URI;
@@ -128,6 +158,14 @@ app.post('/api/users/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
     
+    // Type and length validation
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Invalid input types.' });
+    }
+    if (email.length > 100 || password.length > 100) {
+      return res.status(400).json({ error: 'Inputs exceed maximum permitted length.' });
+    }
+
     // Case-insensitive, trimmed email search
     const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
     if (!user) {
@@ -170,6 +208,14 @@ app.post('/api/users/register-request', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
     
+    // Type and length validation
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Invalid input types.' });
+    }
+    if (email.length > 100 || password.length > 100) {
+      return res.status(400).json({ error: 'Inputs exceed maximum permitted length.' });
+    }
+
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail.endsWith('@spit.ac.in')) {
       return res.status(400).json({ error: 'Please use your official SPIT email address (@spit.ac.in).' });

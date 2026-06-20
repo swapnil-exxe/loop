@@ -99,17 +99,6 @@ export default function StoryDetail() {
     });
   }, [id]);
 
-  useEffect(() => {
-    if (isEditing || viewerFile || activePreviewImage) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isEditing, viewerFile, activePreviewImage]);
-
   // Auth and Ownership
   const userSession = localStorage.getItem('loop_current_user');
   const currentUser = userSession ? JSON.parse(userSession) : null;
@@ -149,6 +138,17 @@ export default function StoryDetail() {
     fileSize: '',
     previewUrl: ''
   });
+
+  useEffect(() => {
+    if (isEditing || viewerFile || activePreviewImage) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isEditing, viewerFile, activePreviewImage]);
 
   const processMaterialFile = (file) => {
     const extension = file.name.split('.').pop().toLowerCase();

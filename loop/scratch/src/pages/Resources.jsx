@@ -65,17 +65,6 @@ export default function Resources() {
       });
   }, []);
 
-  useEffect(() => {
-    if (isModalOpen || isNewFolderModalOpen || viewerFile || editingResource) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isModalOpen, isNewFolderModalOpen, viewerFile, editingResource]);
-  
   const [currentFolderId, setCurrentFolderId] = useState(null); // null means root/all
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -216,6 +205,17 @@ export default function Resources() {
     uploadedBy: currentUser ? formatEmailToName(currentUser.email) : '',
     folderId: 'sem-1'
   });
+
+  useEffect(() => {
+    if (isModalOpen || isNewFolderModalOpen || viewerFile || editingResource) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isModalOpen, isNewFolderModalOpen, viewerFile, editingResource]);
 
   // Helper to recursively get all children IDs of a folder to filter resources inside it
   const getFolderAndSubfolderIds = (folderId) => {
