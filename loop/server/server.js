@@ -4,10 +4,15 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
 const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+
+const JWT_SECRET = process.env.JWT_SECRET || 'spit_loop_super_secret_jwt_key_2026';
 
 // Define Global Rate Limiter (Max 100 requests per 15 min per IP)
 const globalLimiter = rateLimit({
@@ -28,7 +33,40 @@ const loginLimiter = rateLimit({
 });
 
 // Middlewares
-app.use(cors());
+
+// Enable CORS with restricted origin access
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+  credentials: true
+}));
+
+// Helmet secure headers & custom Content Security Policy (CSP)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "ws:", "http://localhost:5173", "http://127.0.0.1:5173"],
+      frameSrc: ["'self'", "data:", "blob:"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Custom Permissions Policy header
+app.use((req, res, next) => {
+  res.setHeader(
+    'Permissions-Policy',
+    'geolocation=(), microphone=(), camera=(), interest-cohort=()'
+  );
+  next();
+});
+
 app.use(express.json({ limit: '15mb' })); // support base64 images under a safe 15MB limit
 
 // Apply Global Limiter to all API endpoints
@@ -40,6 +78,79 @@ app.use('/api/users/register-request', loginLimiter);
 
 // Prevent NoSQL query injection by stripping keys starting with $ or .
 app.use(mongoSanitize());
+
+// --- Helper Functions for Security ---
+
+// HTML tag stripping to prevent Stored XSS
+function sanitizeString(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/<[^>]*>/g, '');
+}
+
+// Deep sanitization of objects
+function sanitizeObject(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  for (const key in obj) {
+    if (typeof obj[key] === 'string') {
+      obj[key] = sanitizeString(obj[key]);
+    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+      sanitizeObject(obj[key]);
+    }
+  }
+  return obj;
+}
+
+// Base64 file URI validation
+function validateFileUri(uri, allowedPrefixes) {
+  if (!uri) return true; // Optional field is valid
+  if (typeof uri !== 'string') return false;
+  if (!uri.startsWith('data:')) {
+    // Relative local paths or anchors are allowed, but block script injections
+    if (uri.toLowerCase().startsWith('javascript:')) return false;
+    return true;
+  }
+  return allowedPrefixes.some(prefix => uri.startsWith(prefix));
+}
+
+const ALLOWED_IMAGE_PREFIXES = ['data:image/jpeg;base64,', 'data:image/png;base64,', 'data:image/webp;base64,', 'data:image/jpg;base64,'];
+const ALLOWED_PDF_PREFIXES = ['data:application/pdf;base64,'];
+const ALLOWED_DOC_PREFIXES = [...ALLOWED_IMAGE_PREFIXES, ...ALLOWED_PDF_PREFIXES];
+
+// --- JWT Verification & Authorization Middlewares ---
+
+async function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token is required. Please login.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    // Find active user in DB to verify status is active
+    const user = await User.findOne({ email: new RegExp('^' + decoded.email.trim() + '$', 'i') });
+    if (!user) {
+      return res.status(401).json({ error: 'User session invalid. User not found.' });
+    }
+    if (user.status !== 'Active') {
+      return res.status(403).json({ error: 'Your account is inactive or pending approval.' });
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(403).json({ error: 'Session expired or token invalid. Please sign in again.' });
+  }
+}
+
+function requireAdmin(req, res, next) {
+  const isUserAdmin = req.user && (req.user.email.toLowerCase() === 'admin@spit.ac.in' || req.user.role === 'Administrator' || req.user.role === 'Admin');
+  if (!isUserAdmin) {
+    return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
+  }
+  next();
+}
+
 
 // Database connection
 const primaryUri = process.env.MONGODB_URI;
@@ -90,10 +201,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Helper to escape regex special characters (blocks ReDoS)
+function escapeRegExp(string) {
+  if (typeof string !== 'string') return string;
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Routes
 
 // 1. Folders
-app.get('/api/folders', async (req, res) => {
+app.get('/api/folders', authenticateToken, async (req, res) => {
   try {
     const folders = await Folder.find({});
     res.json(folders);
@@ -102,25 +219,27 @@ app.get('/api/folders', async (req, res) => {
   }
 });
 
-app.post('/api/folders', async (req, res) => {
+app.post('/api/folders', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const folder = await Folder.create(req.body);
+    const sanitizedBody = sanitizeObject({ ...req.body });
+    const folder = await Folder.create(sanitizedBody);
     res.status(201).json(folder);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.delete('/api/folders/:id', async (req, res) => {
+app.delete('/api/folders/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    await Folder.deleteOne({ id });
+    const sanitizedId = sanitizeString(id);
+    await Folder.deleteOne({ id: sanitizedId });
     
     // Update any subfolders to make them root folders
-    await Folder.updateMany({ parentId: id }, { parentId: null });
+    await Folder.updateMany({ parentId: sanitizedId }, { parentId: null });
     
     // Re-assign study resources inside deleted folder to a fallback folder 'sem-1'
-    await Resource.updateMany({ folderId: id }, { folderId: 'sem-1' });
+    await Resource.updateMany({ folderId: sanitizedId }, { folderId: 'sem-1' });
     
     res.json({ message: 'Folder deleted and orphaned entities re-assigned.' });
   } catch (err) {
@@ -136,7 +255,7 @@ function sanitizeUser(user) {
 }
 
 // 2. Users
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const users = await User.find({}).select('-password');
     res.json(users);
@@ -145,7 +264,7 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { email, role, password, name, branch, currentYear, status } = req.body;
 
@@ -166,13 +285,16 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Invalid branch.' });
     }
 
+    const passwordVal = (password && typeof password === 'string') ? password.trim() : 'spit123';
+    const hashedPassword = await bcrypt.hash(passwordVal, 10);
+
     const userData = {
       email: email.trim().toLowerCase(),
-      role: role.trim(),
-      password: (password && typeof password === 'string') ? password.trim() : 'spit123',
-      name: name ? name.trim() : '',
-      branch: branch ? branch.trim() : '',
-      currentYear: currentYear ? String(currentYear).trim() : '',
+      role: sanitizeString(role.trim()),
+      password: hashedPassword,
+      name: name ? sanitizeString(name.trim()) : '',
+      branch: branch ? sanitizeString(branch.trim()) : '',
+      currentYear: currentYear ? sanitizeString(String(currentYear).trim()) : '',
       status: status || 'Active',
     };
 
@@ -198,8 +320,8 @@ app.post('/api/users/login', async (req, res) => {
       return res.status(400).json({ error: 'Inputs exceed maximum permitted length.' });
     }
 
-    // Case-insensitive, trimmed email search
-    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    // Case-insensitive, trimmed, regex-escaped email search (prevents ReDoS)
+    const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
       return res.status(401).json({ error: 'User not found in the database. Please contact an administrator.' });
     }
@@ -212,11 +334,19 @@ app.post('/api/users/login', async (req, res) => {
       return res.status(403).json({ error: 'Your account is currently inactive. Please contact an administrator.' });
     }
     
-    if (user.password !== password) {
+    // Compare bcrypt passwords
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
       return res.status(401).json({ error: 'Incorrect password. Please try again.' });
     }
     
-    // Return session data
+    // Sign JWT
+    const token = jwt.sign(
+      { email: user.email, role: user.role, status: user.status },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
     const isUserAdmin = user.email.toLowerCase() === 'admin@spit.ac.in' || user.role === 'Administrator' || user.role === 'Admin';
     res.json({
       email: user.email,
@@ -226,7 +356,8 @@ app.post('/api/users/login', async (req, res) => {
       branch: user.branch,
       currentYear: user.currentYear,
       onboarded: isUserAdmin ? true : user.onboarded,
-      isAdmin: isUserAdmin
+      isAdmin: isUserAdmin,
+      token
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -253,29 +384,31 @@ app.post('/api/users/register-request', async (req, res) => {
       return res.status(400).json({ error: 'Please use your official SPIT email address (@spit.ac.in).' });
     }
     
-    const existingUser = await User.findOne({ email: new RegExp('^' + trimmedEmail + '$', 'i') });
+    const existingUser = await User.findOne({ email: new RegExp('^' + escapeRegExp(trimmedEmail) + '$', 'i') });
     if (existingUser) {
       return res.status(400).json({ error: 'This email is already registered. Please try logging in.' });
     }
     
+    const hashedPassword = await bcrypt.hash(password.trim(), 10);
+
     const user = await User.create({
       email: trimmedEmail,
-      password: password.trim(),
+      password: hashedPassword,
       role: 'Student',
       status: 'Pending',
       onboarded: false
     });
     
-    res.status(201).json({ message: 'Registration request submitted successfully.', user });
+    res.status(201).json({ message: 'Registration request submitted successfully.', user: sanitizeUser(user) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/users/:email/approve-registration', async (req, res) => {
+app.post('/api/users/:email/approve-registration', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const email = req.params.email;
-    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -283,15 +416,22 @@ app.post('/api/users/:email/approve-registration', async (req, res) => {
     user.status = 'Active';
     await user.save();
     
-    res.json({ message: 'User registration approved successfully.', user });
+    res.json({ message: 'User registration approved successfully.', user: sanitizeUser(user) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.put('/api/users/:email', async (req, res) => {
+app.put('/api/users/:email', authenticateToken, async (req, res) => {
   try {
     const email = req.params.email;
+    
+    // Authorization Check: Admin can edit anyone, users can only edit themselves
+    const isUserAdmin = req.user.email.toLowerCase() === 'admin@spit.ac.in' || req.user.role === 'Administrator' || req.user.role === 'Admin';
+    if (!isUserAdmin && req.user.email.toLowerCase() !== email.trim().toLowerCase()) {
+      return res.status(403).json({ error: 'Access denied. You can only update your own profile.' });
+    }
+
     const { name, role, branch, currentYear, status, password } = req.body;
 
     // Input size limits
@@ -308,20 +448,28 @@ app.put('/api/users/:email', async (req, res) => {
       return res.status(400).json({ error: 'Invalid password.' });
     }
     
-    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
     
-    if (name !== undefined) user.name = name.trim();
-    if (branch !== undefined) user.branch = branch.trim();
-    if (currentYear !== undefined) user.currentYear = String(currentYear).trim();
-    if (status !== undefined) user.status = status;
-    if (password !== undefined && password.trim()) user.password = password.trim();
+    if (name !== undefined) user.name = sanitizeString(name.trim());
+    if (branch !== undefined) user.branch = sanitizeString(branch.trim());
+    if (currentYear !== undefined) user.currentYear = sanitizeString(String(currentYear).trim());
+    
+    // Status can only be changed by Admin
+    if (status !== undefined && isUserAdmin) {
+      user.status = status;
+    }
+    
+    // Hash password if modified
+    if (password !== undefined && password.trim()) {
+      user.password = await bcrypt.hash(password.trim(), 10);
+    }
     
     // Prevent changing admin's role
     if (email.trim().toLowerCase() !== 'admin@spit.ac.in') {
-      if (role !== undefined) user.role = role.trim();
+      if (role !== undefined) user.role = sanitizeString(role.trim());
     }
     
     await user.save();
@@ -332,30 +480,35 @@ app.put('/api/users/:email', async (req, res) => {
   }
 });
 
-app.put('/api/users/:email/onboard', async (req, res) => {
+app.put('/api/users/:email/onboard', authenticateToken, async (req, res) => {
   try {
     const email = req.params.email;
+    
+    // Authorization Check: A user can only onboard themselves
+    if (req.user.email.toLowerCase() !== email.trim().toLowerCase()) {
+      return res.status(403).json({ error: 'Access denied. You can only onboard your own profile.' });
+    }
+
     const { name, role, branch, currentYear } = req.body;
     
     if (!name || !role || !branch || !currentYear) {
       return res.status(400).json({ error: 'Name, role, branch, and current year are all required for onboarding.' });
     }
     
-    // Case-insensitive check
-    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
     
-    user.name = name.trim();
+    user.name = sanitizeString(name.trim());
     // Do not allow changing admin@spit.ac.in's role
     if (email.trim().toLowerCase() !== 'admin@spit.ac.in') {
-      user.role = role.trim();
+      user.role = sanitizeString(role.trim());
     } else {
       user.role = 'Administrator';
     }
-    user.branch = branch.trim();
-    user.currentYear = currentYear.trim();
+    user.branch = sanitizeString(branch.trim());
+    user.currentYear = sanitizeString(currentYear.trim());
     user.onboarded = true;
     
     await user.save();
@@ -376,39 +529,50 @@ app.put('/api/users/:email/onboard', async (req, res) => {
   }
 });
 
-app.delete('/api/users/:email', async (req, res) => {
+app.delete('/api/users/:email', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    await User.deleteOne({ email: req.params.email });
+    const email = req.params.email;
+    // Block deleting the root admin
+    if (email.trim().toLowerCase() === 'admin@spit.ac.in') {
+      return res.status(400).json({ error: 'Root administrator account cannot be deleted.' });
+    }
+    await User.deleteOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     res.json({ message: 'User deleted.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/users/:email/edit-request', async (req, res) => {
+app.post('/api/users/:email/edit-request', authenticateToken, async (req, res) => {
   try {
     const email = req.params.email;
+    
+    // Authorization Check: A user can only submit edit request for themselves
+    if (req.user.email.toLowerCase() !== email.trim().toLowerCase()) {
+      return res.status(403).json({ error: 'Access denied. You can only request edits for your own profile.' });
+    }
+
     const { name, role, branch, currentYear } = req.body;
     
     if (!name || !role || !branch || !currentYear) {
       return res.status(400).json({ error: 'Name, role, branch, and current year are all required.' });
     }
     
-    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
     
     // Set pending fields
-    user.pendingName = name.trim();
+    user.pendingName = sanitizeString(name.trim());
     // Do not allow admin@spit.ac.in to change their Administrator role
     if (email.trim().toLowerCase() !== 'admin@spit.ac.in') {
-      user.pendingRole = role.trim();
+      user.pendingRole = sanitizeString(role.trim());
     } else {
       user.pendingRole = 'Administrator';
     }
-    user.pendingBranch = branch.trim();
-    user.pendingCurrentYear = currentYear.trim();
+    user.pendingBranch = sanitizeString(branch.trim());
+    user.pendingCurrentYear = sanitizeString(currentYear.trim());
     user.hasPendingEdit = true;
     
     await user.save();
@@ -434,11 +598,11 @@ app.post('/api/users/:email/edit-request', async (req, res) => {
   }
 });
 
-app.post('/api/users/:email/approve-edit', async (req, res) => {
+app.post('/api/users/:email/approve-edit', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const email = req.params.email;
     
-    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -468,11 +632,11 @@ app.post('/api/users/:email/approve-edit', async (req, res) => {
   }
 });
 
-app.post('/api/users/:email/reject-edit', async (req, res) => {
+app.post('/api/users/:email/reject-edit', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const email = req.params.email;
     
-    const user = await User.findOne({ email: new RegExp('^' + email.trim() + '$', 'i') });
+    const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -486,14 +650,32 @@ app.post('/api/users/:email/reject-edit', async (req, res) => {
     
     await user.save();
     
-    res.json({ message: 'User profile edit rejected successfully.', user });
+    res.json({ message: 'User profile edit rejected successfully.', user: sanitizeUser(user) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Helper to validate story payload files
+function validateStoryFiles(payload) {
+  if (payload.photo && !validateFileUri(payload.photo, ALLOWED_IMAGE_PREFIXES)) {
+    return 'Invalid story profile photo file format. Only JPEG, PNG, and WebP images are allowed.';
+  }
+  if (payload.resumeFile && payload.resumeFile.url && !validateFileUri(payload.resumeFile.url, ALLOWED_PDF_PREFIXES)) {
+    return 'Invalid resume file format. Only PDF documents are allowed.';
+  }
+  if (payload.studyMaterials && Array.isArray(payload.studyMaterials)) {
+    for (const material of payload.studyMaterials) {
+      if (material.url && !validateFileUri(material.url, ALLOWED_DOC_PREFIXES)) {
+        return `Invalid study material file format for "${material.title || 'unnamed'}". Only PDF and images are allowed.`;
+      }
+    }
+  }
+  return null;
+}
+
 // 3. Stories
-app.get('/api/stories', async (req, res) => {
+app.get('/api/stories', authenticateToken, async (req, res) => {
   try {
     const stories = await Story.find({});
     res.json(stories);
@@ -502,9 +684,9 @@ app.get('/api/stories', async (req, res) => {
   }
 });
 
-app.post('/api/stories', async (req, res) => {
+app.post('/api/stories', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { name, branch, id } = req.body;
+    const { name, branch } = req.body;
     // Required field check
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'Story name is required.' });
@@ -515,18 +697,33 @@ app.post('/api/stories', async (req, res) => {
     if (branch && (typeof branch !== 'string' || branch.length > 100)) {
       return res.status(400).json({ error: 'Invalid branch value.' });
     }
-    const storyData = { ...req.body, name: name.trim() };
-    if (!storyData.id) storyData.id = String(Date.now());
-    const story = await Story.create(storyData);
+
+    // MIME type check
+    const fileError = validateStoryFiles(req.body);
+    if (fileError) {
+      return res.status(400).json({ error: fileError });
+    }
+
+    const sanitizedBody = sanitizeObject({ ...req.body });
+    sanitizedBody.name = name.trim();
+    if (!sanitizedBody.id) sanitizedBody.id = String(Date.now());
+
+    const story = await Story.create(sanitizedBody);
     res.status(201).json(story);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.put('/api/stories/:id', async (req, res) => {
+app.put('/api/stories/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const story = await Story.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+    const fileError = validateStoryFiles(req.body);
+    if (fileError) {
+      return res.status(400).json({ error: fileError });
+    }
+
+    const sanitizedBody = sanitizeObject({ ...req.body });
+    const story = await Story.findOneAndUpdate({ id: req.params.id }, sanitizedBody, { new: true });
     if (!story) return res.status(404).json({ error: 'Story not found.' });
     res.json(story);
   } catch (err) {
@@ -534,7 +731,7 @@ app.put('/api/stories/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/stories/:id', async (req, res) => {
+app.delete('/api/stories/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     await Story.deleteOne({ id: req.params.id });
     res.json({ message: 'Story deleted.' });
@@ -544,7 +741,7 @@ app.delete('/api/stories/:id', async (req, res) => {
 });
 
 // 4. Pending Stories
-app.get('/api/pending-stories', async (req, res) => {
+app.get('/api/pending-stories', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const pending = await PendingStory.find({});
     res.json(pending);
@@ -553,9 +750,14 @@ app.get('/api/pending-stories', async (req, res) => {
   }
 });
 
-app.post('/api/pending-stories', async (req, res) => {
+app.post('/api/pending-stories', authenticateToken, async (req, res) => {
   try {
-    const pendingData = { ...req.body };
+    const fileError = validateStoryFiles(req.body);
+    if (fileError) {
+      return res.status(400).json({ error: fileError });
+    }
+
+    const pendingData = sanitizeObject({ ...req.body });
     if (!pendingData.id) pendingData.id = String(Date.now());
     
     if (pendingData.requestType === 'edit' || pendingData.requestType === 'delete') {
@@ -564,6 +766,9 @@ app.post('/api/pending-stories', async (req, res) => {
       pendingData.id = String(Date.now());
     }
     
+    // Automatically set uploadedByEmail from the JWT user session
+    pendingData.uploadedByEmail = req.user.email;
+
     const pending = await PendingStory.create(pendingData);
     res.status(201).json(pending);
   } catch (err) {
@@ -571,7 +776,7 @@ app.post('/api/pending-stories', async (req, res) => {
   }
 });
 
-app.delete('/api/pending-stories/:id', async (req, res) => {
+app.delete('/api/pending-stories/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     await PendingStory.deleteOne({ id: req.params.id });
     res.json({ message: 'Pending story rejected/deleted.' });
@@ -580,7 +785,7 @@ app.delete('/api/pending-stories/:id', async (req, res) => {
   }
 });
 
-app.post('/api/pending-stories/:id/approve', async (req, res) => {
+app.post('/api/pending-stories/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const pending = await PendingStory.findOne({ id });
@@ -618,7 +823,7 @@ app.post('/api/pending-stories/:id/approve', async (req, res) => {
 });
 
 // 5. Resources
-app.get('/api/resources', async (req, res) => {
+app.get('/api/resources', authenticateToken, async (req, res) => {
   try {
     const resources = await Resource.find({});
     res.json(resources);
@@ -627,7 +832,7 @@ app.get('/api/resources', async (req, res) => {
   }
 });
 
-app.post('/api/resources', async (req, res) => {
+app.post('/api/resources', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { title, folderId, link } = req.body;
     // Required fields
@@ -643,7 +848,8 @@ app.post('/api/resources', async (req, res) => {
     if (link && (typeof link !== 'string' || link.length > 2000)) {
       return res.status(400).json({ error: 'Resource link is invalid or too long.' });
     }
-    const resourceData = { ...req.body, title: title.trim() };
+    const resourceData = sanitizeObject({ ...req.body });
+    resourceData.title = title.trim();
     if (!resourceData.id) resourceData.id = String(Date.now());
     if (!resourceData.date) resourceData.date = new Date().toISOString().split('T')[0];
     
@@ -654,9 +860,10 @@ app.post('/api/resources', async (req, res) => {
   }
 });
 
-app.put('/api/resources/:id', async (req, res) => {
+app.put('/api/resources/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const resource = await Resource.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+    const sanitizedBody = sanitizeObject({ ...req.body });
+    const resource = await Resource.findOneAndUpdate({ id: req.params.id }, sanitizedBody, { new: true });
     if (!resource) return res.status(404).json({ error: 'Resource not found.' });
     res.json(resource);
   } catch (err) {
@@ -664,7 +871,7 @@ app.put('/api/resources/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/resources/:id', async (req, res) => {
+app.delete('/api/resources/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     await Resource.deleteOne({ id: req.params.id });
     res.json({ message: 'Resource deleted.' });
@@ -674,7 +881,7 @@ app.delete('/api/resources/:id', async (req, res) => {
 });
 
 // 6. Pending Resources
-app.get('/api/pending-resources', async (req, res) => {
+app.get('/api/pending-resources', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const pending = await PendingResource.find({});
     res.json(pending);
@@ -683,9 +890,9 @@ app.get('/api/pending-resources', async (req, res) => {
   }
 });
 
-app.post('/api/pending-resources', async (req, res) => {
+app.post('/api/pending-resources', authenticateToken, async (req, res) => {
   try {
-    const pendingData = { ...req.body };
+    const pendingData = sanitizeObject({ ...req.body });
     if (!pendingData.id) pendingData.id = String(Date.now());
     if (!pendingData.date) pendingData.date = new Date().toISOString().split('T')[0];
     
@@ -694,6 +901,10 @@ app.post('/api/pending-resources', async (req, res) => {
       pendingData.id = String(Date.now());
     }
     
+    // Automatically bind the user details from current JWT session
+    pendingData.uploadedBy = req.user.name || req.user.email;
+    pendingData.uploadedByEmail = req.user.email;
+
     const pending = await PendingResource.create(pendingData);
     res.status(201).json(pending);
   } catch (err) {
@@ -701,7 +912,7 @@ app.post('/api/pending-resources', async (req, res) => {
   }
 });
 
-app.delete('/api/pending-resources/:id', async (req, res) => {
+app.delete('/api/pending-resources/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     await PendingResource.deleteOne({ id: req.params.id });
     res.json({ message: 'Pending resource rejected/deleted.' });
@@ -710,7 +921,7 @@ app.delete('/api/pending-resources/:id', async (req, res) => {
   }
 });
 
-app.post('/api/pending-resources/:id/approve', async (req, res) => {
+app.post('/api/pending-resources/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const pending = await PendingResource.findOne({ id });
@@ -748,7 +959,7 @@ app.post('/api/pending-resources/:id/approve', async (req, res) => {
 });
 
 // 7. Achievements
-app.get('/api/achievements', async (req, res) => {
+app.get('/api/achievements', authenticateToken, async (req, res) => {
   try {
     const achievements = await Achievement.find({});
     res.json(achievements);
@@ -757,9 +968,9 @@ app.get('/api/achievements', async (req, res) => {
   }
 });
 
-app.post('/api/achievements', async (req, res) => {
+app.post('/api/achievements', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { title, description, image } = req.body;
     // Required field check
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return res.status(400).json({ error: 'Achievement title is required.' });
@@ -770,7 +981,12 @@ app.post('/api/achievements', async (req, res) => {
     if (description && (typeof description !== 'string' || description.length > 5000)) {
       return res.status(400).json({ error: 'Achievement description is too long (max 5000 chars).' });
     }
-    const achievementData = { ...req.body, title: title.trim() };
+    if (image && !validateFileUri(image, ALLOWED_IMAGE_PREFIXES)) {
+      return res.status(400).json({ error: 'Invalid achievement image file format. Only JPEG, PNG, and WebP images are allowed.' });
+    }
+
+    const achievementData = sanitizeObject({ ...req.body });
+    achievementData.title = title.trim();
     if (!achievementData.id) achievementData.id = String(Date.now());
     if (!achievementData.date) achievementData.date = new Date().toISOString().split('T')[0];
     
@@ -781,9 +997,14 @@ app.post('/api/achievements', async (req, res) => {
   }
 });
 
-app.put('/api/achievements/:id', async (req, res) => {
+app.put('/api/achievements/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const achievement = await Achievement.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+    const { image } = req.body;
+    if (image && !validateFileUri(image, ALLOWED_IMAGE_PREFIXES)) {
+      return res.status(400).json({ error: 'Invalid achievement image file format. Only JPEG, PNG, and WebP images are allowed.' });
+    }
+    const sanitizedBody = sanitizeObject({ ...req.body });
+    const achievement = await Achievement.findOneAndUpdate({ id: req.params.id }, sanitizedBody, { new: true });
     if (!achievement) return res.status(404).json({ error: 'Achievement not found.' });
     res.json(achievement);
   } catch (err) {
@@ -791,7 +1012,7 @@ app.put('/api/achievements/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/achievements/:id', async (req, res) => {
+app.delete('/api/achievements/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     await Achievement.deleteOne({ id: req.params.id });
     res.json({ message: 'Achievement deleted.' });

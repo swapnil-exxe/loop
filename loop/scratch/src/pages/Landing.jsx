@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowDown, CornerRightDown } from 'lucide-react';
 
 const heroImage = '/images/spit-college.jpg';
-const labImage = '/images/tpo-team.jpg';
+const labImage = '/images/loop-labs.png';
 
 function LightboxImage({ src, alt, title, height = '380px', borderRadius = '16px', objectFit = 'contain', backgroundColor = '#ffffff' }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -194,6 +194,7 @@ function LightboxImage({ src, alt, title, height = '380px', borderRadius = '16px
 export default function Landing() {
   const navigate = useNavigate();
   const [activePhoto, setActivePhoto] = useState(null);
+  const [activeChartTab, setActiveChartTab] = useState(0);
 
   useEffect(() => {
     if (!activePhoto) return;
@@ -244,8 +245,8 @@ export default function Landing() {
             letterSpacing: '-0.02em',
             marginBottom: '2rem'
           }}>
-            The student platform <br />
-            designed to get you placed.
+            Built for Dream Offers. <br />
+            Not just degrees.
           </h1>
           <p style={{
             fontSize: '1.15rem',
@@ -255,7 +256,7 @@ export default function Landing() {
             margin: '0 auto 3rem auto',
             lineHeight: '1.6'
           }}>
-            Skip the endless scroll. Connect directly with SPIT seniors through verified placement journeys, roadmap strategies, and raw study materials.
+            No fluff. Cut the endless scrolling. Connect instantly with the SPIT seniors who made it, and unlock the exact step-by-step playbooks and raw study materials they used to get hired.
           </p>
 
           <button 
@@ -271,7 +272,7 @@ export default function Landing() {
               fontWeight: 600
             }}
           >
-            Find a Mentor
+            Browse Stories
           </button>
         </div>
 
@@ -305,92 +306,18 @@ export default function Landing() {
         }} />
       </section>
 
-      {/* SECTION 2: OUR PHILOSOPHY (Minimal Editorial Comparison) */}
-      <section 
-        id="philosophy-section"
-        style={{
-          padding: '8rem 0',
-          borderBottom: '1px solid var(--border-color)'
-        }}
-      >
-        <div className="container" style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '4rem',
-          alignItems: 'flex-start'
-        }}>
-          <div>
-            <span style={{
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.15em',
-              color: '#8A2BE2', // Hinge signature violet tone for subtitles
-              marginBottom: '1rem',
-              display: 'block'
-            }}>
-              Our Philosophy
-            </span>
-            <h2 style={{
-              fontSize: 'calc(2rem + 1vw)',
-              fontFamily: 'var(--font-serif)',
-              fontWeight: 400,
-              lineHeight: '1.2',
-              color: 'var(--text-primary)',
-              letterSpacing: '-0.01em'
-            }}>
-              Go on your <br />
-              last coding interview.
-            </h2>
-            
-            <div style={{ marginTop: '2.5rem', color: 'var(--text-secondary)' }} className="hide-on-mobile">
-              <CornerRightDown size={40} strokeWidth={1} style={{ opacity: 0.5 }} />
-            </div>
-          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingTop: '1.5rem' }}>
-            <p style={{
-              fontSize: '1.15rem',
-              lineHeight: '1.7',
-              color: 'var(--text-secondary)'
-            }}>
-              Loop is built on the belief that anyone looking for career guidance should be able to find it directly from peers. 
-            </p>
-            <p style={{
-              fontSize: '1.15rem',
-              lineHeight: '1.7',
-              color: 'var(--text-secondary)'
-            }}>
-              No recruiter spam, no algorithmic timelines. Just verified senior strategy chronologies, authentic PDF templates, and study roadmaps to help you secure your offer and log off.
-            </p>
-            
-            <div style={{ marginTop: '1rem' }}>
-              <button 
-                onClick={() => navigate('/stories')}
-                className="btn btn-secondary"
-                style={{ 
-                  padding: '0.85rem 1.8rem', 
-                  borderRadius: '30px', 
-                  fontWeight: 600,
-                  backgroundColor: 'var(--text-primary)',
-                  color: 'var(--accent-inverse)',
-                  borderColor: 'var(--text-primary)'
-                }}
-              >
-                Browse Stories
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* SECTION 3: INSIGHTS / LOOP LABS (Large visual left, copy right) */}
-      <section 
+      {/* SECTION 3: INSIGHTS / LOOP LABS (Full-bleed bg image + gradient overlay) */}
+      <section
         id="branches-section"
         style={{
-          padding: '8rem 0',
+          position: 'relative',
+          minHeight: '600px',
           borderBottom: '1px solid var(--border-color)',
-          backgroundColor: 'var(--bg-secondary)'
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
         }}
       >
         <div className="container" style={{
@@ -431,7 +358,7 @@ export default function Landing() {
               marginBottom: '1.5rem',
               color: 'var(--text-primary)'
             }}>
-              We study what works.
+              The Catalyst
             </h2>
             <p style={{
               fontSize: '1.05rem',
@@ -439,7 +366,7 @@ export default function Landing() {
               color: 'var(--text-secondary)',
               marginBottom: '2rem'
             }}>
-              Our placement coordinators, senior mentors, and alumni analyze interview trends, company exam modules, and coding questions so we can organize student resources effectively. We've gotten pretty good at it.
+              Bypass the disorganized WhatsApp groups. Get instant access to the complete stack—from raw lecture notes, class PPTs, and standard textbooks to clear your semester exams, to the exact placement materials you need to secure a Dream Offer.
             </p>
             
             <div style={{
@@ -473,191 +400,298 @@ export default function Landing() {
 
       {/* SECTION 3B: PLACEMENT RECORDS & PARTNER COMPANIES */}
       <section style={{
-        padding: '6rem 0',
-        backgroundColor: 'var(--bg-secondary)',
-        borderBottom: '1px solid var(--border-color)'
+        padding: '6rem 0 0 0',
+        backgroundColor: '#ffffff' // Clean white background to blend paper-white charts seamlessly
       }}>
-        <div className="container">
+        <div className="container" style={{ maxWidth: '1100px' }}>
+          <div className="placement-header-grid">
+            <div style={{ textAlign: 'left' }}>
+              <span style={{
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.15em',
+                color: '#8A2BE2',
+                marginBottom: '1rem',
+                display: 'block'
+              }}>
+                Placements & Partnerships
+              </span>
+              <h2 style={{
+                fontSize: 'calc(1.8rem + 1vw)',
+                fontFamily: 'var(--font-serif)',
+                fontWeight: 500,
+                color: 'var(--text-primary)',
+                marginBottom: '2rem',
+                lineHeight: '1.25'
+              }}>
+                Placements & Partnerships
+              </h2>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '2rem'
+              }} className="sub-blocks-grid">
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.75rem', fontFamily: 'var(--font-sans)', color: 'var(--text-primary)' }}>
+                    Placement Track Record
+                  </h3>
+                  <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.6', margin: 0 }}>
+                    The Numbers Don't Lie. Get familiar with the SPIT standard. From a solid ₹15.14 LPA campus average to the elite ₹61.55 LPA peak packages, explore the official TPO records and see the exact targets you are aiming for.
+                  </p>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.75rem', fontFamily: 'var(--font-sans)', color: 'var(--text-primary)' }}>
+                    Top Recruiters
+                  </h3>
+                  <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.6', margin: 0 }}>
+                    The Tier-1 Roster. Microsoft, Morgan Stanley, Barclays, and more. See the exact tech giants and financial heavyweights that actively partner with SPIT to hunt for top-tier engineering talent.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <LightboxImage 
+              src="/images/tpo-team-placement.jpg" 
+              alt="SPIT TPO Team & Coordinators" 
+              title="SPIT Training & Placement Team"
+              height="340px"
+              borderRadius="20px"
+              objectFit="cover"
+              backgroundColor="transparent"
+            />
+          </div>
+
+          {/* Interactive Chart Tabs */}
           <div style={{
-            textAlign: 'center',
-            marginBottom: '4rem'
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            marginBottom: '2.5rem',
+            borderBottom: '1px solid var(--border-color)',
+            paddingBottom: '1rem'
+          }} className="chart-tabs-wrapper">
+            {['Placement Performance', 'Category-wise Placement Trends', 'Internships & Higher Education'].map((tabLabel, idx) => {
+              const isActive = activeChartTab === idx;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setActiveChartTab(idx)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '0.95rem',
+                    fontWeight: isActive ? 700 : 500,
+                    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: '0.6rem 1.2rem',
+                    position: 'relative',
+                    transition: 'all 0.25s ease',
+                    fontFamily: 'var(--font-sans)'
+                  }}
+                >
+                  {tabLabel}
+                  {isActive && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '-17px',
+                      left: 0,
+                      right: 0,
+                      height: '3px',
+                      backgroundColor: '#8A2BE2',
+                      borderRadius: '2px'
+                    }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Chart Display Area (Borderless & Shadowless, blending with white background) */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '100%',
+            minHeight: '400px',
+            backgroundColor: '#ffffff',
+            padding: '1rem 0',
+            animation: 'fadeIn 0.4s ease-out'
+          }}>
+            {activeChartTab === 0 && (
+              <img 
+                src="/images/chart-placed-ctc.png" 
+                alt="Placement & CTC Statistics" 
+                style={{
+                  maxWidth: '100%',
+                  height: 'auto',
+                  maxHeight: '460px',
+                  objectFit: 'contain'
+                }}
+              />
+            )}
+            {activeChartTab === 1 && (
+              <img 
+                src="/images/chart-internships-higherstudies.png" 
+                alt="Internships & Higher Studies Statistics" 
+                style={{
+                  maxWidth: '100%',
+                  height: 'auto',
+                  maxHeight: '460px',
+                  objectFit: 'contain'
+                }}
+              />
+            )}
+            {activeChartTab === 2 && (
+              <img 
+                src="/images/chart-category-companies-students.png" 
+                alt="Category-wise Company & Students Placed Statistics" 
+                style={{
+                  maxWidth: '100%',
+                  height: 'auto',
+                  maxHeight: '460px',
+                  objectFit: 'contain'
+                }}
+              />
+            )}
+          </div>
+
+          {/* Recruiters / Partners Section */}
+          <div style={{
+            marginTop: '5rem',
+            borderTop: '1px solid var(--border-color)',
+            paddingTop: '4rem',
+            textAlign: 'center'
+          }}>
+            <h3 style={{
+              fontSize: '1.40rem',
+              fontFamily: 'var(--font-serif)',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              marginBottom: '2.5rem',
+              letterSpacing: '0.02em'
+            }}>
+              Our Prominent Recruiters & Corporate Partners
+            </h3>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              width: '100%',
+              backgroundColor: '#ffffff'
+            }}>
+              <img 
+                src="/images/recruiters-partners.png" 
+                alt="Our Recruiters and Partners" 
+                style={{
+                  maxWidth: '100%',
+                  height: 'auto',
+                  maxHeight: '520px',
+                  objectFit: 'contain'
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 2: ACHIEVEMENTS (Full-bleed bg image + right text + right-to-left gradient overlay) */}
+      <section 
+        id="achievements-section"
+        className="achievements-section-bg"
+      >
+        <div className="achievements-bg-image" />
+        <div className="achievements-overlay" />
+        
+        {/* Top Fade Overlay to blend white background of the section above */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '35px',
+          background: 'linear-gradient(to bottom, #ffffff 0%, rgba(255, 255, 255, 0) 100%)',
+          zIndex: 2,
+          pointerEvents: 'none'
+        }} />
+        
+        {/* Bottom Fade Overlay to blend white background of the section below */}
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '35px',
+          background: 'linear-gradient(to top, #ffffff 0%, rgba(255, 255, 255, 0) 100%)',
+          zIndex: 2,
+          pointerEvents: 'none'
+        }} />
+        <div className="container" style={{
+          position: 'relative',
+          zIndex: 2,
+          display: 'flex',
+          justifyContent: 'flex-end',
+          width: '100%'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '520px',
+            color: '#ffffff',
+            padding: '3rem 0',
+            textAlign: 'left'
           }}>
             <span style={{
               fontSize: '0.85rem',
               fontWeight: 700,
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              color: '#8A2BE2',
+              color: '#c084fc', // Bright light violet for excellent visibility on dark background
               marginBottom: '1rem',
               display: 'block'
             }}>
-              Placement & Partnerships
+              Achievements & Milestones
             </span>
             <h2 style={{
-              fontSize: 'calc(1.8rem + 1vw)',
+              fontSize: 'calc(2.2rem + 1vw)',
               fontFamily: 'var(--font-serif)',
               fontWeight: 500,
-              color: 'var(--text-primary)',
-              marginBottom: '1.25rem'
+              lineHeight: '1.25',
+              color: '#ffffff',
+              letterSpacing: '-0.01em',
+              marginBottom: '1.5rem'
             }}>
-              Placement Track Record & Top Recruiters
+              The Hall of Fame
             </h2>
             <p style={{
-              fontSize: '1.1rem',
-              color: 'var(--text-secondary)',
-              maxWidth: '650px',
-              margin: '0 auto',
-              lineHeight: '1.6'
+              fontSize: '1.15rem',
+              lineHeight: '1.75',
+              color: 'rgba(255, 255, 255, 0.85)',
+              marginBottom: '2rem'
             }}>
-              SPIT consistently achieves stellar placement records with top-tier technology and financial institutions recruiting directly from our campus.
+              We don't just participate; we dominate. Explore the ultimate track record of student achievements at SPIT. View the exact milestones set by the top 1% of the campus—and learn what it takes to leave your own mark.
             </p>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '3rem',
-            alignItems: 'stretch'
-          }} className="placement-grid">
-            {/* Placement Record Card */}
-            <div className="glass-panel" style={{
-              padding: '2rem',
-              borderRadius: '24px',
-              border: '1px solid var(--border-color)',
-              display: 'flex',
-              flexDirection: 'column',
-              backgroundColor: 'var(--bg-primary)',
-              boxShadow: 'var(--card-shadow)',
-              gap: '1.5rem'
-            }}>
-              <h3 style={{ fontSize: '1.35rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
-                Placement Statistics & Records
-              </h3>
-              <div style={{
-                borderRadius: '16px',
-                overflow: 'hidden',
-                border: '1px solid var(--border-color)',
-                height: '380px',
-                backgroundColor: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '1rem'
-              }}>
-                <img 
-                  src="/images/recode.png" 
-                  alt="SPIT Placement Record" 
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                />
-              </div>
+            
+            <div>
+              <button 
+                onClick={() => navigate('/achievements')}
+                className="btn"
+                style={{ 
+                  padding: '0.85rem 2rem', 
+                  borderRadius: '30px', 
+                  fontWeight: 600,
+                  backgroundColor: '#ffffff',
+                  color: '#000000',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'transform 0.2s ease, opacity 0.2s ease'
+                }}
+                onMouseEnter={(e) => { e.target.style.transform = 'scale(1.03)'; e.target.style.opacity = '0.95'; }}
+                onMouseLeave={(e) => { e.target.style.transform = 'scale(1)'; e.target.style.opacity = '1'; }}
+              >
+                Explore Achievements
+              </button>
             </div>
-
-            {/* Partner Companies Card */}
-            <div className="glass-panel" style={{
-              padding: '2rem',
-              borderRadius: '24px',
-              border: '1px solid var(--border-color)',
-              display: 'flex',
-              flexDirection: 'column',
-              backgroundColor: 'var(--bg-primary)',
-              boxShadow: 'var(--card-shadow)',
-              gap: '1.5rem'
-            }}>
-              <h3 style={{ fontSize: '1.35rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
-                Our Prominent Recruiters
-              </h3>
-              <div style={{
-                borderRadius: '16px',
-                overflow: 'hidden',
-                border: '1px solid var(--border-color)',
-                height: '380px',
-                backgroundColor: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '1rem'
-              }}>
-                <img 
-                  src="/images/Companies.png" 
-                  alt="Recruiting Partner Companies" 
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <style>{`
-          @media (max-width: 900px) {
-            .placement-grid {
-              grid-template-columns: 1fr !important;
-              gap: 2rem !important;
-            }
-          }
-        `}</style>
-      </section>
-
-      {/* SECTION 4: TESTIMONIAL QUOTES (Dark premium block quotes) */}
-      <section style={{
-        padding: '7rem 0',
-        backgroundColor: '#050505',
-        color: '#ffffff',
-        borderBottom: '1px solid var(--border-color)',
-        textAlign: 'center'
-      }}>
-        <div className="container" style={{ maxWidth: '850px' }}>
-          <span style={{
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.2em',
-            color: '#8A2BE2',
-            marginBottom: '2rem',
-            display: 'block'
-          }}>
-            What Our Students Say
-          </span>
-          
-          <span style={{
-            fontSize: '6rem',
-            fontFamily: 'var(--font-serif)',
-            lineHeight: '0.1',
-            color: 'rgba(255, 255, 255, 0.15)',
-            display: 'block',
-            marginBottom: '1.5rem'
-          }}>
-            “
-          </span>
-          
-          <blockquote style={{
-            fontSize: 'calc(1.3rem + 0.5vw)',
-            fontFamily: 'var(--font-serif)',
-            fontWeight: 400,
-            lineHeight: '1.5',
-            color: 'rgba(255,255,255,0.95)',
-            marginBottom: '2.5rem',
-            fontStyle: 'normal'
-          }}>
-            Other placement platforms felt like shooting in the dark. But my mentor and I clicked right away on Loop. The roadmap was clear, and I cracked my JPMC quant interview. We've been collaborating ever since.
-          </blockquote>
-          
-          <cite style={{
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            fontFamily: 'var(--font-display)',
-            color: 'rgba(255,255,255,0.6)',
-            display: 'block',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase'
-          }}>
-            Devansh S. (Class of 2025)
-          </cite>
-
-          {/* Hinge style indicators */}
-          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '3.5rem' }}>
-            <span style={{ width: '40px', height: '2.5px', backgroundColor: '#ffffff', borderRadius: '2px' }}></span>
-            <span style={{ width: '40px', height: '2.5px', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: '2px' }}></span>
-            <span style={{ width: '40px', height: '2.5px', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: '2px' }}></span>
           </div>
         </div>
       </section>
@@ -681,7 +715,7 @@ export default function Landing() {
               marginBottom: '1rem',
               display: 'block'
             }}>
-              Contribute to Loop
+              CONTRIBUTE TO LOOP
             </span>
             <h2 style={{
               fontSize: 'calc(2rem + 1vw)',
@@ -699,7 +733,7 @@ export default function Landing() {
               color: 'var(--text-secondary)',
               marginBottom: '2.5rem'
             }}>
-              We're looking for seniors and alumni who want to make placement preparation effective and transparent. Share your journey and guides to pave the way for your juniors.
+              Contribute to a culture of transparent learning. We welcome seniors and alumni to document their placement journeys, interview rounds, and study resources to mentor the upcoming batches.
             </p>
             
             <button 
@@ -806,6 +840,38 @@ export default function Landing() {
 
       {/* Bounce keyframe and stack responsiveness */}
       <style>{`
+        .achievements-section-bg {
+          position: relative;
+          min-height: 580px;
+          display: flex;
+          align-items: center;
+          border-bottom: 1px solid var(--border-color);
+          overflow: hidden;
+        }
+        .achievements-bg-image {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-image: url('/images/achievements-bg.jpg');
+          background-size: cover;
+          background-position: center;
+          transition: transform 8s cubic-bezier(0.25, 1, 0.3, 1);
+          z-index: 0;
+        }
+        .achievements-section-bg:hover .achievements-bg-image {
+          transform: scale(1.06);
+        }
+        .achievements-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(to right, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0.8) 60%, rgba(0, 0, 0, 0.95) 100%);
+          z-index: 1;
+        }
         .stack-photo {
           transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), z-index 0.4s step-start, box-shadow 0.4s ease !important;
         }
@@ -813,6 +879,18 @@ export default function Landing() {
           transform: scale(1.6) rotate(0deg) translateY(-20px) !important;
           z-index: 100 !important;
           box-shadow: 0 30px 60px rgba(0,0,0,0.5) !important;
+        }
+        .placement-header-grid {
+          display: grid;
+          grid-template-columns: 1.2fr 1fr;
+          gap: 4rem;
+          align-items: center;
+          margin-bottom: 4rem;
+        }
+        .sub-blocks-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 2rem;
         }
 
         @keyframes bounce {
@@ -828,6 +906,21 @@ export default function Landing() {
         }
 
         @media (max-width: 900px) {
+          .achievements-section-bg {
+            min-height: 500px !important;
+          }
+          .achievements-overlay {
+            background: rgba(0, 0, 0, 0.75) !important;
+          }
+          .placement-header-grid {
+            grid-template-columns: 1fr !important;
+            gap: 2.5rem !important;
+            margin-bottom: 3rem !important;
+          }
+          .sub-blocks-grid {
+            grid-template-columns: 1fr !important;
+            gap: 1.5rem !important;
+          }
           section {
             padding: 5rem 1.5rem !important;
           }

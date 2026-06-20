@@ -1,5 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
 
 const defaultUsers = [
@@ -264,7 +265,11 @@ async function seed() {
   console.log('Folders seeded.');
 
   // Seed users
-  await User.insertMany(defaultUsers);
+  const hashedUsers = defaultUsers.map(user => ({
+    ...user,
+    password: bcrypt.hashSync(user.password, 10)
+  }));
+  await User.insertMany(hashedUsers);
   console.log('Platform users seeded.');
 
   // Seed stories

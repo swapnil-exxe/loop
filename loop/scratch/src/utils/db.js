@@ -1,28 +1,57 @@
 const API_URL = '/api';
 
+const authFetch = async (url, options = {}) => {
+  const userSession = localStorage.getItem('loop_current_user');
+  const headers = {
+    ...options.headers,
+  };
+  if (userSession) {
+    try {
+      const { token } = JSON.parse(userSession);
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch (e) {
+      console.error("Error parsing session token:", e);
+    }
+  }
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401 || res.status === 403) {
+    if (!window.location.pathname.includes('/login')) {
+      localStorage.removeItem('loop_current_user');
+      window.location.href = '/login';
+      throw new Error('Session expired. Please login again.');
+    }
+  }
+  return res;
+};
+
 export const initDB = () => {
   // Database initialized and managed on backend side.
 };
 
 // Stories Helpers
 export const getStories = async () => {
-  const res = await fetch(`${API_URL}/stories`);
+  const res = await authFetch(`${API_URL}/stories`);
   if (!res.ok) throw new Error('Failed to fetch stories');
   return res.json();
 };
 
 export const addStory = async (story) => {
-  const res = await fetch(`${API_URL}/stories`, {
+  const res = await authFetch(`${API_URL}/stories`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(story)
   });
-  if (!res.ok) throw new Error('Failed to add story');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to add story');
+  }
   return res.json();
 };
 
 export const deleteStory = async (id) => {
-  const res = await fetch(`${API_URL}/stories/${id}`, {
+  const res = await authFetch(`${API_URL}/stories/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to delete story');
@@ -30,7 +59,7 @@ export const deleteStory = async (id) => {
 };
 
 export const updateStory = async (id, updatedStory) => {
-  const res = await fetch(`${API_URL}/stories/${id}`, {
+  const res = await authFetch(`${API_URL}/stories/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updatedStory)
@@ -44,13 +73,13 @@ export const updateStory = async (id, updatedStory) => {
 
 // Pending Stories Helpers
 export const getPendingStories = async () => {
-  const res = await fetch(`${API_URL}/pending-stories`);
+  const res = await authFetch(`${API_URL}/pending-stories`);
   if (!res.ok) throw new Error('Failed to fetch pending stories');
   return res.json();
 };
 
 export const addPendingStory = async (story) => {
-  const res = await fetch(`${API_URL}/pending-stories`, {
+  const res = await authFetch(`${API_URL}/pending-stories`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(story)
@@ -63,7 +92,7 @@ export const addPendingStory = async (story) => {
 };
 
 export const approveStory = async (id) => {
-  const res = await fetch(`${API_URL}/pending-stories/${id}/approve`, {
+  const res = await authFetch(`${API_URL}/pending-stories/${id}/approve`, {
     method: 'POST'
   });
   if (!res.ok) throw new Error('Failed to approve story');
@@ -71,7 +100,7 @@ export const approveStory = async (id) => {
 };
 
 export const rejectPendingStory = async (id) => {
-  const res = await fetch(`${API_URL}/pending-stories/${id}`, {
+  const res = await authFetch(`${API_URL}/pending-stories/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to reject pending story');
@@ -80,23 +109,26 @@ export const rejectPendingStory = async (id) => {
 
 // Resources Helpers
 export const getResources = async () => {
-  const res = await fetch(`${API_URL}/resources`);
+  const res = await authFetch(`${API_URL}/resources`);
   if (!res.ok) throw new Error('Failed to fetch resources');
   return res.json();
 };
 
 export const addResource = async (resource) => {
-  const res = await fetch(`${API_URL}/resources`, {
+  const res = await authFetch(`${API_URL}/resources`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(resource)
   });
-  if (!res.ok) throw new Error('Failed to add resource');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to add resource');
+  }
   return res.json();
 };
 
 export const deleteResource = async (id) => {
-  const res = await fetch(`${API_URL}/resources/${id}`, {
+  const res = await authFetch(`${API_URL}/resources/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to delete resource');
@@ -104,7 +136,7 @@ export const deleteResource = async (id) => {
 };
 
 export const updateResource = async (id, updatedResource) => {
-  const res = await fetch(`${API_URL}/resources/${id}`, {
+  const res = await authFetch(`${API_URL}/resources/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updatedResource)
@@ -115,13 +147,13 @@ export const updateResource = async (id, updatedResource) => {
 
 // Pending Resources Helpers
 export const getPendingResources = async () => {
-  const res = await fetch(`${API_URL}/pending-resources`);
+  const res = await authFetch(`${API_URL}/pending-resources`);
   if (!res.ok) throw new Error('Failed to fetch pending resources');
   return res.json();
 };
 
 export const addPendingResource = async (resource) => {
-  const res = await fetch(`${API_URL}/pending-resources`, {
+  const res = await authFetch(`${API_URL}/pending-resources`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(resource)
@@ -131,7 +163,7 @@ export const addPendingResource = async (resource) => {
 };
 
 export const approveResource = async (id) => {
-  const res = await fetch(`${API_URL}/pending-resources/${id}/approve`, {
+  const res = await authFetch(`${API_URL}/pending-resources/${id}/approve`, {
     method: 'POST'
   });
   if (!res.ok) throw new Error('Failed to approve resource');
@@ -139,7 +171,7 @@ export const approveResource = async (id) => {
 };
 
 export const rejectPendingResource = async (id) => {
-  const res = await fetch(`${API_URL}/pending-resources/${id}`, {
+  const res = await authFetch(`${API_URL}/pending-resources/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to reject pending resource');
@@ -148,23 +180,26 @@ export const rejectPendingResource = async (id) => {
 
 // Achievements Helpers
 export const getAchievements = async () => {
-  const res = await fetch(`${API_URL}/achievements`);
+  const res = await authFetch(`${API_URL}/achievements`);
   if (!res.ok) throw new Error('Failed to fetch achievements');
   return res.json();
 };
 
 export const addAchievement = async (achievement) => {
-  const res = await fetch(`${API_URL}/achievements`, {
+  const res = await authFetch(`${API_URL}/achievements`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(achievement)
   });
-  if (!res.ok) throw new Error('Failed to add achievement');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to add achievement');
+  }
   return res.json();
 };
 
 export const deleteAchievement = async (id) => {
-  const res = await fetch(`${API_URL}/achievements/${id}`, {
+  const res = await authFetch(`${API_URL}/achievements/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to delete achievement');
@@ -172,7 +207,7 @@ export const deleteAchievement = async (id) => {
 };
 
 export const updateAchievement = async (id, updatedAchievement) => {
-  const res = await fetch(`${API_URL}/achievements/${id}`, {
+  const res = await authFetch(`${API_URL}/achievements/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updatedAchievement)
@@ -183,23 +218,26 @@ export const updateAchievement = async (id, updatedAchievement) => {
 
 // User Management Helpers
 export const getUsers = async () => {
-  const res = await fetch(`${API_URL}/users`);
+  const res = await authFetch(`${API_URL}/users`);
   if (!res.ok) throw new Error('Failed to fetch users');
   return res.json();
 };
 
 export const addUser = async (user) => {
-  const res = await fetch(`${API_URL}/users`, {
+  const res = await authFetch(`${API_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(user)
   });
-  if (!res.ok) throw new Error('Failed to add user');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to add user');
+  }
   return res.json();
 };
 
 export const deleteUser = async (email) => {
-  const res = await fetch(`${API_URL}/users/${email}`, {
+  const res = await authFetch(`${API_URL}/users/${email}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to delete user');
@@ -220,7 +258,7 @@ export const loginUser = async (email, password) => {
 };
 
 export const onboardUser = async (email, profileData) => {
-  const res = await fetch(`${API_URL}/users/${email}/onboard`, {
+  const res = await authFetch(`${API_URL}/users/${email}/onboard`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profileData)
@@ -233,7 +271,7 @@ export const onboardUser = async (email, profileData) => {
 };
 
 export const requestProfileEdit = async (email, profileData) => {
-  const res = await fetch(`${API_URL}/users/${email}/edit-request`, {
+  const res = await authFetch(`${API_URL}/users/${email}/edit-request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profileData)
@@ -246,7 +284,7 @@ export const requestProfileEdit = async (email, profileData) => {
 };
 
 export const approveProfileEdit = async (email) => {
-  const res = await fetch(`${API_URL}/users/${email}/approve-edit`, {
+  const res = await authFetch(`${API_URL}/users/${email}/approve-edit`, {
     method: 'POST'
   });
   if (!res.ok) {
@@ -257,7 +295,7 @@ export const approveProfileEdit = async (email) => {
 };
 
 export const rejectProfileEdit = async (email) => {
-  const res = await fetch(`${API_URL}/users/${email}/reject-edit`, {
+  const res = await authFetch(`${API_URL}/users/${email}/reject-edit`, {
     method: 'POST'
   });
   if (!res.ok) {
@@ -281,7 +319,7 @@ export const requestRegistration = async (email, password) => {
 };
 
 export const approveRegistration = async (email) => {
-  const res = await fetch(`${API_URL}/users/${email}/approve-registration`, {
+  const res = await authFetch(`${API_URL}/users/${email}/approve-registration`, {
     method: 'POST'
   });
   if (!res.ok) {
@@ -292,7 +330,7 @@ export const approveRegistration = async (email) => {
 };
 
 export const updateUser = async (email, userData) => {
-  const res = await fetch(`${API_URL}/users/${email}`, {
+  const res = await authFetch(`${API_URL}/users/${email}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(userData)
@@ -306,13 +344,13 @@ export const updateUser = async (email, userData) => {
 
 // Folder Management Helpers (New APIs)
 export const getFolders = async () => {
-  const res = await fetch(`${API_URL}/folders`);
+  const res = await authFetch(`${API_URL}/folders`);
   if (!res.ok) throw new Error('Failed to fetch folders');
   return res.json();
 };
 
 export const addFolder = async (folder) => {
-  const res = await fetch(`${API_URL}/folders`, {
+  const res = await authFetch(`${API_URL}/folders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(folder)
@@ -322,7 +360,7 @@ export const addFolder = async (folder) => {
 };
 
 export const deleteFolder = async (id) => {
-  const res = await fetch(`${API_URL}/folders/${id}`, {
+  const res = await authFetch(`${API_URL}/folders/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Failed to delete folder');
