@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
@@ -10,6 +12,7 @@ const helmet = require('helmet');
 const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'spit_loop_super_secret_jwt_key_2026';
@@ -35,8 +38,21 @@ const loginLimiter = rateLimit({
 // Middlewares
 
 // Enable CORS with restricted origin access
+const ALLOWED_ORIGINS = [
+  process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+];
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman)
+    if (!origin) return callback(null, true);
+    // Allow localhost and ngrok tunnels
+    if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.io')) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 
@@ -67,7 +83,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '15mb' })); // support base64 images under a safe 15MB limit
+app.use(express.json({ limit: '100mb' }));
 
 // Apply Global Limiter to all API endpoints
 app.use('/api/', globalLimiter);
@@ -79,7 +95,83 @@ app.use('/api/users/register-request', loginLimiter);
 // Prevent NoSQL query injection by stripping keys starting with $ or .
 app.use(mongoSanitize());
 
-// --- Helper Functions for Security ---
+// --- Helper Functions for Security & File Uploads ---
+
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+function saveBase64File(dataUri, prefix = 'file') {
+  if (!dataUri || typeof dataUri !== 'string') return dataUri;
+  if (!dataUri.startsWith('data:')) return dataUri;
+
+  try {
+    const parts = dataUri.split(',');
+    if (parts.length < 2) return dataUri;
+    const header = parts[0];
+    const data = parts[1];
+
+    const mimeMatch = header.match(/data:(.*?);base64/);
+    if (!mimeMatch) return dataUri;
+    const mime = mimeMatch[1];
+
+    let ext = '';
+    if (mime === 'application/pdf') ext = '.pdf';
+    else if (mime === 'image/png') ext = '.png';
+    else if (mime === 'image/jpeg' || mime === 'image/jpg') ext = '.jpg';
+    else if (mime === 'image/webp') ext = '.webp';
+    else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ext = '.xlsx';
+    else if (mime === 'application/vnd.ms-excel') ext = '.xls';
+    else if (mime === 'text/plain') ext = '.txt';
+    else ext = '.bin';
+
+    const filename = `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const filePath = path.join(UPLOADS_DIR, filename);
+    const buffer = Buffer.from(data, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    return `/uploads/${filename}`;
+  } catch (err) {
+    console.error('Error saving base64 file:', err);
+    return dataUri;
+  }
+}
+
+function processStoryFiles(story) {
+  if (!story) return story;
+  if (story.photo) {
+    story.photo = saveBase64File(story.photo, 'photo');
+  }
+  if (story.resumeFile && story.resumeFile.url) {
+    story.resumeFile.url = saveBase64File(story.resumeFile.url, 'resume');
+  }
+  if (story.studyMaterials && Array.isArray(story.studyMaterials)) {
+    story.studyMaterials = story.studyMaterials.map(material => {
+      if (material.url) {
+        material.url = saveBase64File(material.url, 'material');
+      }
+      return material;
+    });
+  }
+  return story;
+}
+
+function processResourceFiles(resource) {
+  if (!resource) return resource;
+  if (resource.link) {
+    resource.link = saveBase64File(resource.link, 'resource');
+  }
+  return resource;
+}
+
+function processAchievementFiles(achievement) {
+  if (!achievement) return achievement;
+  if (achievement.image) {
+    achievement.image = saveBase64File(achievement.image, 'achievement');
+  }
+  return achievement;
+}
 
 // HTML tag stripping to prevent Stored XSS
 function sanitizeString(str) {
@@ -677,8 +769,23 @@ function validateStoryFiles(payload) {
 // 3. Stories
 app.get('/api/stories', authenticateToken, async (req, res) => {
   try {
-    const stories = await Story.find({});
+    // Exclude heavy fields from the listing payload to optimize network & DB performance
+    const stories = await Story.find({}).select('-journey -resumeFile -studyMaterials -customSections -photo -resume');
     res.json(stories);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/stories/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sanitizedId = sanitizeString(id);
+    const story = await Story.findOne({ id: sanitizedId });
+    if (!story) {
+      return res.status(404).json({ error: 'Story not found.' });
+    }
+    res.json(story);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -704,7 +811,8 @@ app.post('/api/stories', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: fileError });
     }
 
-    const sanitizedBody = sanitizeObject({ ...req.body });
+    const processedBody = processStoryFiles(req.body);
+    const sanitizedBody = sanitizeObject({ ...processedBody });
     sanitizedBody.name = name.trim();
     if (!sanitizedBody.id) sanitizedBody.id = String(Date.now());
 
@@ -722,7 +830,8 @@ app.put('/api/stories/:id', authenticateToken, requireAdmin, async (req, res) =>
       return res.status(400).json({ error: fileError });
     }
 
-    const sanitizedBody = sanitizeObject({ ...req.body });
+    const processedBody = processStoryFiles(req.body);
+    const sanitizedBody = sanitizeObject({ ...processedBody });
     const story = await Story.findOneAndUpdate({ id: req.params.id }, sanitizedBody, { new: true });
     if (!story) return res.status(404).json({ error: 'Story not found.' });
     res.json(story);
@@ -757,21 +866,36 @@ app.post('/api/pending-stories', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: fileError });
     }
 
-    const pendingData = sanitizeObject({ ...req.body });
+    const processedBody = processStoryFiles(req.body);
+    const pendingData = sanitizeObject({ ...processedBody });
     if (!pendingData.id) pendingData.id = String(Date.now());
     
+    // Set uploadedByEmail early
+    pendingData.uploadedByEmail = req.user.email;
+
+    // Prevent duplicate submissions of the same story by the same user
+    if (pendingData.requestType === 'add') {
+      const existing = await PendingStory.findOne({
+        name: pendingData.name,
+        company: pendingData.company,
+        uploadedByEmail: pendingData.uploadedByEmail,
+        status: 'pending'
+      });
+      if (existing) {
+        return res.status(400).json({ error: 'You have already submitted a placement story for this company that is pending approval.' });
+      }
+    }
+
     if (pendingData.requestType === 'edit' || pendingData.requestType === 'delete') {
       pendingData.activeId = pendingData.id;
       // Assign a temporary new ID for the pending entry so it doesn't conflict
       pendingData.id = String(Date.now());
     }
-    
-    // Automatically set uploadedByEmail from the JWT user session
-    pendingData.uploadedByEmail = req.user.email;
 
     const pending = await PendingStory.create(pendingData);
     res.status(201).json(pending);
   } catch (err) {
+    console.error("Error in POST /api/pending-stories:", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -825,8 +949,23 @@ app.post('/api/pending-stories/:id/approve', authenticateToken, requireAdmin, as
 // 5. Resources
 app.get('/api/resources', authenticateToken, async (req, res) => {
   try {
-    const resources = await Resource.find({});
+    // Project out heavy base64 link content in resource listing to optimize payload & latency
+    const resources = await Resource.find({}).select('-link');
     res.json(resources);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/resources/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sanitizedId = sanitizeString(id);
+    const resource = await Resource.findOne({ id: sanitizedId });
+    if (!resource) {
+      return res.status(404).json({ error: 'Resource not found.' });
+    }
+    res.json(resource);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -845,10 +984,15 @@ app.post('/api/resources', authenticateToken, requireAdmin, async (req, res) => 
     if (!folderId || typeof folderId !== 'string') {
       return res.status(400).json({ error: 'folderId is required.' });
     }
-    if (link && (typeof link !== 'string' || link.length > 2000)) {
-      return res.status(400).json({ error: 'Resource link is invalid or too long.' });
+    if (link && typeof link !== 'string') {
+      return res.status(400).json({ error: 'Resource link is invalid.' });
     }
-    const resourceData = sanitizeObject({ ...req.body });
+    if (link && !link.startsWith('data:') && link.length > 2000) {
+      return res.status(400).json({ error: 'Resource link is too long.' });
+    }
+    
+    const processedBody = processResourceFiles(req.body);
+    const resourceData = sanitizeObject({ ...processedBody });
     resourceData.title = title.trim();
     if (!resourceData.id) resourceData.id = String(Date.now());
     if (!resourceData.date) resourceData.date = new Date().toISOString().split('T')[0];
@@ -862,7 +1006,8 @@ app.post('/api/resources', authenticateToken, requireAdmin, async (req, res) => 
 
 app.put('/api/resources/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const sanitizedBody = sanitizeObject({ ...req.body });
+    const processedBody = processResourceFiles(req.body);
+    const sanitizedBody = sanitizeObject({ ...processedBody });
     const resource = await Resource.findOneAndUpdate({ id: req.params.id }, sanitizedBody, { new: true });
     if (!resource) return res.status(404).json({ error: 'Resource not found.' });
     res.json(resource);
@@ -892,7 +1037,8 @@ app.get('/api/pending-resources', authenticateToken, requireAdmin, async (req, r
 
 app.post('/api/pending-resources', authenticateToken, async (req, res) => {
   try {
-    const pendingData = sanitizeObject({ ...req.body });
+    const processedBody = processResourceFiles(req.body);
+    const pendingData = sanitizeObject({ ...processedBody });
     if (!pendingData.id) pendingData.id = String(Date.now());
     if (!pendingData.date) pendingData.date = new Date().toISOString().split('T')[0];
     
@@ -908,6 +1054,7 @@ app.post('/api/pending-resources', authenticateToken, async (req, res) => {
     const pending = await PendingResource.create(pendingData);
     res.status(201).json(pending);
   } catch (err) {
+    console.error("Error in POST /api/pending-resources:", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -985,7 +1132,8 @@ app.post('/api/achievements', authenticateToken, requireAdmin, async (req, res) 
       return res.status(400).json({ error: 'Invalid achievement image file format. Only JPEG, PNG, and WebP images are allowed.' });
     }
 
-    const achievementData = sanitizeObject({ ...req.body });
+    const processedBody = processAchievementFiles(req.body);
+    const achievementData = sanitizeObject({ ...processedBody });
     achievementData.title = title.trim();
     if (!achievementData.id) achievementData.id = String(Date.now());
     if (!achievementData.date) achievementData.date = new Date().toISOString().split('T')[0];
@@ -1003,7 +1151,8 @@ app.put('/api/achievements/:id', authenticateToken, requireAdmin, async (req, re
     if (image && !validateFileUri(image, ALLOWED_IMAGE_PREFIXES)) {
       return res.status(400).json({ error: 'Invalid achievement image file format. Only JPEG, PNG, and WebP images are allowed.' });
     }
-    const sanitizedBody = sanitizeObject({ ...req.body });
+    const processedBody = processAchievementFiles(req.body);
+    const sanitizedBody = sanitizeObject({ ...processedBody });
     const achievement = await Achievement.findOneAndUpdate({ id: req.params.id }, sanitizedBody, { new: true });
     if (!achievement) return res.status(404).json({ error: 'Achievement not found.' });
     res.json(achievement);

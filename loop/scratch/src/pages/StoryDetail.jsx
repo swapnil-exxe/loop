@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus } from 'lucide-react';
-import { getStories, updateStory, deleteStory, addPendingStory, fileToBase64 } from '../utils/db';
+import { getStories, getStoryById, updateStory, deleteStory, addPendingStory, fileToBase64 } from '../utils/db';
 
 const dataURItoBlob = (dataURI) => {
   if (!dataURI || !dataURI.startsWith('data:')) return null;
@@ -89,8 +89,8 @@ export default function StoryDetail() {
   }, [viewerFile]);
 
   useEffect(() => {
-    getStories().then(stories => {
-      const found = stories.find(s => String(s.id) === String(id));
+    setLoading(true);
+    getStoryById(id).then(found => {
       setStory(found || null);
       setLoading(false);
     }).catch(err => {
@@ -110,6 +110,8 @@ export default function StoryDetail() {
   const canModify = isAdmin || isOwner;
 
   const [isEditing, setIsEditing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [editForm, setEditForm] = useState({
     name: '',
     company: '',
@@ -242,6 +244,8 @@ export default function StoryDetail() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setUploadProgress(0);
     try {
       const payload = { ...editForm };
       
@@ -261,10 +265,9 @@ export default function StoryDetail() {
         alert('Admin Action: Changes saved directly.');
         setIsEditing(false);
         // Reload current story
-        getStories().then(stories => {
-          const found = stories.find(s => String(s.id) === String(id));
+        getStoryById(id).then(found => {
           if (found) setStory(found);
-        });
+        }).catch(console.error);
       } else {
         await addPendingStory({
           ...payload,
@@ -272,6 +275,8 @@ export default function StoryDetail() {
           requestType: 'edit',
           status: 'pending_edit',
           uploadedByEmail: currentUser.email
+        }, (progress) => {
+          setUploadProgress(progress);
         });
         alert('Contributor Action: Your edits have been submitted to administrators for approval.');
         setIsEditing(false);
@@ -279,13 +284,49 @@ export default function StoryDetail() {
     } catch (err) {
       console.error("Error saving story changes:", err);
       alert(err.message || 'Failed to save changes.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="container" style={{ padding: '6rem 0', textAlign: 'center' }}>
-        <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+      <div className="container skeleton-pulse" style={{ paddingTop: '6.5rem', paddingBottom: '6rem', maxWidth: '900px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem' }}>
+          <div style={{ width: '120px', height: '1.5rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+        </div>
+        <header style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '2.5rem', marginBottom: '3rem' }}>
+          <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ flexGrow: 1 }}>
+              <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ width: '60px', height: '1.2rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                <div style={{ width: '80px', height: '1.2rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+              </div>
+              <div style={{ height: '3rem', width: '250px', backgroundColor: 'var(--border-color)', borderRadius: '4px', marginBottom: '1rem' }} />
+              <div style={{ height: '1.5rem', width: '180px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+            </div>
+            <div style={{ width: '110px', height: '110px', backgroundColor: 'var(--border-color)', borderRadius: '24px' }} />
+          </div>
+        </header>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ height: '1.5rem', width: '120px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+            <div style={{ height: '100px', backgroundColor: 'var(--border-color)', borderRadius: '12px' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ height: '1.5rem', width: '120px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+            <div style={{ height: '100px', backgroundColor: 'var(--border-color)', borderRadius: '12px' }} />
+          </div>
+        </div>
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 0.35; }
+          }
+          .skeleton-pulse {
+            animation: pulse 1.5s infinite ease-in-out;
+          }
+        `}</style>
       </div>
     );
   }
@@ -1502,8 +1543,61 @@ export default function StoryDetail() {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', cursor: 'pointer' }}>
-                Save Story Changes {!isAdmin && '(Submit for Approval)'}
+              <button 
+                type="submit" 
+                disabled={submitting}
+                className="btn btn-primary" 
+                style={{ 
+                  width: '100%', 
+                  marginTop: '1rem', 
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1
+                }}
+              >
+                {submitting ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                      <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          stroke="rgba(255, 255, 255, 0.2)"
+                          strokeWidth="3"
+                        />
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeDasharray="94.2"
+                          strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
+                          strokeLinecap="round"
+                          style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
+                        />
+                      </svg>
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '8px',
+                        fontWeight: 'bold',
+                        color: 'currentColor'
+                      }}>
+                        {uploadProgress}%
+                      </div>
+                    </div>
+                    <span>{uploadProgress === 100 ? 'Saving...' : 'Submitting...'}</span>
+                  </div>
+                ) : `Save Story Changes ${!isAdmin ? '(Submit for Approval)' : ''}`}
               </button>
             </form>
           </div>

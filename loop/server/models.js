@@ -3,11 +3,11 @@ const mongoose = require('mongoose');
 // User Schema
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
-  role: { type: String, required: true },
-  status: { type: String, default: 'Active' },
+  role: { type: String, required: true, index: true },
+  status: { type: String, default: 'Active', index: true },
   password: { type: String, default: 'spit123' },
   name: { type: String, default: '' },
-  branch: { type: String, default: '' },
+  branch: { type: String, default: '', index: true },
   currentYear: { type: String, default: '' },
   onboarded: { type: Boolean, default: false },
   pendingName: { type: String, default: '' },
@@ -15,7 +15,9 @@ const UserSchema = new mongoose.Schema({
   pendingBranch: { type: String, default: '' },
   pendingCurrentYear: { type: String, default: '' },
   hasPendingEdit: { type: Boolean, default: false }
-});
+}, { timestamps: true });
+
+UserSchema.index({ createdAt: -1 });
 
 // Journey Subschema
 const JourneySchema = new mongoose.Schema({
@@ -60,11 +62,11 @@ const ResumeFileSchema = new mongoose.Schema({
 const StorySchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
-  branch: String,
+  branch: { type: String, index: true },
   subBranch: String,
-  passoutYear: String,
-  company: String,
-  role: String,
+  passoutYear: { type: String, index: true },
+  company: { type: String, index: true },
+  role: { type: String, index: true },
   semester: String,
   cgpa: String,
   photo: String,
@@ -75,14 +77,16 @@ const StorySchema = new mongoose.Schema({
   studyMaterials: [StudyMaterialSchema],
   customSections: [CustomSectionSchema],
   uploadedByEmail: String
-});
+}, { timestamps: true });
+
+StorySchema.index({ createdAt: -1 });
 
 // Pending Story Schema
 const PendingStorySchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   activeId: String,
   requestType: String, // 'add', 'edit', 'delete'
-  status: { type: String, default: 'pending' },
+  status: { type: String, default: 'pending', index: true },
   name: { type: String, required: true },
   branch: String,
   subBranch: String,
@@ -99,7 +103,9 @@ const PendingStorySchema = new mongoose.Schema({
   studyMaterials: [StudyMaterialSchema],
   customSections: [CustomSectionSchema],
   uploadedByEmail: String
-});
+}, { timestamps: true });
+
+PendingStorySchema.index({ createdAt: -1 });
 
 // Study Resource Schema
 const ResourceSchema = new mongoose.Schema({
@@ -111,15 +117,17 @@ const ResourceSchema = new mongoose.Schema({
   uploadedBy: String,
   uploadedByEmail: String,
   date: String,
-  folderId: { type: String, required: true }
-});
+  folderId: { type: String, required: true, index: true }
+}, { timestamps: true });
+
+ResourceSchema.index({ createdAt: -1 });
 
 // Pending Study Resource Schema
 const PendingResourceSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   activeId: String,
   requestType: String, // 'add', 'delete'
-  status: { type: String, default: 'pending' },
+  status: { type: String, default: 'pending', index: true },
   title: { type: String, required: true },
   category: String,
   type: String,
@@ -128,7 +136,9 @@ const PendingResourceSchema = new mongoose.Schema({
   uploadedByEmail: String,
   date: String,
   folderId: { type: String, required: true }
-});
+}, { timestamps: true });
+
+PendingResourceSchema.index({ createdAt: -1 });
 
 // Achievement Schema
 const AchievementSchema = new mongoose.Schema({
@@ -140,14 +150,18 @@ const AchievementSchema = new mongoose.Schema({
   image: String,
   imageFit: { type: String, default: 'cover' },
   imagePosition: { type: String, default: 'center' }
-});
+}, { timestamps: true });
+
+AchievementSchema.index({ createdAt: -1 });
 
 // Folder Schema
 const FolderSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   parentId: { type: String, default: null }
-});
+}, { timestamps: true });
+
+FolderSchema.index({ createdAt: -1 });
 
 module.exports = {
   User: mongoose.model('User', UserSchema),

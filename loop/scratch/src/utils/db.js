@@ -26,14 +26,106 @@ const authFetch = async (url, options = {}) => {
   return res;
 };
 
+const authFetchXHR = (url, options = {}, onProgress) => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method || 'GET', url);
+
+    const userSession = localStorage.getItem('loop_current_user');
+    const headers = { ...options.headers };
+    if (userSession) {
+      try {
+        const { token } = JSON.parse(userSession);
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (e) {
+        console.error("Error parsing session token in XHR:", e);
+      }
+    }
+
+    Object.keys(headers).forEach(key => {
+      if (headers[key] !== undefined) {
+        xhr.setRequestHeader(key, headers[key]);
+      }
+    });
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100);
+          onProgress(percentComplete);
+        }
+      });
+    }
+
+    xhr.onload = () => {
+      const responseBody = xhr.responseText;
+      const ok = xhr.status >= 200 && xhr.status < 300;
+
+      // Handle auth failures — delay redirect so the promise resolves first
+      if ((xhr.status === 401 || xhr.status === 403) && !window.location.pathname.includes('/login')) {
+        localStorage.removeItem('loop_current_user');
+        // Resolve with the error response so the caller can handle it
+        let parsedJson = null;
+        try { parsedJson = JSON.parse(responseBody); } catch (e) { parsedJson = { error: 'Session expired. Please login again.' }; }
+        resolve({ ok: false, status: xhr.status, json: async () => parsedJson, text: async () => responseBody });
+        // Delay navigation so we don't abort other in-flight requests
+        setTimeout(() => { window.location.href = '/login'; }, 300);
+        return;
+      }
+
+      let parsedJson = null;
+      let parseAttempted = false;
+      const getJson = async () => {
+        if (!parseAttempted) {
+          parseAttempted = true;
+          try {
+            parsedJson = JSON.parse(responseBody);
+          } catch (e) {
+            parsedJson = {};
+          }
+        }
+        return parsedJson;
+      };
+
+      resolve({
+        ok,
+        status: xhr.status,
+        json: getJson,
+        text: async () => responseBody
+      });
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error during upload. Please check your connection.'));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error('Upload timed out. Please try again.'));
+    };
+
+    xhr.timeout = 120000; // 2 minute timeout for large file uploads
+
+    xhr.send(options.body || null);
+  });
+};
+
+
+
 export const initDB = () => {
   // Database initialized and managed on backend side.
 };
 
-// Stories Helpers
 export const getStories = async () => {
   const res = await authFetch(`${API_URL}/stories`);
   if (!res.ok) throw new Error('Failed to fetch stories');
+  return res.json();
+};
+
+export const getStoryById = async (id) => {
+  const res = await authFetch(`${API_URL}/stories/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch story details');
   return res.json();
 };
 
@@ -78,12 +170,12 @@ export const getPendingStories = async () => {
   return res.json();
 };
 
-export const addPendingStory = async (story) => {
-  const res = await authFetch(`${API_URL}/pending-stories`, {
+export const addPendingStory = async (story, onProgress) => {
+  const res = await authFetchXHR(`${API_URL}/pending-stories`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(story)
-  });
+  }, onProgress);
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.error || 'Failed to add pending story');
@@ -111,6 +203,12 @@ export const rejectPendingStory = async (id) => {
 export const getResources = async () => {
   const res = await authFetch(`${API_URL}/resources`);
   if (!res.ok) throw new Error('Failed to fetch resources');
+  return res.json();
+};
+
+export const getResourceById = async (id) => {
+  const res = await authFetch(`${API_URL}/resources/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch resource details');
   return res.json();
 };
 
@@ -152,13 +250,16 @@ export const getPendingResources = async () => {
   return res.json();
 };
 
-export const addPendingResource = async (resource) => {
-  const res = await authFetch(`${API_URL}/pending-resources`, {
+export const addPendingResource = async (resource, onProgress) => {
+  const res = await authFetchXHR(`${API_URL}/pending-resources`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(resource)
-  });
-  if (!res.ok) throw new Error('Failed to add pending resource');
+  }, onProgress);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to add pending resource');
+  }
   return res.json();
 };
 
@@ -369,9 +470,54 @@ export const deleteFolder = async (id) => {
 
 export const fileToBase64 = (file) => {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = (error) => reject(error);
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const MAX_WIDTH = 1600;
+            const MAX_HEIGHT = 1600;
+            
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            resolve(compressedBase64);
+          } catch (err) {
+            resolve(e.target.result);
+          }
+        };
+        img.onerror = () => {
+          resolve(reader.result);
+        };
+      };
+      reader.onerror = (error) => reject(error);
+    } else {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    }
   });
 };

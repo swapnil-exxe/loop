@@ -22,7 +22,11 @@ export default function Stories() {
   const [maxYear, setMaxYear] = useState('ALL');
   const [minCGPA, setMinCGPA] = useState(4.0);
   const yearOptions = ['ALL', ...Array.from({ length: 36 }, (_, i) => 2000 + i)];
+  const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(() => {
@@ -120,12 +124,28 @@ export default function Stories() {
   };
 
   useEffect(() => {
-    getStories().then(setStories).catch(console.error);
+    setLoading(true);
+    getStories()
+      .then(data => {
+        setStories(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching stories:", err);
+        setLoading(false);
+      });
     if (location.state?.openUploadModal) {
       // Clear location state to prevent modal reopening on page reloads
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchQuery(inputValue);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [inputValue]);
 
   // Filtered stories based on sidebar selections + search query
   const filteredStories = stories.filter(story => {
@@ -178,6 +198,7 @@ export default function Stories() {
       return;
     }
 
+    setSubmitting(true);
     const photoUrl = '/images/file-1.jpg';
 
     // Auto-add staged material if user selected a file but forgot to click '+'
@@ -217,11 +238,15 @@ export default function Stories() {
     };
     
     try {
-      await addPendingStory(submission);
+      setUploadProgress(0);
+      await addPendingStory(submission, (progress) => {
+        setUploadProgress(progress);
+      });
       setUploadSuccess(true);
     } catch (err) {
       console.error('Error submitting story:', err);
       alert(err.message);
+      setSubmitting(false);
       return;
     }
     
@@ -229,6 +254,7 @@ export default function Stories() {
     setTimeout(() => {
       setIsModalOpen(false);
       setUploadSuccess(false);
+      setSubmitting(false);
       setCustomSections([]);
       setResumeUploadFile(null);
       setFormData({
@@ -460,6 +486,7 @@ export default function Stories() {
               setMinYear('ALL');
               setMaxYear('ALL');
               setMinCGPA(4.0);
+              setInputValue('');
               setSearchQuery('');
             }}
             className="btn btn-secondary"
@@ -478,13 +505,16 @@ export default function Stories() {
               type="text"
               className="input-field"
               placeholder="Search by name, company, role, branch, resource…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: '2.5rem', paddingRight: searchQuery ? '2.5rem' : '1rem', borderRadius: '14px', fontSize: '0.9rem' }}
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              style={{ paddingLeft: '2.5rem', paddingRight: inputValue ? '2.5rem' : '1rem', borderRadius: '14px', fontSize: '0.9rem' }}
             />
-            {searchQuery && (
+            {inputValue && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setInputValue('');
+                  setSearchQuery('');
+                }}
                 style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.2rem', display: 'flex', alignItems: 'center' }}
               >
                 <X size={14} />
@@ -493,9 +523,54 @@ export default function Stories() {
           </div>
           {/* Results count */}
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-            {filteredStories.length} {filteredStories.length === 1 ? 'story' : 'stories'} found{searchQuery ? ` for "${searchQuery}"` : ''}
+            {loading ? 'Searching stories...' : `${filteredStories.length} ${filteredStories.length === 1 ? 'story' : 'stories'} found${searchQuery ? ` for "${searchQuery}"` : ''}`}
           </p>
-          {filteredStories.length > 0 ? (
+          {loading ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+            }}>
+              {[1, 2, 3].map((n) => (
+                <div 
+                  key={n} 
+                  className="loop-card skeleton-pulse"
+                  style={{
+                    padding: '1.75rem 2rem',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    minHeight: '140px',
+                    position: 'relative',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '24px',
+                    backgroundColor: 'var(--bg-secondary)',
+                    gap: '2rem',
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  <div style={{ flexGrow: 1, minWidth: '260px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                      <div style={{ height: '1.75rem', width: '200px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <div style={{ height: '1.2rem', width: '60px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                        <div style={{ height: '1.2rem', width: '80px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <div style={{ height: '1rem', width: '150px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div style={{ height: '1.2rem', width: '120px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                      <div style={{ height: '1.2rem', width: '60px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                    </div>
+                  </div>
+                  <div style={{ width: '130px', height: '2.5rem', backgroundColor: 'var(--border-color)', borderRadius: '12px' }} />
+                </div>
+              ))}
+            </div>
+          ) : filteredStories.length > 0 ? (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -1325,10 +1400,58 @@ export default function Stories() {
                   </button>
                   <button 
                     type="submit" 
+                    disabled={submitting}
                     className="btn btn-primary"
-                    style={{ padding: '0.8rem 2rem' }}
+                    style={{ 
+                      padding: '0.8rem 2rem',
+                      opacity: submitting ? 0.7 : 1,
+                      cursor: submitting ? 'not-allowed' : 'pointer'
+                    }}
                   >
-                    Submit Journey
+                    {submitting ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                          <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="15"
+                              fill="none"
+                              stroke="rgba(255, 255, 255, 0.2)"
+                              strokeWidth="3"
+                            />
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="15"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeDasharray="94.2"
+                              strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
+                              strokeLinecap="round"
+                              style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
+                            />
+                          </svg>
+                          <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '8px',
+                            fontWeight: 'bold',
+                            color: 'currentColor'
+                          }}>
+                            {uploadProgress}%
+                          </div>
+                        </div>
+                        <span>{uploadProgress === 100 ? 'Saving...' : 'Submitting...'}</span>
+                      </div>
+                    ) : 'Submit Journey'}
                   </button>
                 </div>
               </form>
@@ -1347,6 +1470,13 @@ export default function Stories() {
           transform: translateY(-8px);
           box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7);
           border-color: var(--text-secondary);
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 0.35; }
+        }
+        .skeleton-pulse {
+          animation: pulse 1.5s infinite ease-in-out;
         }
         @media (max-width: 576px) {
           .hinge-card {

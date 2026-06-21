@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { Search, Download, Plus, X, BookOpen, CheckCircle, FileText, Globe, Code, FileSpreadsheet, Compass, Folder, Trash2, Edit } from 'lucide-react';
-import { getResources, addPendingResource, deleteResource, fileToBase64, getFolders, addFolder, updateResource } from '../utils/db';
+import { getResources, getResourceById, addPendingResource, deleteResource, fileToBase64, getFolders, addFolder, updateResource } from '../utils/db';
 
 const dataURItoBlob = (dataURI) => {
   if (!dataURI || !dataURI.startsWith('data:')) return null;
@@ -51,6 +51,8 @@ export default function Resources() {
   // Folders Tree State (Supports nested folders!)
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   useEffect(() => {
     Promise.all([getResources(), getFolders()])
@@ -123,22 +125,34 @@ export default function Resources() {
 
   const handleSaveResource = async (e) => {
     e.preventDefault();
-    if (isAdmin) {
-      await updateResource(editingResource.id, editResourceForm);
-      alert('Resource updated successfully.');
-    } else {
-      const pendingData = {
-        ...editResourceForm,
-        requestType: 'edit',
-        status: 'pending_edit',
-        id: editingResource.id,
-        uploadedBy: currentUser ? currentUser.email.split('@')[0].replace(/\./g, ' ') : editingResource.uploadedBy
-      };
-      await addPendingResource(pendingData);
-      alert('Contributor Action: Your resource edits have been submitted to administrators for approval.');
+    setSubmitting(true);
+    setUploadProgress(0);
+    try {
+      if (isAdmin) {
+        await updateResource(editingResource.id, editResourceForm);
+        alert('Resource updated successfully.');
+      } else {
+        const pendingData = {
+          ...editResourceForm,
+          requestType: 'edit',
+          status: 'pending_edit',
+          id: editingResource.id,
+          uploadedBy: currentUser ? currentUser.email.split('@')[0].replace(/\./g, ' ') : editingResource.uploadedBy
+        };
+        await addPendingResource(pendingData, (progress) => {
+          setUploadProgress(progress);
+        });
+        alert('Contributor Action: Your resource edits have been submitted to administrators for approval.');
+      }
+      setEditingResource(null);
+      const resData = await getResources();
+      setResources(resData);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to save resource.');
+    } finally {
+      setSubmitting(false);
     }
-    setEditingResource(null);
-    getResources().then(setResources).catch(console.error);
   };
 
   const processResourceFile = (file) => {
@@ -276,27 +290,38 @@ export default function Resources() {
       return;
     }
 
-    const submission = {
-      ...formData,
-      category: 'General', // Keep category for schema compatibility
-      link: formData.link.trim() || '#',
-      uploadedByEmail: currentUser ? currentUser.email : ''
-    };
+    setSubmitting(true);
+    setUploadProgress(0);
+    try {
+      const submission = {
+        ...formData,
+        category: 'General', // Keep category for schema compatibility
+        link: formData.link.trim() || '#',
+        uploadedByEmail: currentUser ? currentUser.email : ''
+      };
 
-    await addPendingResource(submission);
-    setUploadSuccess(true);
-
-    setTimeout(() => {
-      setIsModalOpen(false);
-      setUploadSuccess(false);
-      setFormData({
-        title: '',
-        type: 'PDF',
-        link: '',
-        uploadedBy: currentUser ? formatEmailToName(currentUser.email) : '',
-        folderId: currentFolderId || 'sem-1'
+      await addPendingResource(submission, (progress) => {
+        setUploadProgress(progress);
       });
-    }, 2000);
+      setUploadSuccess(true);
+
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setUploadSuccess(false);
+        setSubmitting(false);
+        setFormData({
+          title: '',
+          type: 'PDF',
+          link: '',
+          uploadedBy: currentUser ? formatEmailToName(currentUser.email) : '',
+          folderId: currentFolderId || 'sem-1'
+        });
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to upload resource.');
+      setSubmitting(false);
+    }
   };
 
   // Icon mapping helper based on resource type
@@ -409,45 +434,75 @@ export default function Resources() {
           gap: '1.25rem'
         }}>
           {/* Individual Folder Cards (filtered by currentFolderId) */}
-          {folders.filter(f => f.parentId === currentFolderId).map(folder => {
-            const subfolderIds = getFolderAndSubfolderIds(folder.id);
-            const count = resources.filter(res => subfolderIds.includes(res.folderId)).length;
-            return (
+          {loading ? (
+            [1, 2, 3].map((n) => (
               <div 
-                key={folder.id}
-                onClick={() => setCurrentFolderId(folder.id)}
-                className="loop-card folder-card"
+                key={n}
+                className="loop-card folder-card skeleton-pulse"
                 style={{
                   padding: '1.25rem',
-                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '1rem',
                   border: '1px solid var(--border-color)',
                   borderRadius: '16px',
-                  backgroundColor: 'var(--bg-primary)',
-                  transition: 'all 0.2s ease'
+                  backgroundColor: 'var(--bg-primary)'
                 }}
               >
                 <div style={{
                   padding: '0.6rem',
+                  width: '36px',
+                  height: '36px',
                   backgroundColor: 'var(--bg-secondary)',
-                  borderRadius: '12px',
-                  color: 'var(--text-primary)',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}>
-                  <Folder size={20} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{folder.name}</span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    {count} items
-                  </span>
+                  borderRadius: '12px'
+                }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ width: '80px', height: '1rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                  <div style={{ width: '40px', height: '0.75rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
                 </div>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            folders.filter(f => f.parentId === currentFolderId).map(folder => {
+              const subfolderIds = getFolderAndSubfolderIds(folder.id);
+              const count = resources.filter(res => subfolderIds.includes(res.folderId)).length;
+              return (
+                <div 
+                  key={folder.id}
+                  onClick={() => setCurrentFolderId(folder.id)}
+                  className="loop-card folder-card"
+                  style={{
+                    padding: '1.25rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '16px',
+                    backgroundColor: 'var(--bg-primary)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{
+                    padding: '0.6rem',
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderRadius: '12px',
+                    color: 'var(--text-primary)',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <Folder size={20} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{folder.name}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      {count} items
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
 
           {/* Add Folder Button Card */}
           <div 
@@ -514,7 +569,48 @@ export default function Resources() {
       </div>
 
       {/* Resources Grid */}
-      {filteredResources.length > 0 ? (
+      {loading ? (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '1.5rem'
+        }}>
+          {[1, 2, 3].map((n) => (
+            <div 
+              key={n} 
+              className="loop-card resource-card skeleton-pulse"
+              style={{
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: '190px'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                  <div style={{ padding: '0.5rem', width: '36px', height: '36px', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '10px' }} />
+                  <div style={{ width: '60px', height: '1.2rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                </div>
+                <div style={{ height: '1.2rem', width: '80%', backgroundColor: 'var(--border-color)', borderRadius: '4px', marginBottom: '0.5rem' }} />
+              </div>
+              <div>
+                <hr style={{ border: 0, borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <div style={{ width: '40px', height: '0.7rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                    <div style={{ width: '60px', height: '0.8rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ width: '80px', height: '1.8rem', backgroundColor: 'var(--border-color)', borderRadius: '8px' }} />
+                    <div style={{ width: '36px', height: '36px', backgroundColor: 'var(--border-color)', borderRadius: '50%' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filteredResources.length > 0 ? (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -583,29 +679,47 @@ export default function Resources() {
 
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button 
-                      onClick={() => {
-                        const mime = getMimeTypeFromDataURI(res.link);
-                        let fileType = res.type;
-                        let ext = '';
-                        if (mime) {
-                          ext = getExtensionFromMime(mime);
-                          if (mime.startsWith('image/')) {
-                            fileType = 'Image';
-                          } else if (mime === 'application/pdf') {
-                            fileType = 'PDF';
+                      onClick={async (e) => {
+                        const btn = e.currentTarget;
+                        btn.disabled = true;
+                        const originalText = btn.innerHTML;
+                        btn.innerText = 'Loading...';
+                        try {
+                          if (!res.link) {
+                            const resourceDetails = await getResourceById(res.id);
+                            res.link = resourceDetails.link;
                           }
-                        } else {
-                          const isPdf = res.type === 'PDF' || res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap';
-                          fileType = isPdf ? 'PDF' : res.type;
-                          ext = isPdf ? '.pdf' : '.txt';
+                          const mime = getMimeTypeFromDataURI(res.link);
+                          let fileType = res.type;
+                          let ext = '';
+                          if (mime) {
+                            ext = getExtensionFromMime(mime);
+                            if (mime.startsWith('image/')) {
+                              fileType = 'Image';
+                            } else if (mime === 'application/pdf') {
+                              fileType = 'PDF';
+                            }
+                          } else {
+                            const isPdf = res.type === 'PDF' || res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap';
+                            fileType = isPdf ? 'PDF' : res.type;
+                            ext = isPdf ? '.pdf' : '.txt';
+                          }
+                          setViewerFile({
+                            title: res.title,
+                            type: fileType,
+                            fileName: res.title + ext,
+                            fileSize: '1.2 MB',
+                            previewUrl: res.link || '#'
+                          });
+                        } catch (err) {
+                          console.error("Error viewing resource:", err);
+                          alert("Failed to load resource data.");
+                        } finally {
+                          if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                          }
                         }
-                        setViewerFile({
-                          title: res.title,
-                          type: fileType,
-                          fileName: res.title + ext,
-                          fileSize: '1.2 MB',
-                          previewUrl: res.link || '#'
-                        });
                       }}
                       className="btn btn-secondary"
                       style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
@@ -615,30 +729,45 @@ export default function Resources() {
                       <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>View File</span>
                     </button>
                     <button 
-                      onClick={() => {
-                        if (res.link && res.link !== '#') {
-                          if (res.link.startsWith('data:')) {
-                            const blob = dataURItoBlob(res.link);
-                            if (blob) {
-                              const blobUrl = URL.createObjectURL(blob);
-                              const link = document.createElement('a');
-                              link.href = blobUrl;
-                              const mime = getMimeTypeFromDataURI(res.link);
-                              const ext = getExtensionFromMime(mime) || '.txt';
-                              link.download = res.title + ext;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                              setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                      onClick={async (e) => {
+                        const btn = e.currentTarget;
+                        btn.disabled = true;
+                        try {
+                          if (!res.link) {
+                            const resourceDetails = await getResourceById(res.id);
+                            res.link = resourceDetails.link;
+                          }
+                          if (res.link && res.link !== '#') {
+                            if (res.link.startsWith('data:')) {
+                              const blob = dataURItoBlob(res.link);
+                              if (blob) {
+                                const blobUrl = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                const mime = getMimeTypeFromDataURI(res.link);
+                                const ext = getExtensionFromMime(mime) || '.txt';
+                                link.download = res.title + ext;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                              } else {
+                                alert('Failed to process file data.');
+                              }
                             } else {
-                              alert('Failed to process file data.');
+                              // external URL - open in new tab
+                              window.open(res.link, '_blank');
                             }
                           } else {
-                            // external URL - open in new tab
-                            window.open(res.link, '_blank');
+                            alert('No link or file data available for this resource.');
                           }
-                        } else {
-                          alert('No link or file data available for this resource.');
+                        } catch (err) {
+                          console.error("Error downloading resource:", err);
+                          alert("Failed to load resource data.");
+                        } finally {
+                          if (btn) {
+                            btn.disabled = false;
+                          }
                         }
                       }}
                       className="btn btn-secondary"
@@ -937,9 +1066,54 @@ export default function Resources() {
                   </button>
                   <button 
                     type="submit" 
+                    disabled={submitting}
                     className="btn btn-primary"
+                    style={{ opacity: submitting ? 0.7 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}
                   >
-                    Submit Resource
+                    {submitting ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                          <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="15"
+                              fill="none"
+                              stroke="rgba(255, 255, 255, 0.2)"
+                              strokeWidth="3"
+                            />
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="15"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeDasharray="94.2"
+                              strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
+                              strokeLinecap="round"
+                              style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
+                            />
+                          </svg>
+                          <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '8px',
+                            fontWeight: 'bold',
+                            color: 'currentColor'
+                          }}>
+                            {uploadProgress}%
+                          </div>
+                        </div>
+                        <span>{uploadProgress === 100 ? 'Saving...' : 'Uploading...'}</span>
+                      </div>
+                    ) : 'Submit Resource'}
                   </button>
                 </div>
               </form>
@@ -997,16 +1171,24 @@ export default function Resources() {
                 alert('A folder with this name already exists in this folder.');
                 return;
               }
-              const newFolderObj = {
-                id: trimmed.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
-                name: trimmed,
-                parentId: currentFolderId
-              };
-              await addFolder(newFolderObj);
-              const updated = await getFolders();
-              setFolders(updated);
-              setNewFolderName('');
-              setIsNewFolderModalOpen(false);
+              setSubmitting(true);
+              try {
+                const newFolderObj = {
+                  id: trimmed.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                  name: trimmed,
+                  parentId: currentFolderId
+                };
+                await addFolder(newFolderObj);
+                const updated = await getFolders();
+                setFolders(updated);
+                setNewFolderName('');
+                setIsNewFolderModalOpen(false);
+              } catch (err) {
+                console.error(err);
+                alert(err.message || 'Failed to create folder.');
+              } finally {
+                setSubmitting(false);
+              }
             }}>
               <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
                 Create New Folder
@@ -1038,9 +1220,11 @@ export default function Resources() {
                 </button>
                 <button 
                   type="submit" 
+                  disabled={submitting}
                   className="btn btn-primary"
+                  style={{ opacity: submitting ? 0.7 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}
                 >
-                  Create Folder
+                  {submitting ? 'Creating...' : 'Create Folder'}
                 </button>
               </div>
             </form>
@@ -1396,8 +1580,61 @@ export default function Resources() {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-                Save Resource Details
+              <button 
+                type="submit" 
+                disabled={submitting}
+                className="btn btn-primary" 
+                style={{ 
+                  width: '100%', 
+                  marginTop: '1rem',
+                  opacity: submitting ? 0.7 : 1,
+                  cursor: submitting ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {submitting ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                      <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          stroke="rgba(255, 255, 255, 0.2)"
+                          strokeWidth="3"
+                        />
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeDasharray="94.2"
+                          strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
+                          strokeLinecap="round"
+                          style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
+                        />
+                      </svg>
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '8px',
+                        fontWeight: 'bold',
+                        color: 'currentColor'
+                      }}>
+                        {uploadProgress}%
+                      </div>
+                    </div>
+                    <span>{uploadProgress === 100 ? 'Saving...' : 'Saving...'}</span>
+                  </div>
+                ) : 'Save Resource Details'}
               </button>
             </form>
           </div>
@@ -1424,6 +1661,13 @@ export default function Resources() {
         }
         .active-folder {
           box-shadow: var(--card-shadow);
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 0.35; }
+        }
+        .skeleton-pulse {
+          animation: pulse 1.5s infinite ease-in-out;
         }
       `}</style>
     </>
