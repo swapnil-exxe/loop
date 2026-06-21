@@ -148,6 +148,16 @@ export default function Navbar() {
             gap: '0.4rem',
             marginRight: '-0.2em' // Offset letter-spacing offset
           }}>
+            <img 
+              src="/favicon.png" 
+              alt="LOOP Logo" 
+              style={{ 
+                height: '26px', 
+                width: 'auto', 
+                filter: 'var(--logo-filter)',
+                marginRight: '0.2rem'
+              }} 
+            />
             Loop
             <span style={{
               fontSize: '0.55rem',
