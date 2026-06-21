@@ -378,7 +378,7 @@ export default function StoryDetail() {
         paddingBottom: '2.5rem',
         marginBottom: '3rem'
       }}>
-        <div style={{
+        <div className="story-header-flex" style={{
           display: 'flex',
           gap: '2.5rem',
           alignItems: 'flex-start',
@@ -1039,7 +1039,7 @@ export default function StoryDetail() {
             </h2>
 
             <form onSubmit={handleSave}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', textAlign: 'left' }}>
+              <div className="form-grid-2col" style={{ marginBottom: '1rem', textAlign: 'left' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Name</label>
                   <input 
@@ -1062,7 +1062,7 @@ export default function StoryDetail() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', textAlign: 'left' }}>
+              <div className="form-grid-2col" style={{ marginBottom: '1rem', textAlign: 'left' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Role</label>
                   <input 
@@ -1089,7 +1089,7 @@ export default function StoryDetail() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem', textAlign: 'left' }}>
+              <div className="form-grid-3col" style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Passout Year</label>
                   <input 
@@ -1120,7 +1120,7 @@ export default function StoryDetail() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', textAlign: 'left' }}>
+              <div className="form-grid-2col" style={{ marginBottom: '1rem', textAlign: 'left' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">1st Year Strategy</label>
                   <textarea 
@@ -1147,7 +1147,7 @@ export default function StoryDetail() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', textAlign: 'left' }}>
+              <div className="form-grid-2col" style={{ marginBottom: '1rem', textAlign: 'left' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">3rd Year Strategy</label>
                   <textarea 
@@ -1437,7 +1437,7 @@ export default function StoryDetail() {
 
                   {editMaterialInput.previewUrl && (
                     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.75rem' }}>
+                      <div className="form-grid-2col" style={{ gap: '0.75rem' }}>
                         <div className="input-group" style={{ marginBottom: 0 }}>
                           <label className="input-label" style={{ fontSize: '0.7rem' }}>Material Title *</label>
                           <input 
@@ -1693,15 +1693,11 @@ export default function StoryDetail() {
           header h1 {
             font-size: 2.25rem !important;
           }
-          header div[style*="gap: '2.5rem'"] {
+          .story-header-flex {
             gap: 1.25rem !important;
             flex-direction: column;
             align-items: center;
             text-align: center;
-          }
-          header div[style*="gridTemplateColumns"] {
-            grid-template-columns: 1fr 1fr !important;
-            gap: 1.25rem !important;
           }
           main section {
             margin-bottom: 2.5rem !important;

@@ -682,11 +682,7 @@ export default function Stories() {
                   />
                 </div>
 
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: formData.branch === 'CSE' ? '1fr 1fr 1fr' : '1fr 1fr', 
-                  gap: '1rem' 
-                }}>
+                <div className={formData.branch === 'CSE' ? 'form-grid-3col' : 'form-grid-2col'}>
                   <div className="input-group">
                     <label className="input-label">Branch *</label>
                     <select 
@@ -737,7 +733,7 @@ export default function Stories() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr', gap: '1rem' }}>
+                <div className="form-grid-4col">
                   <div className="input-group">
                     <label className="input-label">Company *</label>
                     <input 

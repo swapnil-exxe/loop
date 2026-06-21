@@ -320,10 +320,7 @@ export default function Landing() {
           alignItems: 'center',
         }}
       >
-        <div className="container" style={{
-          display: 'grid',
-          gridTemplateColumns: '1.1fr 1fr',
-          gap: '5rem',
+        <div className="container grid-2col" style={{
           alignItems: 'center'
         }}>
           {/* Loop Labs Image (Left) */}
@@ -698,10 +695,7 @@ export default function Landing() {
 
       {/* SECTION 5: CTA & TEAM PHOTO STACK (Left details, right vertical stack) */}
       <section style={{ padding: '8rem 0 10rem 0' }}>
-        <div className="container" style={{
-          display: 'grid',
-          gridTemplateColumns: '1.1fr 1fr',
-          gap: '6rem',
+        <div className="container grid-2col" style={{
           alignItems: 'center'
         }}>
           {/* CTA Details (Left) */}

@@ -265,7 +265,9 @@ export default function Navbar() {
           display: 'flex',
           flexDirection: 'column',
           gap: '1.25rem',
-          backdropFilter: 'var(--glass-blur)'
+          backdropFilter: 'var(--glass-blur)',
+          maxHeight: 'calc(100vh - 80px)',
+          overflowY: 'auto'
         }}>
           <Link to="/stories" onClick={() => setMobileMenuOpen(false)} style={{ fontSize: '1.1rem', fontWeight: 600 }}>
             Stories

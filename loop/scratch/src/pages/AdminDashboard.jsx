@@ -976,7 +976,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Dashboard Nav Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '2.5rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => setActiveTab('approvals')}
           className="btn"
@@ -1462,7 +1462,7 @@ export default function AdminDashboard() {
           {/* Manage Folders */}
           <div style={{ marginTop: '3rem' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem' }}>Resource Folders ({folders.length})</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem', alignItems: 'start' }}>
+            <div className="grid-admin-folders">
               {/* Folders List */}
               <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', maxHeight: '400px', overflowY: 'auto' }}>
                 {folders.map((folder) => {
@@ -1584,7 +1584,7 @@ export default function AdminDashboard() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-grid-2col">
               <div className="input-group">
                 <label className="input-label">Category *</label>
                 <select
@@ -1705,7 +1705,7 @@ export default function AdminDashboard() {
               const activeSlider = createTab === 'outer' ? slidersData.outer : slidersData.inner;
               return (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                  <div className="form-grid-2col" style={{ marginBottom: '1.25rem' }}>
                     <div className="input-group">
                       <label className="input-label">Image Fitting Selection</label>
                       <select
@@ -1902,7 +1902,7 @@ export default function AdminDashboard() {
                       <h4 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
                         Live Crop & Fitting Previews
                       </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+                      <div className="grid-admin-folders" style={{ gap: '1.5rem' }}>
                         <div>
                           <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
                             Outer Card (Listing) - Aspect Ratio ~2.42
@@ -2043,7 +2043,7 @@ export default function AdminDashboard() {
                 <Clock size={20} style={{ color: '#ff9500' }} />
                 <span>Pending Access Requests ({usersList.filter(u => u.status === 'Pending').length})</span>
               </h2>
-              <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              <div className="glass-panel responsive-scroll-x" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
@@ -2105,7 +2105,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
+          <div className="grid-1-2col">
           
           {/* Add User panel */}
           <div>
@@ -2177,7 +2177,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+            <div className="glass-panel responsive-scroll-x" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>

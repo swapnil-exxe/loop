@@ -764,7 +764,7 @@ export default function Resources() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-grid-2col">
                   <div className="input-group">
                     <label className="input-label">Category *</label>
                     <select 
@@ -1335,7 +1335,7 @@ export default function Resources() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="form-grid-2col" style={{ marginBottom: '1rem' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Category *</label>
                   <select
@@ -1370,7 +1370,7 @@ export default function Resources() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="form-grid-2col" style={{ marginBottom: '1rem' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Folder Location *</label>
                   <select
