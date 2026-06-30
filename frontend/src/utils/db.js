@@ -1,4 +1,52 @@
-const API_URL = '/api';
+const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? '' : 'https://loop-qnh9.onrender.com';
+const API_URL = `${BASE_URL}/api`;
+
+const fixRelativeUrl = (url) => {
+  if (!url) return url;
+  if (url.startsWith('/uploads/')) {
+    return `${BASE_URL}${url}`;
+  }
+  return url;
+};
+
+const adjustUrls = (data) => {
+  if (!data) return data;
+  if (Array.isArray(data)) {
+    return data.map(item => adjustUrls(item));
+  }
+  if (typeof data === 'object') {
+    const copy = { ...data };
+    if (typeof copy.photo === 'string') {
+      copy.photo = fixRelativeUrl(copy.photo);
+    }
+    if (typeof copy.resume === 'string') {
+      copy.resume = fixRelativeUrl(copy.resume);
+    }
+    if (copy.resumeFile && typeof copy.resumeFile.url === 'string') {
+      copy.resumeFile = {
+        ...copy.resumeFile,
+        url: fixRelativeUrl(copy.resumeFile.url)
+      };
+    }
+    if (Array.isArray(copy.studyMaterials)) {
+      copy.studyMaterials = copy.studyMaterials.map(mat => ({
+        ...mat,
+        url: typeof mat.url === 'string' ? fixRelativeUrl(mat.url) : mat.url
+      }));
+    }
+    if (typeof copy.image === 'string') {
+      copy.image = fixRelativeUrl(copy.image);
+    }
+    for (const key in copy) {
+      if (copy[key] && typeof copy[key] === 'object' && key !== 'resumeFile' && key !== 'studyMaterials') {
+        copy[key] = adjustUrls(copy[key]);
+      }
+    }
+    return copy;
+  }
+  return data;
+};
+
 
 const authFetch = async (url, options = {}) => {
   const userSession = localStorage.getItem('loop_current_user');
@@ -120,13 +168,15 @@ export const initDB = () => {
 export const getStories = async () => {
   const res = await authFetch(`${API_URL}/stories`);
   if (!res.ok) throw new Error('Failed to fetch stories');
-  return res.json();
+  const data = await res.json();
+  return adjustUrls(data);
 };
 
 export const getStoryById = async (id) => {
   const res = await authFetch(`${API_URL}/stories/${id}`);
   if (!res.ok) throw new Error('Failed to fetch story details');
-  return res.json();
+  const data = await res.json();
+  return adjustUrls(data);
 };
 
 export const addStory = async (story) => {
@@ -167,7 +217,8 @@ export const updateStory = async (id, updatedStory) => {
 export const getPendingStories = async () => {
   const res = await authFetch(`${API_URL}/pending-stories`);
   if (!res.ok) throw new Error('Failed to fetch pending stories');
-  return res.json();
+  const data = await res.json();
+  return adjustUrls(data);
 };
 
 export const addPendingStory = async (story, onProgress) => {
@@ -203,13 +254,15 @@ export const rejectPendingStory = async (id) => {
 export const getResources = async () => {
   const res = await authFetch(`${API_URL}/resources`);
   if (!res.ok) throw new Error('Failed to fetch resources');
-  return res.json();
+  const data = await res.json();
+  return adjustUrls(data);
 };
 
 export const getResourceById = async (id) => {
   const res = await authFetch(`${API_URL}/resources/${id}`);
   if (!res.ok) throw new Error('Failed to fetch resource details');
-  return res.json();
+  const data = await res.json();
+  return adjustUrls(data);
 };
 
 export const addResource = async (resource) => {
@@ -247,7 +300,8 @@ export const updateResource = async (id, updatedResource) => {
 export const getPendingResources = async () => {
   const res = await authFetch(`${API_URL}/pending-resources`);
   if (!res.ok) throw new Error('Failed to fetch pending resources');
-  return res.json();
+  const data = await res.json();
+  return adjustUrls(data);
 };
 
 export const addPendingResource = async (resource, onProgress) => {
@@ -283,7 +337,8 @@ export const rejectPendingResource = async (id) => {
 export const getAchievements = async () => {
   const res = await authFetch(`${API_URL}/achievements`);
   if (!res.ok) throw new Error('Failed to fetch achievements');
-  return res.json();
+  const data = await res.json();
+  return adjustUrls(data);
 };
 
 export const addAchievement = async (achievement) => {
