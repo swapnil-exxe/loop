@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { Search, Download, Plus, X, BookOpen, CheckCircle, FileText, Globe, Code, FileSpreadsheet, Compass, Folder, Trash2, Edit } from 'lucide-react';
 import { getResources, getResourceById, addPendingResource, deleteResource, fileToBase64, getFolders, addFolder, updateResource } from '../utils/db';
+import { useCachedData } from '../hooks/useCachedData';
 
 const dataURItoBlob = (dataURI) => {
   if (!dataURI || !dataURI.startsWith('data:')) return null;
@@ -45,27 +46,15 @@ const getExtensionFromMime = (mime) => {
 };
 
 export default function Resources() {
-  const [resources, setResources] = useState([]);
+  const { data: cachedResources, loading: loadingResources, mutate: mutateResources } = useCachedData('resources', getResources);
+  const { data: cachedFolders, loading: loadingFolders, mutate: mutateFolders } = useCachedData('folders', getFolders);
+  const resources = cachedResources || [];
+  const folders = cachedFolders || [];
+  const loading = loadingResources || loadingFolders;
+
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Folders Tree State (Supports nested folders!)
-  const [folders, setFolders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  
-  useEffect(() => {
-    Promise.all([getResources(), getFolders()])
-      .then(([resourcesData, foldersData]) => {
-        setResources(resourcesData);
-        setFolders(foldersData);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Error loading resources or folders:", err);
-        setLoading(false);
-      });
-  }, []);
 
   const [currentFolderId, setCurrentFolderId] = useState(null); // null means root/all
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
@@ -180,10 +169,16 @@ export default function Resources() {
   const handleDeleteResource = async (res) => {
     if (isAdmin) {
       if (window.confirm('Admin Action: Are you sure you want to delete this resource directly?')) {
-        await deleteResource(res.id);
-        alert('Resource deleted successfully.');
-        // refresh resources
-        getResources().then(setResources).catch(console.error);
+        const previousResources = [...resources];
+        mutateResources(resources.filter(r => r.id !== res.id), false);
+        try {
+          await deleteResource(res.id);
+          alert('Resource deleted successfully.');
+          mutateResources(resources.filter(r => r.id !== res.id), true);
+        } catch (e) {
+          alert('Failed to delete resource: ' + e.message);
+          mutateResources(previousResources, false);
+        }
       }
     } else {
       if (window.confirm('Contributor Action: Request administrator to delete this resource?')) {
@@ -1178,14 +1173,18 @@ export default function Resources() {
                   name: trimmed,
                   parentId: currentFolderId
                 };
-                await addFolder(newFolderObj);
-                const updated = await getFolders();
-                setFolders(updated);
+                const previousFolders = [...folders];
+                mutateFolders([...folders, newFolderObj], false);
                 setNewFolderName('');
                 setIsNewFolderModalOpen(false);
-              } catch (err) {
-                console.error(err);
-                alert(err.message || 'Failed to create folder.');
+                try {
+                  await addFolder(newFolderObj);
+                  mutateFolders([...folders, newFolderObj], true);
+                } catch (err) {
+                  console.error(err);
+                  alert(err.message || 'Failed to create folder.');
+                  mutateFolders(previousFolders, false);
+                }
               } finally {
                 setSubmitting(false);
               }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { useCachedData } from '../hooks/useCachedData';
 import {
   getPendingStories,
   approveStory,
@@ -462,15 +463,24 @@ export default function AdminDashboard() {
   const [resourcesSearch, setResourcesSearch] = useState('');
   const [achievementsSearch, setAchievementsSearch] = useState('');
   
-  // Db data states
-  const [pendingStories, setPendingStories] = useState([]);
-  const [pendingResources, setPendingResources] = useState([]);
-  const [activeStories, setActiveStories] = useState([]);
-  const [activeResources, setActiveResources] = useState([]);
-  const [activeAchievements, setActiveAchievements] = useState([]);
-  const [usersList, setUsersList] = useState([]);
-  const [folders, setFolders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Db data states (Adopt SWR caching)
+  const { data: cachedPendingStories, mutate: mutatePendingStories } = useCachedData('pendingStories', getPendingStories);
+  const { data: cachedPendingResources, mutate: mutatePendingResources } = useCachedData('pendingResources', getPendingResources);
+  const { data: cachedActiveStories, mutate: mutateActiveStories } = useCachedData('stories', getStories);
+  const { data: cachedActiveResources, mutate: mutateActiveResources } = useCachedData('resources', getResources);
+  const { data: cachedActiveAchievements, mutate: mutateActiveAchievements } = useCachedData('achievements', getAchievements);
+  const { data: cachedUsersList, mutate: mutateUsersList } = useCachedData('users', getUsers);
+  const { data: cachedFolders, mutate: mutateFolders } = useCachedData('folders', getFolders);
+
+  const pendingStories = cachedPendingStories || [];
+  const pendingResources = cachedPendingResources || [];
+  const activeStories = cachedActiveStories || [];
+  const activeResources = cachedActiveResources || [];
+  const activeAchievements = cachedActiveAchievements || [];
+  const usersList = cachedUsersList || [];
+  const folders = cachedFolders || [];
+
+  const loading = !cachedPendingStories || !cachedPendingResources || !cachedActiveStories || !cachedActiveResources || !cachedActiveAchievements || !cachedUsersList || !cachedFolders;
   const [usersSearch, setUsersSearch] = useState('');
   const [editUserForm, setEditUserForm] = useState({
     name: '',
@@ -650,28 +660,31 @@ export default function AdminDashboard() {
 
   const refreshData = async () => {
     try {
-      const pStories = await getPendingStories();
-      const pResources = await getPendingResources();
-      const aStories = await getStories();
-      const aResources = await getResources();
-      const aAchievements = await getAchievements();
-      const uList = await getUsers();
-      const savedFolders = await getFolders();
+      const [pStories, pResources, aStories, aResources, aAchievements, uList, savedFolders] = await Promise.all([
+        getPendingStories(),
+        getPendingResources(),
+        getStories(),
+        getResources(),
+        getAchievements(),
+        getUsers(),
+        getFolders()
+      ]);
       
-      setPendingStories(pStories);
-      setPendingResources(pResources);
-      setActiveStories(aStories);
-      setActiveResources(aResources);
-      setActiveAchievements(aAchievements);
-      setUsersList(uList);
-      setFolders(savedFolders);
+      mutatePendingStories(pStories, false);
+      mutatePendingResources(pResources, false);
+      mutateActiveStories(aStories, false);
+      mutateActiveResources(aResources, false);
+      mutateActiveAchievements(aAchievements, false);
+      mutateUsersList(uList, false);
+      mutateFolders(savedFolders, false);
     } catch (err) {
       console.error("Error refreshing data:", err);
     }
   };
 
   useEffect(() => {
-    refreshData().finally(() => setLoading(false));
+    // Background fetch to sync on mount
+    refreshData();
   }, []);
 
   useEffect(() => {
@@ -686,43 +699,108 @@ export default function AdminDashboard() {
   }, [editingItem, previewingPendingStory, previewingPendingResource, viewerFile]);
 
   const handleApproveStory = async (id) => {
-    await approveStory(id);
-    await refreshData();
+    const previousPending = [...pendingStories];
+    const previousActive = [...activeStories];
+    const approvedStory = pendingStories.find(s => s.id === id);
+    
+    mutatePendingStories(pendingStories.filter(s => s.id !== id), false);
+    if (approvedStory) {
+      mutateActiveStories([...activeStories, { ...approvedStory, status: 'approved' }], false);
+    }
+    
+    try {
+      await approveStory(id);
+      refreshData();
+    } catch (e) {
+      alert("Failed to approve story: " + e.message);
+      mutatePendingStories(previousPending, false);
+      mutateActiveStories(previousActive, false);
+    }
   };
 
   const handleRejectStory = async (id) => {
-    await rejectPendingStory(id);
-    await refreshData();
+    const previousPending = [...pendingStories];
+    mutatePendingStories(pendingStories.filter(s => s.id !== id), false);
+    try {
+      await rejectPendingStory(id);
+      refreshData();
+    } catch (e) {
+      alert("Failed to reject story: " + e.message);
+      mutatePendingStories(previousPending, false);
+    }
   };
 
   const handleApproveResource = async (id) => {
-    await approveResource(id);
-    await refreshData();
+    const previousPending = [...pendingResources];
+    const previousActive = [...activeResources];
+    const approvedResource = pendingResources.find(r => r.id === id);
+    
+    mutatePendingResources(pendingResources.filter(r => r.id !== id), false);
+    if (approvedResource) {
+      mutateActiveResources([...activeResources, { ...approvedResource, status: 'approved' }], false);
+    }
+    
+    try {
+      await approveResource(id);
+      refreshData();
+    } catch (e) {
+      alert("Failed to approve resource: " + e.message);
+      mutatePendingResources(previousPending, false);
+      mutateActiveResources(previousActive, false);
+    }
   };
 
   const handleRejectResource = async (id) => {
-    await rejectPendingResource(id);
-    await refreshData();
+    const previousPending = [...pendingResources];
+    mutatePendingResources(pendingResources.filter(r => r.id !== id), false);
+    try {
+      await rejectPendingResource(id);
+      refreshData();
+    } catch (e) {
+      alert("Failed to reject resource: " + e.message);
+      mutatePendingResources(previousPending, false);
+    }
   };
 
   const handleDeleteStory = async (id) => {
     if (window.confirm('Are you sure you want to remove this story?')) {
-      await deleteStory(id);
-      await refreshData();
+      const previousActive = [...activeStories];
+      mutateActiveStories(activeStories.filter(s => s.id !== id), false);
+      try {
+        await deleteStory(id);
+        refreshData();
+      } catch (e) {
+        alert("Failed to delete story: " + e.message);
+        mutateActiveStories(previousActive, false);
+      }
     }
   };
 
   const handleDeleteResource = async (id) => {
     if (window.confirm('Are you sure you want to remove this resource?')) {
-      await deleteResource(id);
-      await refreshData();
+      const previousActive = [...activeResources];
+      mutateActiveResources(activeResources.filter(r => r.id !== id), false);
+      try {
+        await deleteResource(id);
+        refreshData();
+      } catch (e) {
+        alert("Failed to delete resource: " + e.message);
+        mutateActiveResources(previousActive, false);
+      }
     }
   };
 
   const handleDeleteAchievement = async (id) => {
     if (window.confirm('Are you sure you want to remove this achievement?')) {
-      await deleteAchievement(id);
-      await refreshData();
+      const previousActive = [...activeAchievements];
+      mutateActiveAchievements(activeAchievements.filter(a => a.id !== id), false);
+      try {
+        await deleteAchievement(id);
+        refreshData();
+      } catch (e) {
+        alert("Failed to delete achievement: " + e.message);
+        mutateActiveAchievements(previousActive, false);
+      }
     }
   };
 
@@ -1035,8 +1113,32 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      {/* Tab: Approvals */}
-      {activeTab === 'approvals' && (
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '2rem' }}>
+          {[1, 2, 3].map(n => (
+            <div 
+              key={n}
+              className="loop-card skeleton-pulse"
+              style={{
+                padding: '2.2rem 2rem',
+                borderRadius: '20px',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-primary)',
+                minHeight: '110px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ height: '1.5rem', width: '250px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+                <div style={{ height: '1.8rem', width: '100px', backgroundColor: 'var(--border-color)', borderRadius: '8px' }} />
+              </div>
+              <div style={{ height: '1rem', width: '80%', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
+          {/* Tab: Approvals */}
+          {activeTab === 'approvals' && (
         <div>
           {/* Stories Queue */}
           <div style={{ marginBottom: '3.5rem' }}>
@@ -2359,6 +2461,8 @@ export default function AdminDashboard() {
           </div>
         )}
         </>
+      )}
+      </>
       )}
     </div>
 

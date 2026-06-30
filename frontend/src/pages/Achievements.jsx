@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, ArrowUpRight, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAchievements } from '../utils/db';
+import { useCachedData } from '../hooks/useCachedData';
 
 const parsePosition = (posStr) => {
   if (!posStr) return { x: 50, y: 50, zoom: 1.0 };
@@ -77,26 +78,21 @@ const parseSliders = (posStr) => {
 };
 
 export default function Achievements() {
-  const [achievements, setAchievements] = useState([]);
+  const { data: cachedAchievements, loading, error: fetchError } = useCachedData('achievements', getAchievements);
+  const achievements = cachedAchievements || [];
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const fetchAchievements = () => {
-    setError(null);
-    getAchievements()
-      .then(setAchievements)
-      .catch(err => {
-        console.error(err);
-        setError('Connection issue: Unable to fetch achievements from server.');
-      });
-  };
-
   useEffect(() => {
-    fetchAchievements();
-  }, []);
+    if (fetchError) {
+      setError('Connection issue: Unable to fetch achievements from server.');
+    } else {
+      setError(null);
+    }
+  }, [fetchError]);
 
   const categories = [
     'ALL',
@@ -289,7 +285,37 @@ export default function Achievements() {
       </div>
 
       {/* Grid List */}
-      {sortedAndFilteredAchievements.length > 0 ? (
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+          {[1, 2].map((n) => (
+            <div 
+              key={n}
+              className="loop-card skeleton-pulse"
+              style={{
+                padding: '2.4rem 2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem',
+                borderRadius: '20px',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-primary)',
+                minHeight: '260px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ height: '1.5rem', width: '120px', backgroundColor: 'var(--border-color)', borderRadius: '12px' }} />
+                <div style={{ height: '1rem', width: '80px', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+              </div>
+              <div>
+                <div style={{ height: '1.8rem', width: '60%', backgroundColor: 'var(--border-color)', borderRadius: '4px', marginBottom: '0.75rem' }} />
+                <div style={{ height: '1.2rem', width: '90%', backgroundColor: 'var(--border-color)', borderRadius: '4px', marginBottom: '0.5rem' }} />
+                <div style={{ height: '1.2rem', width: '80%', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
+              </div>
+              <div style={{ height: '120px', backgroundColor: 'var(--border-color)', borderRadius: '12px' }} />
+            </div>
+          ))}
+        </div>
+      ) : sortedAndFilteredAchievements.length > 0 ? (
         <div style={{
           display: 'flex',
           flexDirection: 'column',

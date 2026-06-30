@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Filter, Upload, X, ArrowRight, Plus, Briefcase, CheckCircle, FileText, Search } from 'lucide-react';
 import { getStories, addPendingStory, fileToBase64 } from '../utils/db';
+import { useCachedData } from '../hooks/useCachedData';
 
 export default function Stories() {
   const location = useLocation();
@@ -13,7 +14,8 @@ export default function Stories() {
   const userSession = localStorage.getItem('loop_current_user');
   const currentUser = userSession ? JSON.parse(userSession) : null;
 
-  const [stories, setStories] = useState([]);
+  const { data: cachedStories, loading } = useCachedData('stories', getStories);
+  const stories = cachedStories || [];
   const [selectedBranches, setSelectedBranches] = useState(
     initialBranch === 'ALL' ? ['CSE', 'CE', 'EXTC'] : [initialBranch]
   );
@@ -24,7 +26,6 @@ export default function Stories() {
   const yearOptions = ['ALL', ...Array.from({ length: 36 }, (_, i) => 2000 + i)];
   const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   
@@ -124,16 +125,6 @@ export default function Stories() {
   };
 
   useEffect(() => {
-    setLoading(true);
-    getStories()
-      .then(data => {
-        setStories(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Error fetching stories:", err);
-        setLoading(false);
-      });
     if (location.state?.openUploadModal) {
       // Clear location state to prevent modal reopening on page reloads
       window.history.replaceState({}, document.title);
