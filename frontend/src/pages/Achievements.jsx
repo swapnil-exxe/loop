@@ -78,7 +78,7 @@ const parseSliders = (posStr) => {
 };
 
 export default function Achievements() {
-  const { data: cachedAchievements, loading, error: fetchError } = useCachedData('achievements', getAchievements);
+  const { data: cachedAchievements, loading, error: fetchError, refresh } = useCachedData('achievements', getAchievements);
   const achievements = cachedAchievements || [];
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,7 +147,7 @@ export default function Achievements() {
         }}>
           <span style={{ fontWeight: 500 }}>⚠️ Connection Issue: Unable to connect to the server. Please check your database connection or backend status.</span>
           <button 
-            onClick={fetchAchievements} 
+            onClick={refresh} 
             className="btn btn-secondary" 
             style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderColor: '#ff453a', color: '#ff453a', borderRadius: '8px', background: 'transparent' }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 69, 58, 0.1)'; }}

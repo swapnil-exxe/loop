@@ -113,5 +113,7 @@ export const clearAllCaches = () => {
         sessionStorage.removeItem(k);
       }
     });
-  } catch (e) {}
+  } catch (e) {
+    // Ignore storage issues
+  }
 };

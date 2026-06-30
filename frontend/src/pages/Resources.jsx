@@ -135,7 +135,7 @@ export default function Resources() {
       }
       setEditingResource(null);
       const resData = await getResources();
-      setResources(resData);
+      mutateResources(resData, false);
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to save resource.');
