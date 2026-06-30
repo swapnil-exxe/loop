@@ -22,6 +22,12 @@ const adjustUrls = (data) => {
     if (typeof copy.resume === 'string') {
       copy.resume = fixRelativeUrl(copy.resume);
     }
+    if (typeof copy.url === 'string') {
+      copy.url = fixRelativeUrl(copy.url);
+    }
+    if (typeof copy.link === 'string') {
+      copy.link = fixRelativeUrl(copy.link);
+    }
     if (copy.resumeFile && typeof copy.resumeFile.url === 'string') {
       copy.resumeFile = {
         ...copy.resumeFile,

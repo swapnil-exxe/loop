@@ -46,6 +46,12 @@ const getExtensionFromMime = (mime) => {
 };
 
 export default function Resources() {
+  const resolveUrl = (url) => {
+    if (typeof url === 'string' && url.startsWith('/uploads/')) {
+      return 'https://loop-qnh9.onrender.com' + url;
+    }
+    return url;
+  };
   const { data: cachedResources, loading: loadingResources, mutate: mutateResources } = useCachedData('resources', getResources);
   const { data: cachedFolders, loading: loadingFolders, mutate: mutateFolders } = useCachedData('folders', getFolders);
   const resources = cachedResources || [];
@@ -1302,14 +1308,14 @@ export default function Resources() {
                 viewerFile.type === 'Image' || (viewerFile.fileName && (viewerFile.fileName.endsWith('.png') || viewerFile.fileName.endsWith('.jpg') || viewerFile.fileName.endsWith('.jpeg'))) ? (
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexGrow: 1, padding: '1rem' }}>
                     <img 
-                      src={viewerFile.previewUrl || viewerFile.url} 
+                      src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
                       alt={viewerFile.title} 
                       style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
                     />
                   </div>
                 ) : (
                   <iframe 
-                    src={viewerFile.previewUrl || viewerFile.url} 
+                    src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
                     style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none', borderRadius: '12px' }} 
                     title={viewerFile.title}
                   />

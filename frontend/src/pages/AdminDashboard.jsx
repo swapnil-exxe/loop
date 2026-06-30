@@ -442,6 +442,12 @@ const ImageCropper = ({ imageUrl, imagePosition, onChangePosition, activeTab }) 
 };
 
 export default function AdminDashboard() {
+  const resolveUrl = (url) => {
+    if (typeof url === 'string' && url.startsWith('/uploads/')) {
+      return 'https://loop-qnh9.onrender.com' + url;
+    }
+    return url;
+  };
   const navigate = useNavigate();
   const [isAdmin] = useState(() => {
     const userSession = localStorage.getItem('loop_current_user');
@@ -4143,14 +4149,14 @@ export default function AdminDashboard() {
                 viewerFile.type === 'Image' || (viewerFile.fileName && (viewerFile.fileName.endsWith('.png') || viewerFile.fileName.endsWith('.jpg') || viewerFile.fileName.endsWith('.jpeg'))) ? (
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexGrow: 1, padding: '1rem' }}>
                     <img 
-                      src={viewerFile.previewUrl || viewerFile.url} 
+                      src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
                       alt={viewerFile.title} 
                       style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
                     />
                   </div>
                 ) : (
                   <iframe 
-                    src={viewerFile.previewUrl || viewerFile.url} 
+                    src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
                     style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none', borderRadius: '12px' }} 
                     title={viewerFile.title}
                   />

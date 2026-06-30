@@ -22,6 +22,12 @@ const dataURItoBlob = (dataURI) => {
 
 export default function StoryDetail() {
   const { id } = useParams();
+  const resolveUrl = (url) => {
+    if (typeof url === 'string' && url.startsWith('/uploads/')) {
+      return 'https://loop-qnh9.onrender.com' + url;
+    }
+    return url;
+  };
   const navigate = useNavigate();
   const [activePreviewImage, setActivePreviewImage] = useState(null);
   const [viewerFile, setViewerFile] = useState(null);
@@ -65,7 +71,7 @@ export default function StoryDetail() {
 
   useEffect(() => {
     let blobUrl = null;
-    const fileUrl = viewerFile?.previewUrl || viewerFile?.url;
+    const fileUrl = resolveUrl(viewerFile?.previewUrl || viewerFile?.url);
     if (fileUrl) {
       if (fileUrl.startsWith('data:')) {
         const blob = dataURItoBlob(fileUrl);
@@ -1675,7 +1681,7 @@ export default function StoryDetail() {
                 viewerFile.type === 'Image' || (viewerFile.fileName && (viewerFile.fileName.endsWith('.png') || viewerFile.fileName.endsWith('.jpg') || viewerFile.fileName.endsWith('.jpeg'))) ? (
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexGrow: 1, padding: '1rem' }}>
                     <img 
-                      src={viewerFile.previewUrl || viewerFile.url} 
+                      src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
                       alt={viewerFile.title} 
                       style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
                     />
