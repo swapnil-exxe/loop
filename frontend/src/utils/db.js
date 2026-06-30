@@ -153,7 +153,7 @@ const authFetchXHR = (url, options = {}, onProgress) => {
       reject(new Error('Upload timed out. Please try again.'));
     };
 
-    xhr.timeout = 120000; // 2 minute timeout for large file uploads
+    xhr.timeout = 600000; // 10 minute timeout for large file uploads
 
     xhr.send(options.body || null);
   });
