@@ -48,7 +48,14 @@ app.use(cors({
     // Allow requests with no origin (curl, Postman)
     if (!origin) return callback(null, true);
     // Allow localhost and ngrok tunnels
-    if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.io')) {
+    // Allow localhost, ngrok tunnels, and Vercel deployments
+    if (
+      process.env.ALLOWED_ORIGIN === '*' ||
+      ALLOWED_ORIGINS.includes(origin) ||
+      origin.endsWith('.ngrok-free.app') ||
+      origin.endsWith('.ngrok.io') ||
+      origin.endsWith('.vercel.app')
+    ) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
