@@ -90,7 +90,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '100mb' }));
+app.use(express.json({ limit: '200mb' }));
 
 // Apply Global Limiter to all API endpoints
 app.use('/api/', globalLimiter);

@@ -1389,70 +1389,84 @@ export default function Stories() {
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsModalOpen(false)} 
-                    className="btn btn-secondary"
-                    style={{ padding: '0.8rem 1.5rem' }}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    disabled={submitting}
-                    className="btn btn-primary"
-                    style={{ 
-                      padding: '0.8rem 2rem',
-                      opacity: submitting ? 0.7 : 1,
-                      cursor: submitting ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {submitting ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                        <div style={{ position: 'relative', width: '24px', height: '24px' }}>
-                          <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
-                            <circle
-                              cx="18"
-                              cy="18"
-                              r="15"
-                              fill="none"
-                              stroke="rgba(255, 255, 255, 0.2)"
-                              strokeWidth="3"
-                            />
-                            <circle
-                              cx="18"
-                              cy="18"
-                              r="15"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeDasharray="94.2"
-                              strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
-                              strokeLinecap="round"
-                              style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
-                            />
-                          </svg>
-                          <div style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '8px',
-                            fontWeight: 'bold',
-                            color: 'currentColor'
-                          }}>
-                            {uploadProgress}%
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsModalOpen(false)} 
+                      className="btn btn-secondary"
+                      style={{ padding: '0.8rem 1.5rem' }}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={submitting}
+                      className="btn btn-primary"
+                      style={{ 
+                        padding: '0.8rem 2rem',
+                        opacity: submitting ? 0.7 : 1,
+                        cursor: submitting ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {submitting ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                          <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                            <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
+                              <circle
+                                cx="18"
+                                cy="18"
+                                r="15"
+                                fill="none"
+                                stroke="rgba(255, 255, 255, 0.2)"
+                                strokeWidth="3"
+                              />
+                              <circle
+                                cx="18"
+                                cy="18"
+                                r="15"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeDasharray="94.2"
+                                strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
+                                strokeLinecap="round"
+                                style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
+                              />
+                            </svg>
+                            <div style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '8px',
+                              fontWeight: 'bold',
+                              color: 'currentColor'
+                            }}>
+                              {uploadProgress}%
+                            </div>
                           </div>
+                          <span>{uploadProgress === 100 ? 'Saving...' : 'Submitting...'}</span>
                         </div>
-                        <span>{uploadProgress === 100 ? 'Saving...' : 'Submitting...'}</span>
-                      </div>
-                    ) : 'Submit Journey'}
-                  </button>
+                      ) : 'Submit Journey'}
+                    </button>
+                  </div>
+                  {submitting && (
+                    <p style={{
+                      fontSize: '0.75rem',
+                      color: '#ff4d4d',
+                      margin: '0.2rem 0 0 0',
+                      opacity: 0.9,
+                      textAlign: 'right',
+                      fontWeight: '500'
+                    }}>
+                      ⚠️ Keep this tab active. Switching or minimizing tabs will pause the upload.
+                    </p>
+                  )}
                 </div>
               </form>
             )}
