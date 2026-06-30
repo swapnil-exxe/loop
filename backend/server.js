@@ -74,11 +74,13 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "blob:"],
       connectSrc: ["'self'", "ws:", "http://localhost:5173", "http://127.0.0.1:5173"],
       frameSrc: ["'self'", "data:", "blob:"],
+      frameAncestors: ["'self'", "https://*.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: [],
     },
   },
   crossOriginEmbedderPolicy: false,
+  frameguard: false,
 }));
 
 // Custom Permissions Policy header
