@@ -10,6 +10,7 @@ import {
   approveResource,
   rejectPendingResource,
   getStories,
+  getStoryById,
   deleteStory,
   updateStory,
   getResources,
@@ -925,7 +926,7 @@ export default function AdminDashboard() {
   };
 
   // Editing helpers
-  const startEditStory = (item) => {
+  const startEditStory = async (item) => {
     setEditingType('story');
     setEditingItem(item);
     setEditStoryForm({
@@ -952,6 +953,40 @@ export default function AdminDashboard() {
       studyMaterials: item.studyMaterials || [],
       customSections: item.customSections || []
     });
+
+    // Background fetch to load full details (including journey, resume, and study materials)
+    try {
+      const fullDetails = await getStoryById(item.id);
+      if (fullDetails) {
+        setEditingItem(fullDetails);
+        setEditStoryForm({
+          name: fullDetails.name || '',
+          company: fullDetails.company || '',
+          role: fullDetails.role || '',
+          branch: fullDetails.branch || 'CSE',
+          subBranch: fullDetails.subBranch || 'CSE',
+          passoutYear: fullDetails.passoutYear || '',
+          semester: fullDetails.semester || '',
+          cgpa: fullDetails.cgpa || '',
+          journey: {
+            firstYear: fullDetails.journey?.firstYear || '',
+            secondYear: fullDetails.journey?.secondYear || '',
+            thirdYear: fullDetails.journey?.thirdYear || '',
+            fourthYear: fullDetails.journey?.fourthYear || '',
+            prep: fullDetails.journey?.prep || '',
+            projects: fullDetails.journey?.projects || '',
+            howSecured: fullDetails.journey?.howSecured || ''
+          },
+          resources: fullDetails.resources || [],
+          resume: fullDetails.resume || '',
+          resumeFile: fullDetails.resumeFile || { fileName: '', fileSize: '', url: '' },
+          studyMaterials: fullDetails.studyMaterials || [],
+          customSections: fullDetails.customSections || []
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching full story details:", err);
+    }
   };
 
   const startEditAchievement = (item) => {
