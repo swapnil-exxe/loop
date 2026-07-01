@@ -407,7 +407,23 @@ function GridCard({
   availableProjects,
   onMoveProject,
 }) {
-  const v = VIBE_CFG[card.vibe] || VIBE_CFG["Educational"];
+  const v =
+    VIBE_CFG[card.vibe] ||
+    (() => {
+      const label = String(card.vibe || "General");
+      let hash = 0;
+      for (let index = 0; index < label.length; index++) {
+        hash = label.charCodeAt(index) + ((hash << 5) - hash);
+      }
+      const hue = Math.abs(hash) % 360;
+      return {
+        bg: `hsla(${hue}, 70%, 15%, 0.15)`,
+        pill: `hsla(${hue}, 72%, 55%, 0.22)`,
+        pillTxt: `hsl(${hue}, 95%, 70%)`,
+        border: `hsla(${hue}, 72%, 55%, 0.34)`,
+        shadow: `hsla(${hue}, 72%, 55%, 0.32)`,
+      };
+    })();
   const normalizedDecay = Math.max(0, Math.min(100, Number(card.decay) || 0));
   const decayRatio = normalizedDecay / 100;
   const darkOverlayAlpha = Math.max(0.04, 0.24 - decayRatio * 0.16);
