@@ -618,6 +618,7 @@ export default function RoomGate() {
                           setJoinId(e.target.value.toUpperCase())
                         }
                         maxLength={6}
+                        autoComplete="off"
                         required
                       />
                     </div>
@@ -643,6 +644,7 @@ export default function RoomGate() {
                           placeholder="Enter room password"
                           value={joinPass}
                           onChange={(e) => setJoinPass(e.target.value)}
+                          autoComplete="new-password"
                           required
                         />
                         <button
@@ -751,6 +753,7 @@ export default function RoomGate() {
                         placeholder="e.g. Project Apollo"
                         value={createName}
                         onChange={(e) => setCreateName(e.target.value)}
+                        autoComplete="off"
                       />
                     </div>
                     <div>
@@ -775,6 +778,7 @@ export default function RoomGate() {
                           placeholder="Choose a team password"
                           value={createPass}
                           onChange={(e) => setCreatePass(e.target.value)}
+                          autoComplete="new-password"
                           required
                         />
                         <button
@@ -997,6 +1001,7 @@ export default function RoomGate() {
                         placeholder="e.g. Middle East Briefing Remix"
                         value={forkName}
                         onChange={(e) => setForkName(e.target.value)}
+                        autoComplete="off"
                       />
                     </div>
 
@@ -1022,6 +1027,7 @@ export default function RoomGate() {
                           placeholder="Choose password for your fork"
                           value={forkPass}
                           onChange={(e) => setForkPass(e.target.value)}
+                          autoComplete="new-password"
                           required
                         />
                         <button
