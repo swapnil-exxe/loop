@@ -90,39 +90,39 @@ The database is structured into models that manage user access, student journeys
 
 ---
 
-## 💻 Local Development Setup
+## 📅 2-Month Development Journey & Challenges Overcome
 
-To run this project locally on your system, follow these steps:
+Building **LOOP** from an idea to a fully optimized, production-ready portal was a 2-month journey of active engineering. Here is the week-by-week timeline of how the application was built and the technical challenges solved along the way:
 
-### Prerequisites
-* [Node.js](https://nodejs.org/en/) installed on your machine.
-* A running MongoDB instance (or a MongoDB Atlas connection string).
+### 🛠️ Phase 1: Foundation & Layout Design (Weeks 1-2)
+* **Goal**: Establish the theme, layout, routing structure, and database models.
+* **Key Achievements**:
+  * Set up a responsive CSS framework with customized variables for a premium dark mode, glassmorphic card panels, and navigation bars.
+  * Configured React Router v7 for routing and navigation structures.
+* **Challenge Overcome**: 
+  * *CSS layout collapses*: On mobile viewports, dashboard grids collapsed. Solved by implementing dynamic viewport calculations (`dvh`) and flexible CSS grid layouts.
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/swapnil-exxe/loop.git
-cd loop
-```
+### 🔑 Phase 2: User Access & Role-Based Security (Weeks 3-4)
+* **Goal**: Secure the site and build registration, onboarding, and role-based login interfaces.
+* **Key Achievements**:
+  * Developed registration and onboarding portals where new students fill in their current branch, year, CGPA, and placement status.
+  * Programmed secure JWT-based backend controllers and passport-style token interceptors.
+* **Challenge Overcome**:
+  * *Password visibility issues*: Users often typed incorrect passwords during login with no way to verify. Solved by implementing a custom eye icon component with responsive toggle states.
 
-### 2. Configure Environment Variables
-Create a `.env` file inside the `backend` directory:
-```env
-PORT=5001
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_signing_secret
-```
+### 📂 Phase 3: Data Management & File Upload Architecture (Weeks 5-6)
+* **Goal**: Create the stories database model, administrative moderation dashboard, and study folder resources portal.
+* **Key Achievements**:
+  * Developed the hierarchical folder management engine, enabling nesting of links and PDF files like `/DSA/Trees/Roadmap.pdf`.
+  * Created the Admin Panel moderation queues for vetting senior stories and study resource files.
+* **Challenge Overcome**:
+  * *Admin Form Data Missing on Edit*: Clicking "Edit" on active stories loaded empty rich-text fields (journey roadmaps and attached files) because the backend list endpoint excluded those heavy fields. Solved by redesigning the React action pipeline to trigger background API fetches via `getStoryById(item.id)` to load complete data.
 
-### 3. Install & Start Backend Server
-```bash
-cd backend
-npm install
-npm run dev # Launches server on port 5001
-```
-
-### 4. Install & Start Frontend App
-Open a new terminal window in the root directory:
-```bash
-cd frontend
-npm install
-npm run dev # Launches Vite dev server on http://localhost:5173
-```
+### ⚡ Phase 4: Scaling, Performance & Security Hardening (Weeks 7-8)
+* **Goal**: Optimize page speed, resolve cloud bugs, and prepare the site for public production deployment.
+* **Key Achievements**:
+  * Programmed custom cache registries (`sessionStorage` SWR layers) and parallelized Express API calls using `Promise.all` to accelerate dashboard speeds.
+  * Configured build-time lint checks to clear all warnings and prevent build crashes.
+* **Challenges Overcome**:
+  * *PDF Preview Connection Refused (CORS & Helmet)*: Direct embedding of PDF resumes inside `<iframe>` tags failed due to strict `frame-ancestors` policy. Solved by adjusting `helmet` frameguard settings on the Express server to white-list Vercel app domains.
+  * *Vercel SPA Route Refresh 404s*: Refreshing pages like `/admin` or `/resources` directly triggered Vercel 404 errors. Solved by adding a custom `vercel.json` rewrite configuration rule to redirect all traffic to `index.html`.
