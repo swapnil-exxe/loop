@@ -90,6 +90,16 @@ The database is structured into models that manage user access, student journeys
 
 ---
 
+## 🎨 UI/UX Design & Hinge Aesthetic Inspiration
+
+The user interface of **LOOP** is heavily inspired by the modern, premium aesthetic of **Hinge**. 
+Just as Hinge is designed to connect people through clean, rich user profiles and prompts, LOOP is designed to connect juniors with seniors through high-fidelity, readable storytelling.
+* **Premium Typography & Contrast**: Incorporates bold serif headlines paired with clean sans-serif body fonts for a modern, editorial magazine feel.
+* **Storytelling Prompts**: Instead of dry text blocks, senior journeys are split into engaging, prompts (e.g., "1st Year Strategy", "Preparation Strategy & Tips", "How I Secured My Placement") that mirror Hinge's famous profile prompt layout.
+* **Glassmorphic Cards**: Features sleek dark-themed backing panels with light translucent borders and subtle drop shadows to create layer depth.
+
+---
+
 ## 📅 2-Month Development Journey & Challenges Overcome
 
 Building **LOOP** from an idea to a fully optimized, production-ready portal was a 2-month journey of active engineering. Here is the week-by-week timeline of how the application was built and the technical challenges solved along the way:
@@ -99,30 +109,35 @@ Building **LOOP** from an idea to a fully optimized, production-ready portal was
 * **Key Achievements**:
   * Set up a responsive CSS framework with customized variables for a premium dark mode, glassmorphic card panels, and navigation bars.
   * Configured React Router v7 for routing and navigation structures.
-* **Challenge Overcome**: 
+* **Challenges & Solutions**: 
   * *CSS layout collapses*: On mobile viewports, dashboard grids collapsed. Solved by implementing dynamic viewport calculations (`dvh`) and flexible CSS grid layouts.
+  * *Hinge-inspired layout integration*: Integrating the prompt-based card structure without breaking vertical margins. Solved by defining absolute padding structures and modular flexbox columns.
 
 ### 🔑 Phase 2: User Access & Role-Based Security (Weeks 3-4)
 * **Goal**: Secure the site and build registration, onboarding, and role-based login interfaces.
 * **Key Achievements**:
   * Developed registration and onboarding portals where new students fill in their current branch, year, CGPA, and placement status.
   * Programmed secure JWT-based backend controllers and passport-style token interceptors.
-* **Challenge Overcome**:
+* **Challenges & Solutions**:
   * *Password visibility issues*: Users often typed incorrect passwords during login with no way to verify. Solved by implementing a custom eye icon component with responsive toggle states.
+  * *Role verification leak*: Standard security interceptors let logged-in students access raw admin routes. Solved by implementing backend Express middleware filters (`requireAdmin`) that verify database user documents on each request.
 
 ### 📂 Phase 3: Data Management & File Upload Architecture (Weeks 5-6)
 * **Goal**: Create the stories database model, administrative moderation dashboard, and study folder resources portal.
 * **Key Achievements**:
   * Developed the hierarchical folder management engine, enabling nesting of links and PDF files like `/DSA/Trees/Roadmap.pdf`.
   * Created the Admin Panel moderation queues for vetting senior stories and study resource files.
-* **Challenge Overcome**:
+* **Challenges & Solutions**:
   * *Admin Form Data Missing on Edit*: Clicking "Edit" on active stories loaded empty rich-text fields (journey roadmaps and attached files) because the backend list endpoint excluded those heavy fields. Solved by redesigning the React action pipeline to trigger background API fetches via `getStoryById(item.id)` to load complete data.
+  * *Recursive Folder Deletions*: Deleting a folder left its nested subfolders and resources orphaned in the database. Solved by writing a recursive database clean-up transaction that automatically sweeps all children when a parent folder is deleted.
 
 ### ⚡ Phase 4: Scaling, Performance & Security Hardening (Weeks 7-8)
 * **Goal**: Optimize page speed, resolve cloud bugs, and prepare the site for public production deployment.
 * **Key Achievements**:
   * Programmed custom cache registries (`sessionStorage` SWR layers) and parallelized Express API calls using `Promise.all` to accelerate dashboard speeds.
   * Configured build-time lint checks to clear all warnings and prevent build crashes.
-* **Challenges Overcome**:
+  * Audited the entire codebase's API queries to prevent SQL/NoSQL Injection attacks and secure raw user inputs.
+* **Challenges & Solutions**:
   * *PDF Preview Connection Refused (CORS & Helmet)*: Direct embedding of PDF resumes inside `<iframe>` tags failed due to strict `frame-ancestors` policy. Solved by adjusting `helmet` frameguard settings on the Express server to white-list Vercel app domains.
   * *Vercel SPA Route Refresh 404s*: Refreshing pages like `/admin` or `/resources` directly triggered Vercel 404 errors. Solved by adding a custom `vercel.json` rewrite configuration rule to redirect all traffic to `index.html`.
+  * *Rendering monorepo build failures on Vercel*: Pushing multiple projects (`LOOP` and `ShelfLife`) to the same repo crashed Vercel builds due to root directory conflicts. Solved by cleaning up the repository structures, moving `loop` to the root directory, and deleting redundant folders.
