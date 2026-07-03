@@ -23,7 +23,7 @@ You can log in to the portal using this pre-registered account to explore featur
 * **Email Address**: `student@spit.ac.in`
 * **Password**: `student123`
 
-*(Note: To log in as an administrator to approve/reject files or manage users, use `admin@spit.ac.in` with password `admin123`)*
+
 
 ---
 
