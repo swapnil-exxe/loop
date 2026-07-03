@@ -140,4 +140,3 @@ Building **LOOP** from an idea to a fully optimized, production-ready portal was
 * **Challenges & Solutions**:
   * *PDF Preview Connection Refused (CORS & Helmet)*: Direct embedding of PDF resumes inside `<iframe>` tags failed due to strict `frame-ancestors` policy. Solved by adjusting `helmet` frameguard settings on the Express server to white-list Vercel app domains.
   * *Vercel SPA Route Refresh 404s*: Refreshing pages like `/admin` or `/resources` directly triggered Vercel 404 errors. Solved by adding a custom `vercel.json` rewrite configuration rule to redirect all traffic to `index.html`.
-  * *Rendering monorepo build failures on Vercel*: Pushing multiple projects (`LOOP` and `ShelfLife`) to the same repo crashed Vercel builds due to root directory conflicts. Solved by cleaning up the repository structures, moving `loop` to the root directory, and deleting redundant folders.
