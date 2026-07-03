@@ -77,6 +77,36 @@ To deliver a premium, fluid user experience, several state-of-the-art web optimi
 
 ---
 
+## 📂 Codebase Architecture
+
+The project is structured as a full-stack Javascript repository containing separate, modular directories for the frontend application and backend API services:
+
+```text
+loop/
+├── backend/                  # REST API Server & Database Models
+│   ├── uploads/              # Local storage folder for PDF/image uploads
+│   ├── models.js             # Mongoose database schemas & models
+│   ├── server.js             # API entrypoint, routers, and CORS/Helmet configuration
+│   └── seed.js               # Database hydration seeding script
+│
+├── frontend/                 # React Single Page Application (Vite)
+│   ├── public/               # Static assets & public preview resources
+│   ├── src/
+│   │   ├── assets/           # Visual UI artwork and vector logos
+│   │   ├── components/       # Reusable components (e.g. Navbar.jsx)
+│   │   ├── hooks/            # Custom hooks (e.g. useCachedData.js for SWR caching)
+│   │   ├── pages/            # View pages (e.g. AdminDashboard.jsx, Onboarding.jsx)
+│   │   ├── utils/            # Shared utilities (e.g. db.js for API fetch hooks)
+│   │   ├── App.jsx           # App layout, router routing, and login context
+│   │   └── main.jsx          # Entry script binding React to the DOM
+│   ├── vercel.json           # Vercel deployment URL rewrites & route controllers
+│   └── vite.config.js        # Vite build bundler configuration
+│
+└── README.md                 # Complete project documentation & roadmap
+```
+
+---
+
 ## 📂 Core Database Schema Models
 
 The database is structured into models that manage user access, student journeys, study folders, and files:
