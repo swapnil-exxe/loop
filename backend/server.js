@@ -294,6 +294,9 @@ connectWithFallback();
 
 // Middleware to check database connection status before handling API requests
 app.use((req, res, next) => {
+  if (req.path === '/health' || req.path === '/api/health') {
+    return next();
+  }
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({ 
       error: 'Database connection is not established. Please make sure MongoDB is running locally or check your credentials in the server\'s .env file, verify network availability, and ensure your IP is whitelisted in MongoDB Atlas.' 
