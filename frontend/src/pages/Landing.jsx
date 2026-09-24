@@ -244,8 +244,7 @@ export default function Landing() {
             letterSpacing: '-0.02em',
             marginBottom: '2rem'
           }}>
-            Built for Dream Offers. <br />
-            Not just degrees.
+            Your Guide to Corporate Success
           </h1>
           <p style={{
             fontSize: '1.15rem',
