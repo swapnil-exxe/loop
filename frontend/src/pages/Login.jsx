@@ -330,6 +330,97 @@ export default function Login() {
           )}
         </div>
 
+        {/* Quick Demo Credentials */}
+        {!isRegisterMode && (
+          <div style={{
+            marginTop: '1.5rem',
+            paddingTop: '1.25rem',
+            borderTop: '1px border-subtle var(--border-color)',
+            textAlign: 'center'
+          }}>
+            <p style={{
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: 'var(--text-secondary)',
+              marginBottom: '0.75rem',
+              fontWeight: 600
+            }}>
+              ⚡ 1-Click Demo Login
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('student@spit.ac.in');
+                  setPassword('student123');
+                  setError('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.65rem 0.5rem',
+                  fontSize: '0.8rem',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+                  e.currentTarget.style.borderColor = 'var(--accent-color)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
+                }}
+              >
+                <span>🎓</span> Student
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@spit.ac.in');
+                  setPassword('admin123');
+                  setError('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.65rem 0.5rem',
+                  fontSize: '0.8rem',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+                  e.currentTarget.style.borderColor = 'var(--accent-color)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
+                }}
+              >
+                <span>🛡️</span> Admin
+              </button>
+            </div>
+          </div>
+        )}
+
 
 
 
