@@ -76,6 +76,28 @@ export default function Login() {
     }
   };
 
+  const handleQuickLogin = async (demoEmail, demoPassword) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setError('');
+    setSuccessMsg('');
+    setLoading(true);
+
+    try {
+      const userData = await loginUser(demoEmail, demoPassword);
+      localStorage.setItem('loop_current_user', JSON.stringify(userData));
+      if (userData.onboarded || userData.isAdmin) {
+        navigate('/');
+      } else {
+        navigate('/onboarding');
+      }
+    } catch (err) {
+      setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -351,11 +373,8 @@ export default function Login() {
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 type="button"
-                onClick={() => {
-                  setEmail('student@spit.ac.in');
-                  setPassword('student123');
-                  setError('');
-                }}
+                disabled={loading}
+                onClick={() => handleQuickLogin('student@spit.ac.in', 'student123')}
                 style={{
                   flex: 1,
                   padding: '0.65rem 0.5rem',
@@ -364,7 +383,7 @@ export default function Login() {
                   border: '1px solid var(--border-color)',
                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   color: 'var(--text-primary)',
-                  cursor: 'pointer',
+                  cursor: loading ? 'wait' : 'pointer',
                   fontWeight: 600,
                   transition: 'all 0.2s ease',
                   display: 'flex',
@@ -373,23 +392,24 @@ export default function Login() {
                   gap: '0.35rem'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
-                  e.currentTarget.style.borderColor = 'var(--accent-color)';
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+                    e.currentTarget.style.borderColor = 'var(--accent-color)';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'var(--border-color)';
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                  }
                 }}
               >
-                <span>🎓</span> Student
+                <span>🎓</span> {loading ? 'Logging in...' : 'Student'}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setEmail('admin@spit.ac.in');
-                  setPassword('admin123');
-                  setError('');
-                }}
+                disabled={loading}
+                onClick={() => handleQuickLogin('admin@spit.ac.in', 'admin123')}
                 style={{
                   flex: 1,
                   padding: '0.65rem 0.5rem',
@@ -398,7 +418,7 @@ export default function Login() {
                   border: '1px solid var(--border-color)',
                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   color: 'var(--text-primary)',
-                  cursor: 'pointer',
+                  cursor: loading ? 'wait' : 'pointer',
                   fontWeight: 600,
                   transition: 'all 0.2s ease',
                   display: 'flex',
@@ -407,15 +427,19 @@ export default function Login() {
                   gap: '0.35rem'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
-                  e.currentTarget.style.borderColor = 'var(--accent-color)';
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+                    e.currentTarget.style.borderColor = 'var(--accent-color)';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'var(--border-color)';
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                  }
                 }}
               >
-                <span>🛡️</span> Admin
+                <span>🛡️</span> {loading ? 'Logging in...' : 'Admin'}
               </button>
             </div>
           </div>
