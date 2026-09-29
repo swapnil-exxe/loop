@@ -138,6 +138,7 @@ const StorageService = {
       try {
         const bucket = getGridFSBucket();
         const uploadStream = bucket.openUploadStream(filename, {
+          chunkSizeBytes: 2 * 1024 * 1024, // 2 MB chunks (8x fewer roundtrips to Atlas)
           contentType: mimeType,
           metadata: {
             ...metadata,

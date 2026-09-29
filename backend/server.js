@@ -1366,6 +1366,7 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
   try {
     const bb = busboy({
       headers: req.headers,
+      highWaterMark: 2 * 1024 * 1024, // 2MB streaming buffer to eliminate socket pause backpressure
       limits: {
         fileSize: 105 * 1024 * 1024, // 105 MB max
         files: 1
