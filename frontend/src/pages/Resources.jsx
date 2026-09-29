@@ -144,6 +144,14 @@ export default function Resources() {
     return folders.find(f => f.id === currentFolderId) || null;
   }, [currentFolderId, folders]);
 
+  useEffect(() => {
+    if (currentFolder) {
+      document.title = `${currentFolder.name} | Study Resources - LOOP`;
+    } else {
+      document.title = 'LOOP | Study Resources';
+    }
+  }, [currentFolder]);
+
   // Generate breadcrumb path
   const breadcrumbs = useMemo(() => {
     const crumbs = [];

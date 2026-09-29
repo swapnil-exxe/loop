@@ -25,9 +25,13 @@ export default function Onboarding() {
     
     // If they are already onboarded or are admin, send them to home
     if (parsed.onboarded || parsed.isAdmin) {
-      navigate('/');
+      navigate('/home');
     }
   }, [navigate]);
+
+  useEffect(() => {
+    document.title = 'LOOP | Student Onboarding';
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,7 +62,7 @@ export default function Onboarding() {
       localStorage.setItem('loop_current_user', JSON.stringify(onboardedData));
       
       // Navigate to landing
-      navigate('/');
+      navigate('/home');
     } catch (err) {
       setError(err.message || 'Failed to complete onboarding. Please try again.');
     } finally {

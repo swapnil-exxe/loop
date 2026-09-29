@@ -137,7 +137,7 @@ export default function Navbar() {
 
         {/* COLUMN 2: CENTER LOGO */}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <Link to="/" style={{
+          <Link to="/home" style={{
             fontSize: '1.65rem',
             fontWeight: 800,
             fontFamily: 'var(--font-sans)',

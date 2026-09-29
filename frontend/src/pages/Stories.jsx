@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Filter, Upload, X, ArrowRight, Plus, Briefcase, CheckCircle, FileText, Search } from 'lucide-react';
 import { getStories, addPendingStory, fileToBase64 } from '../utils/db';
 import { useCachedData } from '../hooks/useCachedData';
@@ -7,32 +7,55 @@ import { useCachedData } from '../hooks/useCachedData';
 export default function Stories() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Load initial branch filter from location state (if navigated from Landing)
-  const initialBranch = location.state?.initialBranch || 'ALL';
+  // Load initial branch filter from URL or location state
+  const paramBranch = searchParams.get('branch');
+  const initialBranch = paramBranch || location.state?.initialBranch || 'ALL';
 
   const userSession = localStorage.getItem('loop_current_user');
   const currentUser = userSession ? JSON.parse(userSession) : null;
 
   const { data: cachedStories, loading } = useCachedData('stories', getStories);
   const stories = cachedStories || [];
-  const [selectedBranches, setSelectedBranches] = useState(
+  const [selectedBranches, setSelectedBranchesState] = useState(
     initialBranch === 'ALL' ? ['CSE', 'CE', 'EXTC'] : [initialBranch]
   );
+
+  const setSelectedBranches = (branches) => {
+    setSelectedBranchesState(branches);
+    setSearchParams(prev => {
+      const n = new URLSearchParams(prev);
+      if (branches.length === 1) n.set('branch', branches[0]);
+      else n.delete('branch');
+      return n;
+    });
+  };
+
   const [selectedSubBranches, setSelectedSubBranches] = useState(['CSE', 'AI', 'DS']);
   const [minYear, setMinYear] = useState('ALL');
   const [maxYear, setMaxYear] = useState('ALL');
   const [minCGPA, setMinCGPA] = useState(4.0);
   const yearOptions = ['ALL', ...Array.from({ length: 36 }, (_, i) => 2000 + i)];
-  const [inputValue, setInputValue] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [inputValue, setInputValue] = useState(searchParams.get('q') || '');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   
-  // Modal states
-  const [isModalOpen, setIsModalOpen] = useState(() => {
-    return !!location.state?.openUploadModal;
-  });
+  // Modal states synced with URL
+  const isModalOpen = searchParams.get('upload') === 'true' || !!location.state?.openUploadModal;
+  const setIsModalOpen = (open) => {
+    setSearchParams(prev => {
+      const n = new URLSearchParams(prev);
+      if (open) n.set('upload', 'true');
+      else n.delete('upload');
+      return n;
+    });
+  };
+
+  useEffect(() => {
+    document.title = 'LOOP | Senior Placement Stories';
+  }, []);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   
   // Form state

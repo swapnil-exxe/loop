@@ -1,24 +1,33 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Lock, Mail, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react';
 import { loginUser, requestRegistration } from '../utils/db';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isRegisterMode = searchParams.get('mode') === 'register';
+  const setIsRegisterMode = (isReg) => {
+    setSearchParams(isReg ? { mode: 'register' } : {});
+  };
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    document.title = isRegisterMode ? 'LOOP | Register' : 'LOOP | Login';
+  }, [isRegisterMode]);
 
   useEffect(() => {
     const userSession = localStorage.getItem('loop_current_user');
     if (userSession) {
       const parsed = JSON.parse(userSession);
       if (parsed.onboarded) {
-        navigate('/');
+        navigate('/home');
       } else {
         navigate('/onboarding');
       }
@@ -64,7 +73,7 @@ export default function Login() {
         
         // Redirect based on onboarding status or admin status
         if (userData.onboarded || userData.isAdmin) {
-          navigate('/');
+          navigate('/home');
         } else {
           navigate('/onboarding');
         }
@@ -87,7 +96,7 @@ export default function Login() {
       const userData = await loginUser(demoEmail, demoPassword);
       localStorage.setItem('loop_current_user', JSON.stringify(userData));
       if (userData.onboarded || userData.isAdmin) {
-        navigate('/');
+        navigate('/home');
       } else {
         navigate('/onboarding');
       }

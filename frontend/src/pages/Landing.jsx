@@ -196,6 +196,10 @@ export default function Landing() {
   const [activeChartTab, setActiveChartTab] = useState(0);
 
   useEffect(() => {
+    document.title = 'LOOP | Home';
+  }, []);
+
+  useEffect(() => {
     if (!activePhoto) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -212,7 +216,7 @@ export default function Landing() {
   };
 
   const handleShareJourney = () => {
-    navigate('/stories', { state: { openUploadModal: true } });
+    navigate('/stories?upload=true');
   };
 
   return (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Calendar, ArrowUpRight, Search, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAchievements } from '../utils/db';
 import { useCachedData } from '../hooks/useCachedData';
 
@@ -80,11 +80,35 @@ const parseSliders = (posStr) => {
 export default function Achievements() {
   const { data: cachedAchievements, loading, error: fetchError, refresh } = useCachedData('achievements', getAchievements);
   const achievements = cachedAchievements || [];
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const selectedCategory = searchParams.get('category') || 'ALL';
+  const setSelectedCategory = (cat) => {
+    setSearchParams(prev => {
+      const n = new URLSearchParams(prev);
+      if (cat && cat !== 'ALL') n.set('category', cat);
+      else n.delete('category');
+      return n;
+    });
+  };
+
+  const searchQuery = searchParams.get('q') || '';
+  const setSearchQuery = (q) => {
+    setSearchParams(prev => {
+      const n = new URLSearchParams(prev);
+      if (q) n.set('q', q);
+      else n.delete('q');
+      return n;
+    });
+  };
+
   const [sortBy, setSortBy] = useState('newest');
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = 'LOOP | Achievements & News';
+  }, []);
 
   useEffect(() => {
     if (fetchError) {

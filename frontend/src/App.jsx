@@ -61,7 +61,8 @@ function AppLayout() {
           } />
 
           {/* Protected Main Routes */}
-          <Route path="/" element={
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={
             <ProtectedRoute>
               <Landing />
             </ProtectedRoute>
@@ -98,7 +99,7 @@ function AppLayout() {
           } />
 
           {/* Catch-all Redirect */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </main>
 

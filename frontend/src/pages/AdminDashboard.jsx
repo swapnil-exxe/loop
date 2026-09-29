@@ -475,6 +475,11 @@ export default function AdminDashboard() {
       return next;
     });
   };
+
+  useEffect(() => {
+    document.title = `LOOP | Admin - ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`;
+  }, [activeTab]);
+
   const [createTab, setCreateTab] = useState('outer');
   const [editTab, setEditTab] = useState('outer');
   
