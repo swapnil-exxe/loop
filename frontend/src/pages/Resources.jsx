@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Search, Download, Plus, X, Folder, Lock, Globe, Shield, 
   Trash2, Edit, ChevronRight, ArrowLeft, FileText, Image as ImageIcon, 
@@ -10,20 +11,70 @@ import {
   uploadResourceStream, deleteResource, patchResource, formatBytes 
 } from '../utils/db';
 import { useCachedData } from '../hooks/useCachedData';
+import { useUpload } from '../context/UploadContext';
 import FileViewerModal from '../components/FileViewerModal';
 
 export default function Resources() {
   const { data: cachedResources, loading: loadingResources, mutate: mutateResources } = useCachedData('resources', getResources);
   const { data: cachedFolders, loading: loadingFolders, mutate: mutateFolders } = useCachedData('folders', getFolders);
+  const { startUpload } = useUpload();
 
   const resources = cachedResources || [];
   const folders = cachedFolders || [];
   const loading = loadingResources || loadingFolders;
 
-  // Current navigation state
-  const [currentFolderId, setCurrentFolderId] = useState(null); // null = root
-  const [filterTab, setFilterTab] = useState('all'); // 'all', 'public', 'private', 'system'
+  // URL search params sync
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') || 'all';
+  const urlFolder = searchParams.get('folder') || null;
+
+  // Current navigation state synchronized with URL
+  const [currentFolderId, setCurrentFolderIdState] = useState(urlFolder);
+  const [filterTab, setFilterTabState] = useState(urlTab);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const setCurrentFolderId = (folderId) => {
+    setCurrentFolderIdState(folderId);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (folderId) {
+        next.set('folder', folderId);
+      } else {
+        next.delete('folder');
+      }
+      return next;
+    });
+  };
+
+  const setFilterTab = (tab) => {
+    setFilterTabState(tab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (tab && tab !== 'all') {
+        next.set('tab', tab);
+      } else {
+        next.delete('tab');
+      }
+      return next;
+    });
+  };
+
+  // Keep state in sync if browser back/forward buttons are clicked
+  useEffect(() => {
+    const t = searchParams.get('tab') || 'all';
+    const f = searchParams.get('folder') || null;
+    setCurrentFolderIdState(f);
+    setFilterTabState(t);
+  }, [searchParams]);
+
+  // Listen for background upload completions
+  useEffect(() => {
+    const handleUploaded = () => {
+      mutateResources();
+    };
+    window.addEventListener('loop_resource_uploaded', handleUploaded);
+    return () => window.removeEventListener('loop_resource_uploaded', handleUploaded);
+  }, [mutateResources]);
 
   // Modals state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -195,7 +246,7 @@ export default function Resources() {
     setUploadError('Upload cancelled by user.');
   };
 
-  // Perform upload
+  // Perform upload in background
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
     if (!uploadFile) {
@@ -207,47 +258,30 @@ export default function Resources() {
       return;
     }
 
-    setIsUploading(true);
-    setUploadError(null);
-    setUploadStats({
-      percent: 0,
-      loadedFormatted: '0 MB',
-      totalFormatted: formatBytes(uploadFile.size),
-      speedFormatted: '0 KB/s',
-      remainingSecs: null
+    const fileToUpload = uploadFile;
+    const titleToUpload = uploadTitle.trim() || uploadFile.name.replace(/\.[^/.]+$/, '');
+    const descToUpload = uploadDescription.trim();
+    const catToUpload = uploadCategory;
+    const folderToUpload = uploadFolderId;
+
+    // Hand off to global background uploader
+    startUpload({
+      file: fileToUpload,
+      title: titleToUpload,
+      description: descToUpload,
+      category: catToUpload,
+      folderId: folderToUpload
+    }, () => {
+      mutateResources();
     });
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    try {
-      const uploadedResource = await uploadResourceStream({
-        file: uploadFile,
-        title: uploadTitle.trim() || uploadFile.name.replace(/\.[^/.]+$/, ''),
-        description: uploadDescription.trim(),
-        category: uploadCategory,
-        folderId: uploadFolderId
-      }, (stats) => {
-        setUploadStats(stats);
-      }, controller);
-
-      setUploadSuccess(true);
-      setIsUploading(false);
-
-      // Optimistic update of resource list
-      const updated = [uploadedResource, ...resources];
-      mutateResources(updated, false);
-
-      setTimeout(() => {
-        setIsUploadModalOpen(false);
-        setUploadSuccess(false);
-        setUploadFile(null);
-        setUploadStats(null);
-      }, 1500);
-    } catch (err) {
-      setIsUploading(false);
-      setUploadError(err.message || 'Upload failed. Please check network connection and retry.');
-    }
+    // Close modal immediately so the user can continue browsing
+    setIsUploadModalOpen(false);
+    setUploadFile(null);
+    setUploadTitle('');
+    setUploadDescription('');
+    setUploadStats(null);
+    setUploadError(null);
   };
 
   // Create folder

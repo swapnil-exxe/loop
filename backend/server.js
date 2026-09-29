@@ -471,14 +471,14 @@ app.delete('/api/folders/:id', authenticateToken, async (req, res) => {
     const isAdmin = req.user && req.user.role === 'Admin';
     const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
 
-    // Core academic folders are protected from deletion to prevent breaking system hierarchy
+    // Core academic folders are protected from non-admin deletion
     const PROTECTED_SYSTEM_ROOTS = [
       'system-placement-material', 'system-cse-ce', 'system-extc',
       'cse-1st-year', 'cse-2nd-year', 'cse-3rd-year', 'cse-4th-year',
       'extc-1st-year', 'extc-2nd-year', 'extc-3rd-year', 'extc-4th-year'
     ];
-    if (PROTECTED_SYSTEM_ROOTS.includes(id)) {
-      return res.status(403).json({ error: 'This core academic system folder is protected and cannot be deleted.' });
+    if (!isAdmin && PROTECTED_SYSTEM_ROOTS.includes(id)) {
+      return res.status(403).json({ error: 'This core academic system folder is protected and cannot be deleted by non-administrators.' });
     }
 
     if (folder.isSystemFolder && !isAdmin) {

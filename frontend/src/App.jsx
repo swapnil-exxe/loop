@@ -10,6 +10,8 @@ import Achievements from './pages/Achievements';
 import AchievementDetail from './pages/AchievementDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import Onboarding from './pages/Onboarding';
+import { UploadProvider } from './context/UploadContext';
+import UploadDock from './components/UploadDock';
 
 // Route Guard Component
 function ProtectedRoute({ children }) {
@@ -100,6 +102,9 @@ function AppLayout() {
         </Routes>
       </main>
 
+      {/* Global Background Upload Dock */}
+      <UploadDock />
+
       {/* Modern Monochrome Footer */}
       {!isAuthPage && (
         <footer style={{
@@ -175,8 +180,10 @@ function SplashIntro() {
 export default function App() {
   return (
     <Router>
-      <SplashIntro />
-      <AppLayout />
+      <UploadProvider>
+        <SplashIntro />
+        <AppLayout />
+      </UploadProvider>
     </Router>
   );
 }

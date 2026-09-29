@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, ChevronDown, ChevronUp, Search, Folder, HardDrive, ShieldCheck, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { 
+  Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, 
+  ChevronDown, ChevronUp, ChevronRight, Search, Folder, HardDrive, 
+  ShieldCheck, ExternalLink, GitBranch, FolderPlus, Sparkles, AlertTriangle 
+} from 'lucide-react';
 import { useCachedData } from '../hooks/useCachedData';
 import {
   getPendingStories,
@@ -25,6 +29,7 @@ import {
   deleteUser,
   getFolders,
   addFolder,
+  updateFolder,
   deleteFolder,
   fileToBase64,
   approveProfileEdit,
@@ -461,7 +466,15 @@ export default function AdminDashboard() {
     }
     return false;
   });
-  const [activeTab, setActiveTab] = useState('approvals');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'approvals';
+  const setActiveTab = (tab) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
+  };
   const [createTab, setCreateTab] = useState('outer');
   const [editTab, setEditTab] = useState('outer');
   
@@ -523,18 +536,91 @@ export default function AdminDashboard() {
     return path.join(' > ');
   };
 
-  const handleDeleteFolder = async (folder) => {
-    const folderObj = typeof folder === 'string' ? folders.find(f => f.id === folder) : folder;
-    if (folderObj && (folderObj.isSystemFolder || folderObj.folderType === 'system')) {
-      alert('System folders cannot be deleted. They are protected by college policy.');
-      return;
-    }
-    const folderName = folderObj?.name || 'this folder';
-    if (window.confirm(`Are you sure you want to delete "${folderName}"? Subfolders and resources inside this folder will be unassigned or removed.`)) {
-      await deleteFolder(folderObj?.id || folder);
+  // Folder Editing State
+  const [editingFolderItem, setEditingFolderItem] = useState(null);
+  const [folderRenameInput, setFolderRenameInput] = useState('');
+  const [folderVisibilityInput, setFolderVisibilityInput] = useState('public');
+  const [folderDescriptionInput, setFolderDescriptionInput] = useState('');
+
+  const handleStartEditFolder = (folder) => {
+    setEditingFolderItem(folder);
+    setFolderRenameInput(folder.name || '');
+    setFolderVisibilityInput(folder.visibility || 'public');
+    setFolderDescriptionInput(folder.description || '');
+  };
+
+  const handleSaveEditFolder = async (e) => {
+    e.preventDefault();
+    if (!editingFolderItem || !folderRenameInput.trim()) return;
+    try {
+      await updateFolder(editingFolderItem.id, {
+        name: folderRenameInput.trim(),
+        visibility: folderVisibilityInput,
+        description: folderDescriptionInput.trim()
+      });
+      setEditingFolderItem(null);
       await refreshData();
+    } catch (err) {
+      alert(err.message || 'Failed to update folder');
     }
   };
+
+  const handleDeleteFolder = async (folder) => {
+    const folderObj = typeof folder === 'string' ? folders.find(f => f.id === folder) : folder;
+    const folderName = folderObj?.name || 'this folder';
+    const isSys = folderObj && (folderObj.isSystemFolder || folderObj.folderType === 'system');
+
+    const confirmMsg = isSys
+      ? `CAUTION: "${folderName}" is an academic system folder. As an Administrator, deleting this will remove it, all its nested subfolders, and unlink its resources. Do you want to proceed?`
+      : `Are you sure you want to delete folder "${folderName}"? All nested subfolders and resources inside this folder will be unassigned or removed.`;
+
+    if (window.confirm(confirmMsg)) {
+      try {
+        await deleteFolder(folderObj?.id || folder);
+        await refreshData();
+      } catch (err) {
+        alert(err.message || 'Failed to delete folder');
+      }
+    }
+  };
+
+  // Diagrammatic Folder Tree States
+  const [folderSearchQuery, setFolderSearchQuery] = useState('');
+  const [expandedNodes, setExpandedNodes] = useState(() => new Set(['system-placement-material', 'system-cse-ce', 'system-extc']));
+  const [parentFolderSelection, setParentFolderSelection] = useState('none');
+
+  const toggleFolderNode = (id) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const expandAllFolders = () => {
+    setExpandedNodes(new Set(folders.map(f => f.id)));
+  };
+
+  const collapseAllFolders = () => {
+    setExpandedNodes(new Set());
+  };
+
+  // Build hierarchical folder tree
+  const folderTree = useMemo(() => {
+    const map = new Map();
+    folders.forEach(f => map.set(f.id, { ...f, children: [] }));
+    const roots = [];
+    folders.forEach(f => {
+      const node = map.get(f.id);
+      if (f.parentId && map.has(f.parentId)) {
+        map.get(f.parentId).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+    return roots;
+  }, [folders]);
 
   const [previewingPendingStory, setPreviewingPendingStory] = useState(null);
   const [previewingPendingResource, setPreviewingPendingResource] = useState(null);
@@ -1683,112 +1769,370 @@ export default function AdminDashboard() {
             );
           })()}
 
-          {/* Manage Folders */}
+          {/* Diagrammatic Hierarchical Resource Folders Explorer */}
           <div style={{ marginTop: '3rem' }}>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem' }}>Resource Folders ({folders.length})</h2>
-            <div className="grid-admin-folders">
-              {/* Folders List */}
-              <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', maxHeight: '400px', overflowY: 'auto' }}>
-                {folders.map((folder) => {
-                  const parentFolder = folders.find(f => f.id === folder.parentId);
-                  const isSys = folder.isSystemFolder || folder.folderType === 'system';
-                  return (
-                    <div key={folder.id} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '1rem 1.5rem',
-                      borderBottom: '1px solid var(--border-color)',
-                      gap: '0.75rem',
-                      flexWrap: 'wrap'
-                    }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{folder.name}</p>
-                          {isSys ? (
-                            <span style={{ fontSize: '0.65rem', backgroundColor: 'rgba(0, 113, 227, 0.12)', color: '#0071e3', border: '1px solid rgba(0, 113, 227, 0.25)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-                              <ShieldCheck size={11} /> System Protected
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.65rem', backgroundColor: folder.visibility === 'private' ? 'rgba(255, 69, 58, 0.1)' : 'rgba(52, 199, 89, 0.1)', color: folder.visibility === 'private' ? '#ff453a' : '#34c759', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                              {folder.visibility === 'private' ? 'Private' : 'Public'}
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
-                          ID: {folder.id} {parentFolder ? `• Parent: ${parentFolder.name}` : '• Root Folder'} {folder.ownerName ? `• Owner: ${folder.ownerName}` : ''}
-                        </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <GitBranch size={22} style={{ color: 'var(--accent-primary)' }} />
+                  <span>Diagrammatic Folder Explorer ({folders.length})</span>
+                </h2>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
+                  Full academic hierarchy tree. Admins can rename, delete, and structure any folder.
+                </p>
+              </div>
+
+              {/* Tree Controls & Search */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', minWidth: '220px' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                  <input
+                    type="text"
+                    placeholder="Find folder or branch..."
+                    value={folderSearchQuery}
+                    onChange={(e) => setFolderSearchQuery(e.target.value)}
+                    style={{
+                      padding: '0.4rem 0.75rem 0.4rem 2rem',
+                      fontSize: '0.82rem',
+                      borderRadius: '20px',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      outline: 'none',
+                      width: '100%'
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={expandAllFolders}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem', borderRadius: '8px' }}
+                >
+                  Expand All
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAllFolders}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem', borderRadius: '8px' }}
+                >
+                  Collapse All
+                </button>
+              </div>
+            </div>
+
+            <div className="grid-admin-folders" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(280px, 1fr)', gap: '1.5rem', alignItems: 'start' }}>
+              {/* Diagrammatic Tree View Panel */}
+              <div className="glass-panel" style={{ borderRadius: '16px', border: '1px solid var(--border-color)', padding: '1.25rem', maxHeight: '550px', overflowY: 'auto' }}>
+                {folderTree.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem 0' }}>No folders created yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {/* Academic System Root Branch */}
+                    <div style={{ marginBottom: '1rem' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--accent-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <ShieldCheck size={14} /> Academic System Hierarchy
                       </div>
-                      {!isSys ? (
-                        <button 
-                          onClick={() => handleDeleteFolder(folder)} 
-                          className="btn btn-secondary" 
-                          style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}
-                          title="Delete Folder"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>Protected</span>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {folderTree
+                          .filter(node => node.isSystemFolder || node.folderType === 'system')
+                          .map(node => {
+                            const renderNode = (n, depth = 0) => {
+                              const hasChildren = n.children && n.children.length > 0;
+                              const isExp = expandedNodes.has(n.id) || !!folderSearchQuery;
+                              const fileCount = activeResources.filter(r => r.folderId === n.id).length;
+
+                              if (folderSearchQuery) {
+                                const q = folderSearchQuery.toLowerCase();
+                                const matches = n.name.toLowerCase().includes(q) || n.id.toLowerCase().includes(q);
+                                const childMatches = (arr) => arr.some(c => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || childMatches(c.children));
+                                if (!matches && !childMatches(n.children)) return null;
+                              }
+
+                              return (
+                                <div key={n.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.55rem 0.75rem',
+                                    marginLeft: `${depth * 22}px`,
+                                    borderRadius: '10px',
+                                    backgroundColor: depth % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+                                    borderLeft: depth > 0 ? '2px solid rgba(0, 113, 227, 0.3)' : 'none',
+                                    marginBottom: '3px',
+                                    gap: '0.6rem',
+                                    flexWrap: 'wrap'
+                                  }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '180px', flex: 1 }}>
+                                      {hasChildren ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleFolderNode(n.id)}
+                                          style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex' }}
+                                        >
+                                          {isExp ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                        </button>
+                                      ) : (
+                                        <span style={{ width: '15px' }} />
+                                      )}
+                                      <ShieldCheck size={16} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                      <span style={{ fontWeight: depth === 0 ? 700 : 600, fontSize: depth === 0 ? '0.92rem' : '0.85rem' }}>
+                                        {n.name}
+                                      </span>
+                                      {fileCount > 0 && (
+                                        <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>
+                                          {fileCount} {fileCount === 1 ? 'file' : 'files'}
+                                        </span>
+                                      )}
+                                      {hasChildren && (
+                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                          ({n.children.length})
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Action Buttons for Admin */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setParentFolderSelection(n.id);
+                                          const el = document.getElementById('admin-create-folder-form');
+                                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                        }}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', borderRadius: '6px' }}
+                                        title="Add Subfolder here"
+                                      >
+                                        <Plus size={11} /> Sub
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditFolder(n)}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', borderRadius: '6px' }}
+                                        title="Rename / Edit Folder"
+                                      >
+                                        <Edit size={11} /> Rename
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteFolder(n)}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', borderRadius: '6px', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.25)' }}
+                                        title="Delete Folder"
+                                      >
+                                        <Trash2 size={11} /> Delete
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {hasChildren && isExp && (
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                      {n.children.map(child => renderNode(child, depth + 1))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            };
+                            return renderNode(node, 0);
+                          })}
+                      </div>
                     </div>
-                  );
-                })}
+
+                    {/* Community & User Folders Branch */}
+                    {folderTree.some(node => !(node.isSystemFolder || node.folderType === 'system')) && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#34c759', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Globe size={14} /> Community & User Folders
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {folderTree
+                            .filter(node => !(node.isSystemFolder || node.folderType === 'system'))
+                            .map(node => {
+                              const renderUserNode = (n, depth = 0) => {
+                                const hasChildren = n.children && n.children.length > 0;
+                                const isExp = expandedNodes.has(n.id) || !!folderSearchQuery;
+                                const isPriv = n.visibility === 'private';
+                                const fileCount = activeResources.filter(r => r.folderId === n.id).length;
+
+                                if (folderSearchQuery) {
+                                  const q = folderSearchQuery.toLowerCase();
+                                  const matches = n.name.toLowerCase().includes(q) || n.id.toLowerCase().includes(q);
+                                  const childMatches = (arr) => arr.some(c => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || childMatches(c.children));
+                                  if (!matches && !childMatches(n.children)) return null;
+                                }
+
+                                return (
+                                  <div key={n.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '0.55rem 0.75rem',
+                                      marginLeft: `${depth * 22}px`,
+                                      borderRadius: '10px',
+                                      backgroundColor: depth % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+                                      borderLeft: depth > 0 ? '2px solid rgba(52, 199, 89, 0.3)' : 'none',
+                                      marginBottom: '3px',
+                                      gap: '0.6rem',
+                                      flexWrap: 'wrap'
+                                    }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '180px', flex: 1 }}>
+                                        {hasChildren ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleFolderNode(n.id)}
+                                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex' }}
+                                          >
+                                            {isExp ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                          </button>
+                                        ) : (
+                                          <span style={{ width: '15px' }} />
+                                        )}
+                                        {isPriv ? <Lock size={16} style={{ color: '#ff9500', flexShrink: 0 }} /> : <Globe size={16} style={{ color: '#34c759', flexShrink: 0 }} />}
+                                        <span style={{ fontWeight: depth === 0 ? 700 : 600, fontSize: depth === 0 ? '0.92rem' : '0.85rem' }}>
+                                          {n.name}
+                                        </span>
+                                        <span style={{ fontSize: '0.62rem', backgroundColor: isPriv ? 'rgba(255, 149, 0, 0.12)' : 'rgba(52, 199, 89, 0.12)', color: isPriv ? '#ff9500' : '#34c759', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>
+                                          {isPriv ? 'Private' : 'Public'}
+                                        </span>
+                                        {fileCount > 0 && (
+                                          <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>
+                                            {fileCount} files
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Action Buttons */}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setParentFolderSelection(n.id);
+                                            const el = document.getElementById('admin-create-folder-form');
+                                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                          }}
+                                          className="btn btn-secondary"
+                                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', borderRadius: '6px' }}
+                                        >
+                                          <Plus size={11} /> Sub
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStartEditFolder(n)}
+                                          className="btn btn-secondary"
+                                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', borderRadius: '6px' }}
+                                        >
+                                          <Edit size={11} /> Rename
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteFolder(n)}
+                                          className="btn btn-secondary"
+                                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', borderRadius: '6px', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.25)' }}
+                                        >
+                                          <Trash2 size={11} /> Delete
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {hasChildren && isExp && (
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        {n.children.map(child => renderUserNode(child, depth + 1))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              };
+                              return renderUserNode(node, 0);
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Add Folder Form */}
               <form 
+                id="admin-create-folder-form"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const name = e.target.folderName.value.trim();
                   const parentId = e.target.folderParent.value;
+                  const fType = e.target.folderType.value;
                   if (!name) return;
                   
                   const newFolder = {
                     id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
                     name,
                     parentId: parentId === 'none' ? null : parentId,
-                    folderType: 'system',
-                    isSystemFolder: true,
+                    folderType: fType,
+                    isSystemFolder: fType === 'system',
                     visibility: 'public'
                   };
                   
                   await addFolder(newFolder);
                   e.target.reset();
+                  setParentFolderSelection('none');
                   await refreshData();
                 }}
                 className="glass-panel" 
                 style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}
               >
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', marginTop: 0 }}>Create Folder</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', marginTop: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <FolderPlus size={18} style={{ color: 'var(--accent-primary)' }} />
+                  <span>Create New Folder</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                  Add a root folder or place it under any selected branch.
+                </p>
                 
-                <div className="input-group">
+                <div className="input-group" style={{ marginBottom: '1rem' }}>
                   <label className="input-label" style={{ fontSize: '0.8rem' }}>Folder Name *</label>
                   <input 
                     type="text" 
                     name="folderName" 
                     className="input-field" 
-                    placeholder="e.g. 5th Year" 
+                    placeholder="e.g. Mechanical Engineering" 
                     required 
                   />
                 </div>
 
-                <div className="input-group">
-                  <label className="input-label" style={{ fontSize: '0.8rem' }}>Parent Folder</label>
+                <div className="input-group" style={{ marginBottom: '1rem' }}>
+                  <label className="input-label" style={{ fontSize: '0.8rem' }}>Parent Branch / Folder</label>
                   <select 
                     name="folderParent" 
+                    value={parentFolderSelection}
+                    onChange={(e) => setParentFolderSelection(e.target.value)}
                     className="input-field"
                     style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                   >
-                    <option value="none">None (Root Folder)</option>
+                    <option value="none">None (Root Level Branch)</option>
                     {folders.map(f => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
+                      <option key={f.id} value={f.id}>{getFolderName(f.id)}</option>
                     ))}
                   </select>
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', cursor: 'pointer' }}>
-                  Add Folder
+                <div className="input-group" style={{ marginBottom: '1.25rem' }}>
+                  <label className="input-label" style={{ fontSize: '0.8rem' }}>Folder Category Type</label>
+                  <select 
+                    name="folderType" 
+                    className="input-field"
+                    defaultValue="system"
+                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="system">🏛 Academic System Folder (Core)</option>
+                    <option value="user">🌐 Community Public Folder</option>
+                  </select>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', cursor: 'pointer', padding: '0.65rem' }}>
+                  Add Folder to Structure
                 </button>
               </form>
             </div>
@@ -4203,6 +4547,120 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Folder Modal */}
+      {editingFolderItem && (
+        <div 
+          className="modal-backdrop" 
+          onClick={() => setEditingFolderItem(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            backdropFilter: 'blur(8px)',
+            padding: '1rem'
+          }}
+        >
+          <div 
+            className="loop-card" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              backgroundColor: 'var(--bg-primary)',
+              borderRadius: '20px',
+              border: '1px solid var(--border-color)',
+              padding: '2rem',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+              position: 'relative'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setEditingFolderItem(null)}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Edit size={20} style={{ color: 'var(--accent-primary)' }} />
+              <span>Edit / Rename Folder</span>
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+              Folder ID: <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{editingFolderItem.id}</code>
+            </p>
+
+            <form onSubmit={handleSaveEditFolder} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="input-group">
+                <label className="input-label" style={{ fontSize: '0.8rem' }}>Folder Name *</label>
+                <input
+                  type="text"
+                  value={folderRenameInput}
+                  onChange={(e) => setFolderRenameInput(e.target.value)}
+                  className="input-field"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="input-group">
+                <label className="input-label" style={{ fontSize: '0.8rem' }}>Visibility</label>
+                <select
+                  value={folderVisibilityInput}
+                  onChange={(e) => setFolderVisibilityInput(e.target.value)}
+                  className="input-field"
+                  style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                >
+                  <option value="public">🌐 Public (All students can view)</option>
+                  <option value="private">🔒 Private (Restricted)</option>
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label" style={{ fontSize: '0.8rem' }}>Description (Optional)</label>
+                <textarea
+                  value={folderDescriptionInput}
+                  onChange={(e) => setFolderDescriptionInput(e.target.value)}
+                  className="input-field"
+                  rows={3}
+                  placeholder="Notes or description for this folder..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingFolderItem(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.6rem 1.25rem' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: '0.6rem 1.5rem' }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
