@@ -111,31 +111,60 @@ PendingStorySchema.index({ createdAt: -1 });
 const ResourceSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   title: { type: String, required: true },
-  category: String,
-  type: String,
-  link: String,
-  uploadedBy: String,
-  uploadedByEmail: String,
-  date: String,
-  folderId: { type: String, required: true, index: true }
+  description: { type: String, default: '' },
+  category: { type: String, default: 'General' },
+  type: { type: String, default: 'PDF' },
+  link: { type: String, default: '' },
+  originalFileName: { type: String, default: '' },
+  mimeType: { type: String, default: 'application/pdf' },
+  size: { type: Number, default: 0 },
+  fileSizeFormatted: { type: String, default: '' },
+  storageProvider: { type: String, enum: ['s3', 'gridfs', 'local'], default: 'gridfs' },
+  storageKey: { type: String, default: '' },
+  url: { type: String, default: '' },
+  folderId: { type: String, required: true, index: true },
+  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  uploadedBy: { type: String, default: 'Anonymous' },
+  uploadedByEmail: { type: String, default: '' },
+  date: { type: String, default: '' },
+  visibility: { type: String, enum: ['public', 'private'], default: 'public', index: true },
+  status: { type: String, enum: ['approved', 'pending', 'rejected'], default: 'approved', index: true },
+  semester: { type: String, default: '' },
+  year: { type: String, default: '' },
+  tags: [String]
 }, { timestamps: true });
 
+ResourceSchema.index({ folderId: 1, status: 1 });
+ResourceSchema.index({ uploadedByEmail: 1 });
+ResourceSchema.index({ ownerId: 1 });
 ResourceSchema.index({ createdAt: -1 });
 
 // Pending Study Resource Schema
 const PendingResourceSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   activeId: String,
-  requestType: String, // 'add', 'delete'
+  requestType: { type: String, default: 'add' }, // 'add', 'edit', 'delete'
   status: { type: String, default: 'pending', index: true },
   title: { type: String, required: true },
-  category: String,
-  type: String,
-  link: String,
-  uploadedBy: String,
-  uploadedByEmail: String,
-  date: String,
-  folderId: { type: String, required: true }
+  description: { type: String, default: '' },
+  category: { type: String, default: 'General' },
+  type: { type: String, default: 'PDF' },
+  link: { type: String, default: '' },
+  originalFileName: { type: String, default: '' },
+  mimeType: { type: String, default: 'application/pdf' },
+  size: { type: Number, default: 0 },
+  fileSizeFormatted: { type: String, default: '' },
+  storageProvider: { type: String, enum: ['s3', 'gridfs', 'local'], default: 'gridfs' },
+  storageKey: { type: String, default: '' },
+  url: { type: String, default: '' },
+  folderId: { type: String, required: true, index: true },
+  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  uploadedBy: { type: String, default: 'Anonymous' },
+  uploadedByEmail: { type: String, default: '' },
+  date: { type: String, default: '' },
+  visibility: { type: String, enum: ['public', 'private'], default: 'public' },
+  semester: { type: String, default: '' },
+  year: { type: String, default: '' }
 }, { timestamps: true });
 
 PendingResourceSchema.index({ createdAt: -1 });
@@ -158,9 +187,19 @@ AchievementSchema.index({ createdAt: -1 });
 const FolderSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
-  parentId: { type: String, default: null }
+  description: { type: String, default: '' },
+  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  ownerEmail: { type: String, default: '' },
+  ownerName: { type: String, default: '' },
+  folderType: { type: String, enum: ['system', 'user'], default: 'user', index: true },
+  visibility: { type: String, enum: ['public', 'private'], default: 'public', index: true },
+  allowContributions: { type: Boolean, default: true },
+  parentId: { type: String, default: null },
+  isSystemFolder: { type: Boolean, default: false, index: true }
 }, { timestamps: true });
 
+FolderSchema.index({ ownerId: 1, visibility: 1, folderType: 1 });
+FolderSchema.index({ parentId: 1 });
 FolderSchema.index({ createdAt: -1 });
 
 module.exports = {

@@ -1,228 +1,83 @@
-import { useState, useEffect, Fragment } from 'react';
-import { Search, Download, Plus, X, BookOpen, CheckCircle, FileText, Globe, Code, FileSpreadsheet, Compass, Folder, Trash2, Edit } from 'lucide-react';
-import { getResources, getResourceById, addPendingResource, deleteResource, fileToBase64, getFolders, addFolder, updateResource } from '../utils/db';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  Search, Download, Plus, X, Folder, Lock, Globe, Shield, 
+  Trash2, Edit, ChevronRight, ArrowLeft, FileText, Image as ImageIcon, 
+  FileSpreadsheet, Eye, UploadCloud, CheckCircle, AlertCircle, 
+  CornerDownRight, MoreVertical, RefreshCw, Layers, Sparkles
+} from 'lucide-react';
+import { 
+  getResources, getFolders, addFolder, updateFolder, deleteFolder, 
+  uploadResourceStream, deleteResource, patchResource, formatBytes 
+} from '../utils/db';
 import { useCachedData } from '../hooks/useCachedData';
-
-const dataURItoBlob = (dataURI) => {
-  if (!dataURI || !dataURI.startsWith('data:')) return null;
-  try {
-    const parts = dataURI.split(',');
-    const mimeString = parts[0].split(':')[1].split(';')[0];
-    const byteString = parts[0].indexOf('base64') >= 0 ? atob(parts[1]) : unescape(parts[1]);
-    const ia = new Uint8Array(byteString.length);
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    return new Blob([ia], { type: mimeString });
-  } catch (e) {
-    console.error("Error converting data URI to blob:", e);
-    return null;
-  }
-};
-
-const getMimeTypeFromDataURI = (dataURI) => {
-  if (!dataURI || !dataURI.startsWith('data:')) return '';
-  try {
-    return dataURI.split(',')[0].split(':')[1].split(';')[0];
-  } catch (e) {
-    return '';
-  }
-};
-
-const getExtensionFromMime = (mime) => {
-  switch (mime) {
-    case 'application/pdf': return '.pdf';
-    case 'image/jpeg':
-    case 'image/jpg': return '.jpg';
-    case 'image/png': return '.png';
-    case 'image/gif': return '.gif';
-    case 'text/plain': return '.txt';
-    case 'application/msword': return '.doc';
-    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': return '.docx';
-    case 'application/vnd.ms-excel': return '.xls';
-    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': return '.xlsx';
-    default: return '';
-  }
-};
+import FileViewerModal from '../components/FileViewerModal';
 
 export default function Resources() {
-  const resolveUrl = (url) => {
-    if (typeof url === 'string' && url.startsWith('/uploads/')) {
-      return 'https://loop-qnh9.onrender.com' + url;
-    }
-    return url;
-  };
   const { data: cachedResources, loading: loadingResources, mutate: mutateResources } = useCachedData('resources', getResources);
   const { data: cachedFolders, loading: loadingFolders, mutate: mutateFolders } = useCachedData('folders', getFolders);
+
   const resources = cachedResources || [];
   const folders = cachedFolders || [];
   const loading = loadingResources || loadingFolders;
 
+  // Current navigation state
+  const [currentFolderId, setCurrentFolderId] = useState(null); // null = root
+  const [filterTab, setFilterTab] = useState('all'); // 'all', 'public', 'private', 'system'
   const [searchQuery, setSearchQuery] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const [currentFolderId, setCurrentFolderId] = useState(null); // null means root/all
-  const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
+  // Modals state
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState(null);
+  const [editingFolder, setEditingFolder] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { type: 'file' | 'folder', item: any }
   const [viewerFile, setViewerFile] = useState(null);
 
-  // Auth & Ownership
-  const userSession = localStorage.getItem('loop_current_user');
-  const currentUser = userSession ? JSON.parse(userSession) : null;
-  const isAdmin = currentUser?.isAdmin;
+  // Upload state
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('General');
+  const [uploadFolderId, setUploadFolderId] = useState('system-placement-material');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStats, setUploadStats] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const abortControllerRef = useRef(null);
 
-  const [editingResource, setEditingResource] = useState(null);
+  // New Folder form state
+  const [folderForm, setFolderForm] = useState({
+    name: '',
+    description: '',
+    visibility: 'public',
+    allowContributions: true,
+    parentId: null
+  });
+
+  // Edit Resource form state
   const [editResourceForm, setEditResourceForm] = useState({
     title: '',
-    category: 'Coding',
-    type: 'PDF',
-    folderId: 'sem-1',
-    link: ''
+    description: '',
+    category: 'General',
+    folderId: ''
   });
 
-  const isResourceOwner = (res) => {
-    if (!currentUser) return false;
-    const emailName = currentUser.email.split('@')[0].replace(/\./g, ' ').toLowerCase();
-    const ownerName = (res.uploadedBy || '').toLowerCase();
-    return emailName === ownerName || res.uploadedByEmail === currentUser.email;
-  };
-
-  const getFolderName = (folderId) => {
-    if (!folderId) return '';
-    const folder = folders.find(f => f.id === folderId);
-    if (!folder) return folderId;
-    
-    const path = [folder.name];
-    let parentId = folder.parentId;
-    while (parentId) {
-      const parent = folders.find(f => f.id === parentId);
-      if (parent) {
-        path.unshift(parent.name);
-        parentId = parent.parentId;
-      } else {
-        break;
-      }
-    }
-    return path.join(' > ');
-  };
-
-  const startEditResource = (res) => {
-    setEditingResource(res);
-    setEditResourceForm({
-      title: res.title || '',
-      category: res.category || 'Coding',
-      type: res.type || 'PDF',
-      folderId: res.folderId || 'sem-1',
-      link: res.link || ''
-    });
-  };
-
-  const handleSaveResource = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setUploadProgress(0);
+  // Current user authentication & role
+  const userSession = localStorage.getItem('loop_current_user');
+  const currentUser = useMemo(() => {
     try {
-      if (isAdmin) {
-        await updateResource(editingResource.id, editResourceForm);
-        alert('Resource updated successfully.');
-      } else {
-        const pendingData = {
-          ...editResourceForm,
-          requestType: 'edit',
-          status: 'pending_edit',
-          id: editingResource.id,
-          uploadedBy: currentUser ? currentUser.email.split('@')[0].replace(/\./g, ' ') : editingResource.uploadedBy
-        };
-        await addPendingResource(pendingData, (progress) => {
-          setUploadProgress(progress);
-        });
-        alert('Contributor Action: Your resource edits have been submitted to administrators for approval.');
-      }
-      setEditingResource(null);
-      const resData = await getResources();
-      mutateResources(resData, false);
-    } catch (err) {
-      console.error(err);
-      alert(err.message || 'Failed to save resource.');
-    } finally {
-      setSubmitting(false);
+      return userSession ? JSON.parse(userSession) : null;
+    } catch (e) {
+      return null;
     }
-  };
+  }, [userSession]);
 
-  const processResourceFile = (file) => {
-    const extension = file.name.split('.').pop().toLowerCase();
-    let determinedType = 'Note';
-    if (extension === 'pdf') {
-      determinedType = 'PDF';
-    } else if (['png', 'jpg', 'jpeg'].includes(extension)) {
-      determinedType = 'Roadmap';
-    }
-    
-    fileToBase64(file).then(base64Url => {
-      setFormData(prev => ({
-        ...prev,
-        title: prev.title || file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
-        type: determinedType,
-        link: base64Url
-      }));
-    }).catch(err => {
-      console.error("Error reading file:", err);
-      alert("Failed to read file.");
-    });
-  };
+  const isAdmin = currentUser?.isAdmin || currentUser?.role === 'Admin';
+  const currentUserEmail = currentUser?.email || '';
 
-  const handleDeleteResource = async (res) => {
-    if (isAdmin) {
-      if (window.confirm('Admin Action: Are you sure you want to delete this resource directly?')) {
-        const previousResources = [...resources];
-        mutateResources(resources.filter(r => r.id !== res.id), false);
-        try {
-          await deleteResource(res.id);
-          alert('Resource deleted successfully.');
-          mutateResources(resources.filter(r => r.id !== res.id), true);
-        } catch (e) {
-          alert('Failed to delete resource: ' + e.message);
-          mutateResources(previousResources, false);
-        }
-      }
-    } else {
-      if (window.confirm('Contributor Action: Request administrator to delete this resource?')) {
-        await addPendingResource({
-          ...res,
-          requestType: 'delete',
-          status: 'pending_delete',
-          uploadedByEmail: currentUser.email
-        });
-        alert('Your deletion request has been submitted to the administrator for approval.');
-      }
-    }
-  };
-
-  // Upload modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-
-  const formatEmailToName = (email) => {
-    if (!email) return '';
-    return email
-      .split('@')[0]
-      .split('.')
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ');
-  };
-
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    type: 'PDF',
-    link: '',
-    uploadedBy: currentUser ? formatEmailToName(currentUser.email) : '',
-    folderId: 'sem-1'
-  });
-
+  // Prevent background scrolling when modals open
   useEffect(() => {
-    if (isModalOpen || isNewFolderModalOpen || viewerFile || editingResource) {
+    if (isUploadModalOpen || isFolderModalOpen || editingResource || editingFolder || deleteConfirm || viewerFile) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -230,1451 +85,1663 @@ export default function Resources() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isModalOpen, isNewFolderModalOpen, viewerFile, editingResource]);
+  }, [isUploadModalOpen, isFolderModalOpen, editingResource, editingFolder, deleteConfirm, viewerFile]);
 
-  // Helper to recursively get all children IDs of a folder to filter resources inside it
-  const getFolderAndSubfolderIds = (folderId) => {
-    if (!folderId) return [];
-    const ids = [folderId];
-    const children = folders.filter(f => f.parentId === folderId);
-    children.forEach(child => {
-      ids.push(...getFolderAndSubfolderIds(child.id));
-    });
-    return ids;
+  // Current folder object
+  const currentFolder = useMemo(() => {
+    if (!currentFolderId) return null;
+    return folders.find(f => f.id === currentFolderId) || null;
+  }, [currentFolderId, folders]);
+
+  // Generate breadcrumb path
+  const breadcrumbs = useMemo(() => {
+    const crumbs = [];
+    let curr = currentFolder;
+    while (curr) {
+      crumbs.unshift(curr);
+      if (curr.parentId) {
+        curr = folders.find(f => f.id === curr.parentId) || null;
+      } else {
+        curr = null;
+      }
+    }
+    return crumbs;
+  }, [currentFolder, folders]);
+
+  // Check ownership
+  const isOwnerOfFolder = (folder) => {
+    if (!folder || !currentUser) return false;
+    if (isAdmin) return true;
+    return folder.ownerEmail === currentUserEmail || (folder.ownerId && String(folder.ownerId) === String(currentUser.id));
   };
 
-  // Filter resources based on query, search and active folder
-  const filteredResources = resources.filter(res => {
-    const matchesSearch = res.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          res.uploadedBy.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    // If we're at root, we match all. If we're in a folder, match folder or any subfolder inside it
-    const activeFolderIds = currentFolderId ? getFolderAndSubfolderIds(currentFolderId) : [];
-    const matchesFolder = !currentFolderId || activeFolderIds.includes(res.folderId);
-    
-    return matchesSearch && matchesFolder;
-  });
-
-  // Helper to generate hierarchically indented dropdown options for upload selection
-  const getFolderSelectOptions = () => {
-    const options = [];
-    const rootFolders = folders.filter(f => f.parentId === null);
-    rootFolders.forEach(rf => {
-      options.push({ id: rf.id, name: rf.name });
-      const children = folders.filter(f => f.parentId === rf.id);
-      children.forEach(cf => {
-        options.push({ id: cf.id, name: `  — ${cf.name}` });
-        const subChildren = folders.filter(f => f.parentId === cf.id);
-        subChildren.forEach(scf => {
-          options.push({ id: scf.id, name: `    — ${scf.name}` });
-        });
-      });
-    });
-    return options;
+  const isOwnerOfResource = (res) => {
+    if (!res || !currentUser) return false;
+    if (isAdmin) return true;
+    return res.uploadedByEmail === currentUserEmail || (res.ownerId && String(res.ownerId) === String(currentUser.id));
   };
 
-  // Open Upload modal and pre-set folder ID to the current active folder context
-  const openUploadModal = () => {
-    setFormData(prev => ({
-      ...prev,
-      folderId: currentFolderId || 'sem-1',
-      uploadedBy: prev.uploadedBy || (currentUser ? formatEmailToName(currentUser.email) : '')
-    }));
-    setIsModalOpen(true);
+  // Group root folders into 3 categories
+  const { systemFolders, myPrivateFolders, myPublicFolders, communityFolders } = useMemo(() => {
+    // Only consider folders with parentId === null for root categories
+    const rootFolders = folders.filter(f => !f.parentId);
+
+    const system = rootFolders.filter(f => f.folderType === 'system' || f.isSystemFolder);
+    const myPrivate = rootFolders.filter(f => f.visibility === 'private' && (f.ownerEmail === currentUserEmail || isAdmin));
+    const myPublic = rootFolders.filter(f => f.folderType === 'user' && f.visibility === 'public' && f.ownerEmail === currentUserEmail);
+    const community = rootFolders.filter(f => f.folderType === 'user' && f.visibility === 'public' && f.ownerEmail !== currentUserEmail);
+
+    return { systemFolders: system, myPrivateFolders: myPrivate, myPublicFolders: myPublic, communityFolders: community };
+  }, [folders, currentUserEmail, isAdmin]);
+
+  // Subfolders of the currently active folder
+  const currentSubfolders = useMemo(() => {
+    if (!currentFolderId) return [];
+    return folders.filter(f => f.parentId === currentFolderId);
+  }, [currentFolderId, folders]);
+
+  // Resources inside current folder
+  const currentFolderResources = useMemo(() => {
+    if (!currentFolderId) return [];
+    return resources.filter(r => r.folderId === currentFolderId);
+  }, [currentFolderId, resources]);
+
+  // Filtered resources for search or root
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return resources.filter(r => 
+      (r.title && r.title.toLowerCase().includes(q)) ||
+      (r.description && r.description.toLowerCase().includes(q)) ||
+      (r.uploadedBy && r.uploadedBy.toLowerCase().includes(q)) ||
+      (r.originalFileName && r.originalFileName.toLowerCase().includes(q))
+    );
+  }, [searchQuery, resources]);
+
+  // Get total files count for a folder (recursive)
+  const getResourceCountForFolder = (folderId) => {
+    const collectFolderIds = (id) => {
+      const ids = [id];
+      const children = folders.filter(f => f.parentId === id);
+      children.forEach(c => ids.push(...collectFolderIds(c.id)));
+      return ids;
+    };
+    const allIds = collectFolderIds(folderId);
+    return resources.filter(r => allIds.includes(r.folderId)).length;
   };
 
-  // Handle form submission
-  const handleSubmit = async (e) => {
+  // Open upload modal with current folder context
+  const handleOpenUpload = (targetFolderId = null) => {
+    const folderToUse = targetFolderId || currentFolderId || 'system-placement-material';
+    setUploadFolderId(folderToUse);
+    setUploadFile(null);
+    setUploadTitle('');
+    setUploadDescription('');
+    setUploadCategory('General');
+    setUploadStats(null);
+    setUploadError(null);
+    setUploadSuccess(false);
+    setIsUploadModalOpen(true);
+  };
+
+  // Cancel running upload
+  const handleCancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsUploading(false);
+    setUploadStats(null);
+    setUploadError('Upload cancelled by user.');
+  };
+
+  // Perform upload
+  const handleUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.uploadedBy) {
-      alert('Please fill in all required fields');
+    if (!uploadFile) {
+      setUploadError('Please select a file to upload.');
+      return;
+    }
+    if (uploadFile.size > 105 * 1024 * 1024) {
+      setUploadError('File size exceeds the 100 MB limit.');
       return;
     }
 
-    setSubmitting(true);
-    setUploadProgress(0);
-    try {
-      const submission = {
-        ...formData,
-        category: 'General', // Keep category for schema compatibility
-        link: formData.link.trim() || '#',
-        uploadedByEmail: currentUser ? currentUser.email : ''
-      };
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadStats({
+      percent: 0,
+      loadedFormatted: '0 MB',
+      totalFormatted: formatBytes(uploadFile.size),
+      speedFormatted: '0 KB/s',
+      remainingSecs: null
+    });
 
-      await addPendingResource(submission, (progress) => {
-        setUploadProgress(progress);
-      });
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const uploadedResource = await uploadResourceStream({
+        file: uploadFile,
+        title: uploadTitle.trim() || uploadFile.name.replace(/\.[^/.]+$/, ''),
+        description: uploadDescription.trim(),
+        category: uploadCategory,
+        folderId: uploadFolderId
+      }, (stats) => {
+        setUploadStats(stats);
+      }, controller);
+
       setUploadSuccess(true);
+      setIsUploading(false);
+
+      // Optimistic update of resource list
+      const updated = [uploadedResource, ...resources];
+      mutateResources(updated, false);
 
       setTimeout(() => {
-        setIsModalOpen(false);
+        setIsUploadModalOpen(false);
         setUploadSuccess(false);
-        setSubmitting(false);
-        setFormData({
-          title: '',
-          type: 'PDF',
-          link: '',
-          uploadedBy: currentUser ? formatEmailToName(currentUser.email) : '',
-          folderId: currentFolderId || 'sem-1'
-        });
-      }, 2000);
+        setUploadFile(null);
+        setUploadStats(null);
+      }, 1500);
     } catch (err) {
-      console.error(err);
-      alert(err.message || 'Failed to upload resource.');
-      setSubmitting(false);
+      setIsUploading(false);
+      setUploadError(err.message || 'Upload failed. Please check network connection and retry.');
     }
   };
 
-  // Icon mapping helper based on resource type
-  const getResourceIcon = (type) => {
-    switch (type.toUpperCase()) {
-      case 'PDF':
-        return <FileText size={22} />;
-      case 'SHEET':
-        return <FileSpreadsheet size={22} />;
-      case 'ROADMAP':
-        return <Compass size={22} />;
-      case 'NOTE':
-      case 'NOTES':
-        return <BookOpen size={22} />;
-      case 'COURSE':
-      case 'YOUTUBE':
-        return <Globe size={22} />;
-      default:
-        return <Code size={22} />;
+  // Create folder
+  const handleCreateFolder = async (e) => {
+    e.preventDefault();
+    if (!folderForm.name.trim()) return;
+
+    try {
+      const newFolder = await addFolder({
+        name: folderForm.name.trim(),
+        description: folderForm.description.trim(),
+        visibility: folderForm.visibility,
+        allowContributions: folderForm.allowContributions,
+        parentId: folderForm.parentId || currentFolderId || null,
+        isSystemFolder: isAdmin && folderForm.isSystemFolder
+      });
+
+      mutateFolders([...folders, newFolder], false);
+      setIsFolderModalOpen(false);
+      setFolderForm({
+        name: '',
+        description: '',
+        visibility: 'public',
+        allowContributions: true,
+        parentId: null
+      });
+    } catch (err) {
+      alert(err.message || 'Failed to create folder.');
     }
+  };
+
+  // Rename/update folder
+  const handleSaveEditFolder = async (e) => {
+    e.preventDefault();
+    if (!editingFolder) return;
+
+    try {
+      const updated = await updateFolder(editingFolder.id, {
+        name: editingFolder.name.trim(),
+        description: editingFolder.description?.trim() || '',
+        visibility: editingFolder.visibility,
+        allowContributions: editingFolder.allowContributions
+      });
+
+      mutateFolders(folders.map(f => f.id === updated.id ? updated : f), false);
+      setEditingFolder(null);
+    } catch (err) {
+      alert(err.message || 'Failed to update folder.');
+    }
+  };
+
+  // Edit resource metadata
+  const handleSaveEditResource = async (e) => {
+    e.preventDefault();
+    if (!editingResource) return;
+
+    try {
+      const updated = await patchResource(editingResource.id, {
+        title: editResourceForm.title.trim(),
+        description: editResourceForm.description.trim(),
+        category: editResourceForm.category,
+        folderId: editResourceForm.folderId || editingResource.folderId
+      });
+
+      mutateResources(resources.map(r => r.id === updated.id ? updated : r), false);
+      setEditingResource(null);
+    } catch (err) {
+      alert(err.message || 'Failed to update resource metadata.');
+    }
+  };
+
+  // Execute confirmed deletion
+  const handleExecuteDelete = async () => {
+    if (!deleteConfirm) return;
+    const { type, item } = deleteConfirm;
+
+    try {
+      if (type === 'file') {
+        await deleteResource(item.id);
+        mutateResources(resources.filter(r => r.id !== item.id), false);
+      } else if (type === 'folder') {
+        await deleteFolder(item.id);
+        mutateFolders(folders.filter(f => f.id !== item.id), false);
+        // If we were inside the deleted folder, jump back to parent
+        if (currentFolderId === item.id) {
+          setCurrentFolderId(item.parentId || null);
+        }
+      }
+      setDeleteConfirm(null);
+    } catch (err) {
+      alert(err.message || 'Failed to delete item.');
+    }
+  };
+
+  // Helper to get file icon
+  const getFileIcon = (res) => {
+    const type = res.type || '';
+    const mime = (res.mimeType || '').toLowerCase();
+    if (type === 'PDF' || mime === 'application/pdf') return <FileText size={20} color="#ff453a" />;
+    if (type === 'Image' || mime.startsWith('image/')) return <ImageIcon size={20} color="#0a84ff" />;
+    if (type === 'Sheet' || mime.includes('spreadsheet') || mime.includes('excel')) return <FileSpreadsheet size={20} color="#30d158" />;
+    return <FileText size={20} color="#ff9f0a" />;
   };
 
   return (
-    <>
-      <div className="container animate-fade-in" style={{ paddingTop: '6.5rem', paddingBottom: '5rem' }}>
+    <div className="animate-fade-in" style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '85vh' }}>
       
-      {/* Header and Add button */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: '1.5rem',
-        marginBottom: '3rem'
-      }}>
+      {/* Page Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.25rem', marginBottom: '2rem' }}>
         <div>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>Resource Hub</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Find and share coding sheets, notes, question banks, and roadmap guidelines.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <h1 style={{ fontSize: '2.4rem', fontWeight: 800, margin: 0, letterSpacing: '-0.03em', fontFamily: 'var(--font-serif)' }}>
+              Resources
+            </h1>
+            <span className="badge" style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+              Academic & Placement Repository
+            </span>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: 0, maxWidth: '640px' }}>
+            Official syllabus materials, semester notes, handwritten formulas, and senior placement interview playbooks.
+          </p>
         </div>
 
-        <button 
-          onClick={openUploadModal}
-          className="btn btn-primary"
-          style={{ padding: '0.75rem 1.5rem' }}
-        >
-          <Plus size={16} />
-          <span>Upload Resource</span>
-        </button>
+        {/* Global Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setFolderForm({
+                name: '',
+                description: '',
+                visibility: 'private',
+                allowContributions: false,
+                parentId: currentFolderId || null
+              });
+              setIsFolderModalOpen(true);
+            }}
+            className="btn btn-secondary"
+            style={{ borderRadius: '12px', padding: '0.65rem 1.1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Lock size={15} /> ＋ New Private Folder
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFolderForm({
+                name: '',
+                description: '',
+                visibility: 'public',
+                allowContributions: true,
+                parentId: currentFolderId || null
+              });
+              setIsFolderModalOpen(true);
+            }}
+            className="btn btn-secondary"
+            style={{ borderRadius: '12px', padding: '0.65rem 1.1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Globe size={15} /> ＋ New Public Folder
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOpenUpload()}
+            className="btn btn-primary"
+            style={{ borderRadius: '12px', padding: '0.65rem 1.25rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+          >
+            <UploadCloud size={16} /> Add Resource
+          </button>
+        </div>
       </div>
 
-      {/* Breadcrumbs Navigation */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        fontSize: '0.9rem',
-        color: 'var(--text-secondary)',
-        marginBottom: '1.5rem',
-        flexWrap: 'wrap'
-      }}>
-        <span 
-          onClick={() => setCurrentFolderId(null)}
-          style={{ 
-            cursor: 'pointer', 
-            fontWeight: !currentFolderId ? 600 : 400, 
-            color: !currentFolderId ? 'var(--text-primary)' : 'var(--text-secondary)' 
-          }}
-        >
-          All Years
-        </span>
-        {currentFolderId && (
-          <>
-            <span>/</span>
-            {(() => {
-              const path = [];
-              let curr = folders.find(f => f.id === currentFolderId);
-              while (curr) {
-                path.unshift(curr);
-                curr = folders.find(f => f.id === curr.parentId);
-              }
-              return path.map((f, idx) => (
-                <Fragment key={f.id}>
-                  {idx > 0 && <span style={{ margin: '0 0.25rem', color: 'var(--text-muted)' }}>/</span>}
-                  <span 
-                    onClick={() => setCurrentFolderId(f.id)}
-                    style={{ 
-                      cursor: 'pointer', 
-                      fontWeight: f.id === currentFolderId ? 600 : 400, 
-                      color: f.id === currentFolderId ? 'var(--text-primary)' : 'var(--text-secondary)' 
-                    }}
-                  >
-                    {f.name}
-                  </span>
-                </Fragment>
-              ));
-            })()}
-          </>
-        )}
-      </div>
-
-      {/* Browse by Folders */}
-      <div style={{ marginBottom: '3rem' }}>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
-          <Folder size={18} style={{ color: '#8a2be2' }} />
-          <span>{currentFolderId ? `${folders.find(f => f.id === currentFolderId)?.name} Folders` : 'Year Folders'}</span>
-        </h2>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '1.25rem'
-        }}>
-          {/* Individual Folder Cards (filtered by currentFolderId) */}
-          {loading ? (
-            [1, 2, 3].map((n) => (
-              <div 
-                key={n}
-                className="loop-card folder-card skeleton-pulse"
+      {/* Top Filter Tabs & Search Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: 'All Resources', icon: Layers },
+            { id: 'system', label: 'College / System', icon: Shield },
+            { id: 'public', label: 'Public Community', icon: Globe },
+            { id: 'private', label: 'My Private Folders', icon: Lock }
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = filterTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setFilterTab(tab.id);
+                  if (currentFolderId) setCurrentFolderId(null);
+                }}
                 style={{
-                  padding: '1.25rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '10px',
+                  border: isActive ? '1px solid var(--accent-color)' : '1px solid var(--border-color)',
+                  backgroundColor: isActive ? 'var(--accent-color)' : 'rgba(255, 255, 255, 0.03)',
+                  color: isActive ? 'var(--accent-inverse, #000)' : 'var(--text-primary)',
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '1rem',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '16px',
-                  backgroundColor: 'var(--bg-primary)'
+                  gap: '0.4rem',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                <div style={{
-                  padding: '0.6rem',
-                  width: '36px',
-                  height: '36px',
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderRadius: '12px'
-                }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <div style={{ width: '80px', height: '1rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
-                  <div style={{ width: '40px', height: '0.75rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
-                </div>
-              </div>
-            ))
-          ) : (
-            folders.filter(f => f.parentId === currentFolderId).map(folder => {
-              const subfolderIds = getFolderAndSubfolderIds(folder.id);
-              const count = resources.filter(res => subfolderIds.includes(res.folderId)).length;
-              return (
-                <div 
-                  key={folder.id}
-                  onClick={() => setCurrentFolderId(folder.id)}
-                  className="loop-card folder-card"
-                  style={{
-                    padding: '1.25rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '16px',
-                    backgroundColor: 'var(--bg-primary)',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <div style={{
-                    padding: '0.6rem',
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '12px',
-                    color: 'var(--text-primary)',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}>
-                    <Folder size={20} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{folder.name}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      {count} items
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-
-          {/* Add Folder Button Card */}
-          <div 
-            onClick={() => setIsNewFolderModalOpen(true)}
-            className="loop-card folder-card"
-            style={{
-              padding: '1.25rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              border: '1px dashed var(--border-color)',
-              borderRadius: '16px',
-              backgroundColor: 'transparent',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <div style={{
-              padding: '0.6rem',
-              backgroundColor: 'var(--bg-secondary)',
-              borderRadius: '12px',
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              alignItems: 'center'
-            }}>
-              <Plus size={20} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Add Folder</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Create custom filter</span>
-            </div>
-          </div>
+                <Icon size={14} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Search Filter Panel */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1.5rem',
-        marginBottom: '3rem',
-        borderBottom: '1px solid var(--border-color)',
-        paddingBottom: '2rem'
-      }}>
         {/* Search Input */}
-        <div style={{ position: 'relative', maxWidth: '500px', width: '100%' }}>
-          <Search size={18} style={{
-            position: 'absolute',
-            left: '1rem',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text-secondary)',
-            pointerEvents: 'none'
-          }} />
+        <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
+          <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
           <input
             type="text"
             className="input-field"
-            placeholder="Search by resource title, uploader..."
+            placeholder="Search files, roadmaps, notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: '2.75rem', width: '100%' }}
+            style={{ paddingLeft: '2.5rem', borderRadius: '10px', fontSize: '0.85rem', height: '38px', margin: 0 }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Resources Grid */}
-      {loading ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '1.5rem'
-        }}>
-          {[1, 2, 3].map((n) => (
-            <div 
-              key={n} 
-              className="loop-card resource-card skeleton-pulse"
-              style={{
-                padding: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                minHeight: '190px'
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div style={{ padding: '0.5rem', width: '36px', height: '36px', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '10px' }} />
-                  <div style={{ width: '60px', height: '1.2rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
-                </div>
-                <div style={{ height: '1.2rem', width: '80%', backgroundColor: 'var(--border-color)', borderRadius: '4px', marginBottom: '0.5rem' }} />
-              </div>
-              <div>
-                <hr style={{ border: 0, borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ width: '40px', height: '0.7rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
-                    <div style={{ width: '60px', height: '0.8rem', backgroundColor: 'var(--border-color)', borderRadius: '4px' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <div style={{ width: '80px', height: '1.8rem', backgroundColor: 'var(--border-color)', borderRadius: '8px' }} />
-                    <div style={{ width: '36px', height: '36px', backgroundColor: 'var(--border-color)', borderRadius: '50%' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : filteredResources.length > 0 ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '1.5rem'
-        }}>
-          {filteredResources.map((res) => (
-            <div 
-              key={res.id} 
-              className="loop-card resource-card"
-              style={{
-                padding: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                minHeight: '190px'
-              }}
-            >
-              <div>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  marginBottom: '1rem'
-                }}>
-                  <div style={{
-                    padding: '0.5rem',
-                    backgroundColor: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '10px',
-                    color: 'var(--text-primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    {getResourceIcon(res.type)}
-                  </div>
-                  
-                  <span className="badge" style={{ fontSize: '0.65rem' }}>
-                    {res.category}
-                  </span>
-                </div>
-
-                <h3 style={{
-                  fontSize: '1.05rem',
-                  fontWeight: 700,
-                  lineHeight: '1.4',
-                  marginBottom: '0.5rem',
-                  color: 'var(--text-primary)'
-                }}>
-                  {res.title}
-                </h3>
-              </div>
-
-              <div>
-                <hr style={{ border: 0, borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
-                
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Shared by</span>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{res.uploadedBy}</span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <button 
-                      onClick={async (e) => {
-                        const btn = e.currentTarget;
-                        btn.disabled = true;
-                        const originalText = btn.innerHTML;
-                        btn.innerText = 'Loading...';
-                        try {
-                          if (!res.link) {
-                            const resourceDetails = await getResourceById(res.id);
-                            res.link = resourceDetails.link;
-                          }
-                          const mime = getMimeTypeFromDataURI(res.link);
-                          let fileType = res.type;
-                          let ext = '';
-                          if (mime) {
-                            ext = getExtensionFromMime(mime);
-                            if (mime.startsWith('image/')) {
-                              fileType = 'Image';
-                            } else if (mime === 'application/pdf') {
-                              fileType = 'PDF';
-                            }
-                          } else {
-                            const isPdf = res.type === 'PDF' || res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap';
-                            fileType = isPdf ? 'PDF' : res.type;
-                            ext = isPdf ? '.pdf' : '.txt';
-                          }
-                          setViewerFile({
-                            title: res.title,
-                            type: fileType,
-                            fileName: res.title + ext,
-                            fileSize: '1.2 MB',
-                            previewUrl: res.link || '#'
-                          });
-                        } catch (err) {
-                          console.error("Error viewing resource:", err);
-                          alert("Failed to load resource data.");
-                        } finally {
-                          if (btn) {
-                            btn.disabled = false;
-                            btn.innerHTML = originalText;
-                          }
-                        }
-                      }}
-                      className="btn btn-secondary"
-                      style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
-                      title="View File"
-                    >
-                      <FileText size={14} />
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>View File</span>
-                    </button>
-                    <button 
-                      onClick={async (e) => {
-                        const btn = e.currentTarget;
-                        btn.disabled = true;
-                        try {
-                          if (!res.link) {
-                            const resourceDetails = await getResourceById(res.id);
-                            res.link = resourceDetails.link;
-                          }
-                          if (res.link && res.link !== '#') {
-                            if (res.link.startsWith('data:')) {
-                              const blob = dataURItoBlob(res.link);
-                              if (blob) {
-                                const blobUrl = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = blobUrl;
-                                const mime = getMimeTypeFromDataURI(res.link);
-                                const ext = getExtensionFromMime(mime) || '.txt';
-                                link.download = res.title + ext;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-                              } else {
-                                alert('Failed to process file data.');
-                              }
-                            } else {
-                              // external URL - open in new tab
-                              window.open(res.link, '_blank');
-                            }
-                          } else {
-                            alert('No link or file data available for this resource.');
-                          }
-                        } catch (err) {
-                          console.error("Error downloading resource:", err);
-                          alert("Failed to load resource data.");
-                        } finally {
-                          if (btn) {
-                            btn.disabled = false;
-                          }
-                        }
-                      }}
-                      className="btn btn-secondary"
-                      style={{ padding: '0.5rem', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                      title="Download File"
-                    >
-                      <Download size={14} />
-                    </button>
-                    {(isAdmin || isResourceOwner(res)) && (
-                      <>
-                        <button 
-                          onClick={() => startEditResource(res)}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.5rem', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)', cursor: 'pointer' }}
-                          title={isAdmin ? 'Edit Resource' : 'Request Edit'}
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteResource(res)}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.5rem', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.2)', cursor: 'pointer' }}
-                          title={isAdmin ? 'Delete Resource' : 'Request Deletion'}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="glass-panel" style={{
-          padding: '4rem 2rem',
-          textAlign: 'center',
-          borderRadius: '20px',
-          color: 'var(--text-secondary)'
-        }}>
-          <p style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>No study resources found matching the query.</p>
-          <button onClick={() => { setSearchQuery(''); }} className="btn btn-secondary">
-            Clear Search & Filters
+      {/* Breadcrumb Trail Navigation */}
+      {currentFolderId && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap', backgroundColor: 'rgba(255, 255, 255, 0.02)', padding: '0.6rem 1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (currentFolder?.parentId) {
+                setCurrentFolderId(currentFolder.parentId);
+              } else {
+                setCurrentFolderId(null);
+              }
+            }}
+            className="btn btn-secondary"
+            style={{ padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <ArrowLeft size={14} /> Back
           </button>
+
+          <span style={{ color: 'var(--border-color)', margin: '0 0.25rem' }}>|</span>
+
+          <button
+            type="button"
+            onClick={() => setCurrentFolderId(null)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+          >
+            Resources
+          </button>
+
+          {breadcrumbs.map((crumb, idx) => {
+            const isLast = idx === breadcrumbs.length - 1;
+            return (
+              <React.Fragment key={crumb.id}>
+                <ChevronRight size={14} color="var(--text-secondary)" />
+                <button
+                  type="button"
+                  onClick={() => !isLast && setCurrentFolderId(crumb.id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: isLast ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    fontWeight: isLast ? 700 : 500,
+                    fontSize: '0.85rem',
+                    cursor: isLast ? 'default' : 'pointer',
+                    textDecoration: isLast ? 'none' : 'hover'
+                  }}
+                >
+                  {crumb.name}
+                </button>
+              </React.Fragment>
+            );
+          })}
         </div>
       )}
-    </div>
 
-    {/* Upload Modal */}
-    {isModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '500px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2.5rem 2rem'
-          }}>
-            {/* Close Button */}
-            <button 
-              onClick={() => setIsModalOpen(false)}
-              style={{
-                position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-primary)'
-              }}
-            >
-              <X size={20} />
-            </button>
+      {/* SEARCH RESULTS VIEW */}
+      {searchQuery.trim() !== '' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
+              Search Results ({searchResults.length})
+            </h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Matching "{searchQuery}"</span>
+          </div>
 
-            {uploadSuccess ? (
-              <div style={{
-                textAlign: 'center',
-                padding: '3rem 1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '1rem'
-              }}>
-                <CheckCircle size={64} style={{ color: '#30d158' }} />
-                <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Resource Submitted!</h2>
-                <p style={{ color: 'var(--text-secondary)', maxWidth: '350px' }}>
-                  Thank you! Your resource will be visible in the hub once approved by an administrator.
-                </p>
+          {searchResults.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '4rem 1rem', border: '1px dashed var(--border-color)', borderRadius: '16px' }}>
+              <FileText size={40} color="var(--text-secondary)" style={{ marginBottom: '1rem', opacity: 0.5 }} />
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>No study resources found matching "{searchQuery}".</p>
+            </div>
+          ) : (
+            <div className="table-responsive" style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                <thead style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                  <tr>
+                    <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>File</th>
+                    <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Folder</th>
+                    <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Size</th>
+                    <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Uploader</th>
+                    <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchResults.map(res => (
+                    <tr key={res.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          {getFileIcon(res)}
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{res.title}</div>
+                            {res.description && <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{res.description}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        {folders.find(f => f.id === res.folderId)?.name || res.folderId}
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        {res.fileSizeFormatted || formatBytes(res.size) || '—'}
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        {res.uploadedBy || 'Senior'}
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setViewerFile(res)}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                          >
+                            <Eye size={13} /> Preview
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ROOT LEVEL VIEW (Categorized Folders) */}
+      {!currentFolderId && searchQuery.trim() === '' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+          
+          {/* SECTION A: SYSTEM / COLLEGE RESOURCES */}
+          {(filterTab === 'all' || filterTab === 'system') && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Shield size={18} color="var(--accent-color)" />
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+                    System / College Resources
+                  </h2>
+                </div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Protected Official Academic Curricula
+                </span>
               </div>
-            ) : (
-              <form onSubmit={handleSubmit}>
-                <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.25rem', fontFamily: 'var(--font-display)' }}>
-                  Upload Study Resource
-                </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '2rem' }}>
-                  Contribute PDFs, notes, question sheets, roadmaps, or other preparation tools.
-                </p>
 
-                <div className="input-group">
-                  <label className="input-label">Resource Title *</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    placeholder="e.g. DBMS Semester 4 Question Bank"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="form-grid-2col">
-                  <div className="input-group">
-                    <label className="input-label">Category *</label>
-                    <select 
-                      className="input-field"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      style={{ backgroundColor: 'var(--bg-secondary)' }}
-                    >
-                      <option value="Coding">Coding</option>
-                      <option value="Placement">Placement</option>
-                      <option value="AI/ML">AI/ML</option>
-                      <option value="Web Development">Web Development</option>
-                      <option value="College Subjects">College Subjects</option>
-                    </select>
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">File Type *</label>
-                    <select 
-                      className="input-field"
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      style={{ backgroundColor: 'var(--bg-secondary)' }}
-                    >
-                      <option value="PDF">PDF Document</option>
-                      <option value="Sheet">Cheat Sheet / Excel</option>
-                      <option value="Roadmap">Roadmap Guide</option>
-                      <option value="Note">Lecture Notes</option>
-                      <option value="Course">Online Course link</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Folder / Year *</label>
-                  <select 
-                    className="input-field"
-                    value={formData.folderId || 'sem-1'}
-                    onChange={(e) => setFormData({ ...formData, folderId: e.target.value })}
-                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                {systemFolders.map(folder => (
+                  <div
+                    key={folder.id}
+                    onClick={() => setCurrentFolderId(folder.id)}
+                    className="glass-panel"
+                    style={{
+                      padding: '1.5rem',
+                      borderRadius: '16px',
+                      cursor: 'pointer',
+                      border: '1px solid var(--border-color)',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      minHeight: '160px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.borderColor = 'var(--accent-color)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                    }}
                   >
-                    {getFolderSelectOptions().map(opt => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                        <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '10px', padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Folder size={22} color="var(--accent-color)" />
+                        </div>
+                        <span className="badge" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700 }}>
+                          SYSTEM
+                        </span>
+                      </div>
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+                        {folder.name}
+                      </h3>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                        {folder.description || 'Academic course modules and semester question banks.'}
+                      </p>
+                    </div>
 
-                <div className="input-group">
-                  <label className="input-label">Upload File / Document (Required)</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
-                    <div 
-                      onClick={() => document.getElementById('resource-file-upload-dialog')?.click()}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <span>{getResourceCountForFolder(folder.id)} resources</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--accent-color)', fontWeight: 600 }}>
+                        Open <ChevronRight size={13} />
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION B: MY PRIVATE FOLDERS */}
+          {(filterTab === 'all' || filterTab === 'private') && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Lock size={18} color="#ff9f0a" />
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+                    My Private Folders
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFolderForm({
+                      name: '',
+                      description: '',
+                      visibility: 'private',
+                      allowContributions: false,
+                      parentId: null
+                    });
+                    setIsFolderModalOpen(true);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <Plus size={14} /> Create Private Folder
+                </button>
+              </div>
+
+              {myPrivateFolders.length === 0 ? (
+                <div style={{ padding: '2.5rem', textAlign: 'center', border: '1px dashed var(--border-color)', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.01)' }}>
+                  <Lock size={32} color="#ff9f0a" style={{ opacity: 0.6, marginBottom: '0.75rem' }} />
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.25rem 0' }}>No Private Folders Yet</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 1rem 0' }}>
+                    Keep personal notes, resumes, and study materials visible only to you.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFolderForm({
+                        name: '',
+                        description: '',
+                        visibility: 'private',
+                        allowContributions: false,
+                        parentId: null
+                      });
+                      setIsFolderModalOpen(true);
+                    }}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
+                  >
+                    Create Your First Private Folder
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                  {myPrivateFolders.map(folder => (
+                    <div
+                      key={folder.id}
+                      onClick={() => setCurrentFolderId(folder.id)}
+                      className="glass-panel"
                       style={{
-                        border: '1px dashed var(--border-color)',
-                        borderRadius: '12px',
-                        padding: formData.link ? '1rem' : '1.5rem',
-                        textAlign: 'center',
-                        backgroundColor: 'var(--bg-secondary)',
+                        padding: '1.5rem',
+                        borderRadius: '16px',
                         cursor: 'pointer',
-                        transition: 'border-color 0.2s',
+                        border: '1px solid var(--border-color)',
+                        transition: 'all 0.2s',
                         display: 'flex',
                         flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: '100px',
-                        color: 'var(--text-primary)'
+                        justifyContent: 'space-between',
+                        minHeight: '160px'
                       }}
-                      onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--text-secondary)'}
-                      onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) processResourceFile(file);
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.borderColor = '#ff9f0a';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.borderColor = 'var(--border-color)';
                       }}
                     >
-                      <input 
-                        type="file" 
-                        id="resource-file-upload-dialog" 
-                        onChange={(e) => {
-                           const file = e.target.files[0];
-                           if (file) processResourceFile(file);
-                         }} 
-                        style={{ display: 'none' }}
-                        accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
-                      />
-                      {formData.link ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0 0.5rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
-                            <span style={{
-                              padding: '0.4rem',
-                              backgroundColor: 'var(--bg-primary)',
-                              border: '1px solid var(--border-color)',
-                              borderRadius: '8px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: formData.type === 'PDF' ? '#ff3b30' : '#007aff'
-                            }}>
-                              <FileText size={18} />
-                            </span>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {formData.title || 'Selected File'}
-                              </span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                {formData.type} File • Click to change
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                          <div style={{ backgroundColor: 'rgba(255, 159, 10, 0.1)', borderRadius: '10px', padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Lock size={20} color="#ff9f0a" />
+                          </div>
+                          <span className="badge" style={{ backgroundColor: 'rgba(255, 159, 10, 0.15)', color: '#ff9f0a', fontSize: '0.7rem', fontWeight: 700 }}>
+                            PRIVATE
+                          </span>
+                        </div>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+                          {folder.name}
+                        </h3>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                          {folder.description || 'Personal private resource folder.'}
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        <span>{getResourceCountForFolder(folder.id)} files</span>
+                        <div style={{ display: 'flex', gap: '0.4rem' }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => setEditingFolder(folder)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px' }}
+                            title="Rename Folder"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirm({ type: 'folder', item: folder })}
+                            style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px' }}
+                            title="Delete Folder"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SECTION C: PUBLIC COMMUNITY FOLDERS */}
+          {(filterTab === 'all' || filterTab === 'public') && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Globe size={18} color="#30d158" />
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+                    Public Community Folders
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFolderForm({
+                      name: '',
+                      description: '',
+                      visibility: 'public',
+                      allowContributions: true,
+                      parentId: null
+                    });
+                    setIsFolderModalOpen(true);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <Plus size={14} /> Create Public Folder
+                </button>
+              </div>
+
+              {[...myPublicFolders, ...communityFolders].length === 0 ? (
+                <div style={{ padding: '2.5rem', textAlign: 'center', border: '1px dashed var(--border-color)', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.01)' }}>
+                  <Globe size={32} color="#30d158" style={{ opacity: 0.6, marginBottom: '0.75rem' }} />
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.25rem 0' }}>No Community Folders Yet</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 1rem 0' }}>
+                    Create open study folders where peers can contribute roadmaps and interview questions.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                  {[...myPublicFolders, ...communityFolders].map(folder => {
+                    const isMy = folder.ownerEmail === currentUserEmail;
+                    return (
+                      <div
+                        key={folder.id}
+                        onClick={() => setCurrentFolderId(folder.id)}
+                        className="glass-panel"
+                        style={{
+                          padding: '1.5rem',
+                          borderRadius: '16px',
+                          cursor: 'pointer',
+                          border: '1px solid var(--border-color)',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          minHeight: '160px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.borderColor = '#30d158';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                            <div style={{ backgroundColor: 'rgba(48, 209, 88, 0.1)', borderRadius: '10px', padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Globe size={20} color="#30d158" />
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              {isMy && (
+                                <span className="badge" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', fontSize: '0.7rem' }}>
+                                  Mine
+                                </span>
+                              )}
+                              <span className="badge" style={{ backgroundColor: 'rgba(48, 209, 88, 0.15)', color: '#30d158', fontSize: '0.7rem', fontWeight: 700 }}>
+                                PUBLIC
                               </span>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (formData.link.startsWith('blob:')) {
-                                URL.revokeObjectURL(formData.link);
-                              }
-                              setFormData({ ...formData, link: '' });
-                            }}
-                            className="btn btn-secondary"
-                            style={{ padding: '0.35rem', color: '#ff453a', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                            title="Remove File"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <Plus size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
-                            Click to select a file, or drop here
+                          <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+                            {folder.name}
+                          </h3>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                            {folder.description || 'Community resource library.'}
                           </p>
-                        </>
-                      )}
-                    </div>
-                    
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="Or paste download/reference link directly"
-                      value={formData.link.startsWith('blob:') ? '' : formData.link} 
-                      onChange={(e) => setFormData({ ...formData, link: e.target.value })} 
-                      style={{ fontSize: '0.85rem' }}
-                    />
-                  </div>
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Your Name (Uploader) *</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    placeholder="e.g. John Doe (Class of 2026)"
-                    value={formData.uploadedBy}
-                    onChange={(e) => setFormData({ ...formData, uploadedBy: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsModalOpen(false)} 
-                    className="btn btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    disabled={submitting}
-                    className="btn btn-primary"
-                    style={{ opacity: submitting ? 0.7 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}
-                  >
-                    {submitting ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                        <div style={{ position: 'relative', width: '24px', height: '24px' }}>
-                          <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
-                            <circle
-                              cx="18"
-                              cy="18"
-                              r="15"
-                              fill="none"
-                              stroke="rgba(255, 255, 255, 0.2)"
-                              strokeWidth="3"
-                            />
-                            <circle
-                              cx="18"
-                              cy="18"
-                              r="15"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeDasharray="94.2"
-                              strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
-                              strokeLinecap="round"
-                              style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
-                            />
-                          </svg>
-                          <div style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '8px',
-                            fontWeight: 'bold',
-                            color: 'currentColor'
-                          }}>
-                            {uploadProgress}%
-                          </div>
                         </div>
-                        <span>{uploadProgress === 100 ? 'Saving...' : 'Uploading...'}</span>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          <div>
+                            <span>{getResourceCountForFolder(folder.id)} files</span>
+                            {folder.ownerName && <span> • by {folder.ownerName}</span>}
+                          </div>
+                          {(isMy || isAdmin) && (
+                            <div style={{ display: 'flex', gap: '0.4rem' }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => setEditingFolder(folder)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px' }}
+                                title="Rename Folder"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirm({ type: 'folder', item: folder })}
+                                style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px' }}
+                                title="Delete Folder"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    ) : 'Submit Resource'}
-                  </button>
+                    );
+                  })}
                 </div>
-              </form>
+              )}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* INSIDE A FOLDER VIEW */}
+      {currentFolderId && searchQuery.trim() === '' && currentFolder && (
+        <div>
+          {/* Active Folder Header Banner */}
+          <div className="glass-panel" style={{ padding: '1.75rem 2rem', borderRadius: '18px', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <Folder size={24} color="var(--accent-color)" />
+                <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+                  {currentFolder.name}
+                </h2>
+                <span className="badge" style={{
+                  backgroundColor: currentFolder.visibility === 'private' ? 'rgba(255, 159, 10, 0.15)' : 'rgba(48, 209, 88, 0.15)',
+                  color: currentFolder.visibility === 'private' ? '#ff9f0a' : '#30d158',
+                  fontSize: '0.75rem',
+                  fontWeight: 700
+                }}>
+                  {currentFolder.isSystemFolder ? 'SYSTEM' : currentFolder.visibility.toUpperCase()}
+                </span>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: 0 }}>
+                {currentFolder.description || 'Folder directory.'} 
+                {currentFolder.ownerName && ` • Created by ${currentFolder.ownerName}`}
+                {currentFolder.allowContributions && !currentFolder.isSystemFolder && ' • Community contributions enabled'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              {/* Add Subfolder Button */}
+              {(isOwnerOfFolder(currentFolder) || isAdmin) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFolderForm({
+                      name: '',
+                      description: '',
+                      visibility: currentFolder.visibility,
+                      allowContributions: currentFolder.allowContributions,
+                      parentId: currentFolder.id
+                    });
+                    setIsFolderModalOpen(true);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ borderRadius: '10px', padding: '0.55rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Plus size={15} /> Add Subfolder
+                </button>
+              )}
+
+              {/* Add Resource to this folder */}
+              {(currentFolder.allowContributions || isOwnerOfFolder(currentFolder) || isAdmin) && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenUpload(currentFolder.id)}
+                  className="btn btn-primary"
+                  style={{ borderRadius: '10px', padding: '0.55rem 1.15rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+                >
+                  <UploadCloud size={16} /> Upload File
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* SUBFOLDERS SECTION */}
+          {currentSubfolders.length > 0 && (
+            <div style={{ marginBottom: '2.5rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Subfolders ({currentSubfolders.length})
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+                {currentSubfolders.map(subf => (
+                  <div
+                    key={subf.id}
+                    onClick={() => setCurrentFolderId(subf.id)}
+                    className="glass-panel"
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      border: '1px solid var(--border-color)',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.borderColor = 'var(--accent-color)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
+                      <Folder size={20} color="var(--accent-color)" />
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{subf.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {getResourceCountForFolder(subf.id)} items
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} color="var(--text-secondary)" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* RESOURCES / FILES LIST SECTION */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Files in {currentFolder.name} ({currentFolderResources.length})
+              </h3>
+            </div>
+
+            {currentFolderResources.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '4rem 1.5rem', border: '1px dashed var(--border-color)', borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.01)' }}>
+                <UploadCloud size={44} color="var(--text-secondary)" style={{ opacity: 0.5, marginBottom: '0.75rem' }} />
+                <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 0.25rem 0' }}>Folder is Empty</h4>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 1.25rem 0' }}>
+                  No materials or PDFs uploaded to this folder yet.
+                </p>
+                {(currentFolder.allowContributions || isOwnerOfFolder(currentFolder) || isAdmin) && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenUpload(currentFolder.id)}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.85rem', padding: '0.6rem 1.25rem', borderRadius: '10px' }}
+                  >
+                    Upload First Resource
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="table-responsive" style={{ border: '1px solid var(--border-color)', borderRadius: '14px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                  <thead style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                    <tr>
+                      <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)', fontWeight: 600 }}>File Name</th>
+                      <th style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Category</th>
+                      <th style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Size</th>
+                      <th style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Uploaded By</th>
+                      <th style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Date</th>
+                      <th style={{ padding: '0.85rem 1.25rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentFolderResources.map(res => {
+                      const canManage = isOwnerOfResource(res) || isAdmin;
+                      return (
+                        <tr 
+                          key={res.id} 
+                          style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.15s ease' }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.02)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <td style={{ padding: '1rem 1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                              <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.04)', padding: '0.5rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {getFileIcon(res)}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                                  {res.title}
+                                </div>
+                                {res.description && (
+                                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                    {res.description}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
+                            <span className="badge" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', fontSize: '0.75rem' }}>
+                              {res.category || 'General'}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                            {res.fileSizeFormatted || (res.size ? formatBytes(res.size) : '—')}
+                          </td>
+
+                          <td style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                            {res.uploadedBy || 'Senior'}
+                          </td>
+
+                          <td style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                            {res.date || res.createdAt?.split('T')[0] || '—'}
+                          </td>
+
+                          <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => setViewerFile(res)}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                                title="Preview File"
+                              >
+                                <Eye size={14} /> Preview
+                              </button>
+
+                              {canManage && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingResource(res);
+                                      setEditResourceForm({
+                                        title: res.title || '',
+                                        description: res.description || '',
+                                        category: res.category || 'General',
+                                        folderId: res.folderId || currentFolderId
+                                      });
+                                    }}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '0.4rem', borderRadius: '8px', color: 'var(--text-secondary)' }}
+                                    title="Edit Metadata"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteConfirm({ type: 'file', item: res })}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '0.4rem', borderRadius: '8px', color: '#ff453a' }}
+                                    title="Delete File"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* New Folder Modal */}
-      {isNewFolderModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '400px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2.5rem 2rem'
-          }}>
-            <button 
-              onClick={() => setIsNewFolderModalOpen(false)}
-              style={{
-                position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-primary)'
-              }}
-            >
-              <X size={20} />
-            </button>
-
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const trimmed = newFolderName.trim();
-              if (!trimmed) return;
-              // Check for duplicate folder name in the current folder context
-              const duplicate = folders.some(f => f.name.toLowerCase() === trimmed.toLowerCase() && f.parentId === currentFolderId);
-              if (duplicate) {
-                alert('A folder with this name already exists in this folder.');
-                return;
-              }
-              setSubmitting(true);
-              try {
-                const newFolderObj = {
-                  id: trimmed.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
-                  name: trimmed,
-                  parentId: currentFolderId
-                };
-                const previousFolders = [...folders];
-                mutateFolders([...folders, newFolderObj], false);
-                setNewFolderName('');
-                setIsNewFolderModalOpen(false);
-                try {
-                  await addFolder(newFolderObj);
-                  mutateFolders([...folders, newFolderObj], true);
-                } catch (err) {
-                  console.error(err);
-                  alert(err.message || 'Failed to create folder.');
-                  mutateFolders(previousFolders, false);
-                }
-              } finally {
-                setSubmitting(false);
-              }
-            }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
-                Create New Folder
-              </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '2rem' }}>
-                Define a custom study folder (e.g. "5th Year" or "Interview Prep").
-              </p>
-
-              <div className="input-group">
-                <label className="input-label">Folder Name *</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="e.g. 5th Year"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setIsNewFolderModalOpen(false)} 
-                  className="btn btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={submitting}
-                  className="btn btn-primary"
-                  style={{ opacity: submitting ? 0.7 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}
-                >
-                  {submitting ? 'Creating...' : 'Create Folder'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {viewerFile && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          zIndex: 2000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '2rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '800px',
-            height: '85vh',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.5)'
-          }}>
-            {/* Close Button */}
-            <button 
-              onClick={() => setViewerFile(null)}
-              style={{
-                position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-primary)'
-              }}
-            >
-              <X size={24} />
-            </button>
-
-            {/* Header info */}
-            <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', textAlign: 'left' }}>
-              <span className="badge" style={{ fontSize: '0.7rem', marginBottom: '0.5rem' }}>{viewerFile.type} Preview</span>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>{viewerFile.title}</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {viewerFile.fileName ? `File: ${viewerFile.fileName}` : ''} {viewerFile.fileSize ? ` • Size: ${viewerFile.fileSize}` : ''}
-              </p>
-            </div>
-
-            {/* Document Content Area */}
-            <div style={{ 
-              flexGrow: 1, 
-              overflowY: 'auto', 
-              backgroundColor: '#f9f9fa', 
-              color: '#111112',
-              borderRadius: '12px', 
-              border: '1px solid #e5e5e7',
-              padding: (viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#') ? '0' : '2rem',
-              fontFamily: 'var(--font-sans)',
-              textAlign: 'left',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              {((viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#')) ? (
-                // Render original uploaded file content
-                viewerFile.type === 'Image' || (viewerFile.fileName && (viewerFile.fileName.endsWith('.png') || viewerFile.fileName.endsWith('.jpg') || viewerFile.fileName.endsWith('.jpeg'))) ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexGrow: 1, padding: '1rem' }}>
-                    <img 
-                      src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
-                      alt={viewerFile.title} 
-                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
-                    />
-                  </div>
-                ) : (
-                  <iframe 
-                    src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
-                    style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none', borderRadius: '12px' }} 
-                    title={viewerFile.title}
-                  />
-                )
-              ) : (
-                // Fallback / Pre-seeded Simulated Document Preview templates
-                viewerFile.title.toLowerCase().includes('resume') || viewerFile.title.toLowerCase().includes('cv') || viewerFile.fileName?.toLowerCase().includes('resume') ? (
-                  <div style={{ maxWidth: '650px', margin: '0 auto' }}>
-                    {/* CV Header */}
-                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                      <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0 0 0.25rem 0', letterSpacing: '-0.02em', color: '#111' }}>
-                        SWAPNIL PATIL
-                      </h2>
-                      <p style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}>
-                        swapnil.patil@spit.ac.in | +91 98765 43210 | Mumbai, India
-                      </p>
-                      <p style={{ fontSize: '0.85rem', color: '#007aff', fontWeight: 600, margin: '0.25rem 0 0 0' }}>
-                        github.com/swapnilpatil | linkedin.com/in/swapnil-patil
-                      </p>
-                    </div>
-
-                    {/* CV Section: Education */}
-                    <div style={{ marginBottom: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                        EDUCATION
-                      </h3>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
-                        <span>Sardar Patel Institute of Technology (SPIT)</span>
-                        <span>2022 – 2026</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#555' }}>
-                        <span>B.Tech in Computer Engineering</span>
-                        <span>GPA: 9.8 / 10.0</span>
-                      </div>
-                    </div>
-
-                    {/* CV Section: Experience */}
-                    <div style={{ marginBottom: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                        PROFESSIONAL EXPERIENCE
-                      </h3>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
-                        <span>NVIDIA – Software Engineer Intern</span>
-                        <span>Summer 2025</span>
-                      </div>
-                      <p style={{ fontSize: '0.85rem', color: '#333', margin: '0.25rem 0 0.5rem 0', fontStyle: 'italic' }}>
-                        Deep Learning Frameworks Tools Team
-                      </p>
-                      <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem', margin: 0 }}>
-                        <li style={{ marginBottom: '0.25rem' }}>Accelerated CUDA training workloads for large-scale transformer architectures.</li>
-                        <li>Developed visualization pipeline dashboards to track tensor convergence speeds during epochs.</li>
-                      </ul>
-                    </div>
-
-                    {/* CV Section: Projects */}
-                    <div style={{ marginBottom: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                        PROJECTS
-                      </h3>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                        <span>Loop SPIT Placement Portal</span>
-                      </div>
-                      <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem', margin: '0.25rem 0 0.5rem 0' }}>
-                        <li>Created a peer-to-peer portal for seniors to share preparation strategies, notes, and PDF sheets.</li>
-                        <li>Implemented a document index system with simulated resume previewing overlays.</li>
-                      </ul>
-                    </div>
-
-                    {/* CV Section: Skills */}
-                    <div>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                        TECHNICAL SKILLS
-                      </h3>
-                      <p style={{ fontSize: '0.85rem', color: '#333', margin: 0 }}>
-                        <strong>Languages:</strong> C++, Python, JavaScript (ES6+), SQL, Bash
-                      </p>
-                      <p style={{ fontSize: '0.85rem', color: '#333', margin: '0.25rem 0 0 0' }}>
-                        <strong>Technologies:</strong> React, Node.js, Express, PyTorch, Git, CUDA, Docker
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  // Generic Study Guide / Notes Viewer
-                  <div style={{ maxWidth: '650px', margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                      <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#111', margin: '0 0 0.5rem 0' }}>
-                        {viewerFile.title}
-                      </h2>
-                      <p style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}>
-                        SPIT Placement & Study Resources Network
-                      </p>
-                    </div>
-
-                    <div style={{ marginBottom: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                        1. CORE SYLLABUS OVERVIEW
-                      </h3>
-                      <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
-                        This document serves as a comprehensive study sheet compiled by SPIT seniors. It highlights high-yielding topics frequently asked during technical rounds, coding tests, and engineering exams.
-                      </p>
-                    </div>
-
-                    <div style={{ marginBottom: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                        2. KEY FORMULAS & THEOREMS
-                      </h3>
-                      <div style={{ backgroundColor: '#f0f0f3', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'monospace', color: '#222', borderLeft: '4px solid #007aff', marginBottom: '1rem' }}>
-                        // Time Complexity Approximations<br />
-                        - Quick Sort (Average Case): O(N log N)<br />
-                        - Binary Search Tree Search: O(log N)<br />
-                        - Floyd-Warshall Algorithm: O(V³)
-                      </div>
-                      <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem' }}>
-                        <li style={{ marginBottom: '0.25rem' }}>Understand spatial invariants and reference pointers.</li>
-                        <li>Dry run edge cases including null inputs, circular arrays, and single-node structures.</li>
-                      </ul>
-                    </div>
-
-                    <div>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                        3. INTERVIEW QUESTIONS & PREPARATION TIPS
-                      </h3>
-                      <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
-                        Prepare standard behavioral answers (STAR method) and explain structural design patterns like Singleton, Observer, and Factory. Ensure you speak clearly during system design mock interviews.
-                      </p>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
+      {/* 100MB STREAMING FILE UPLOAD MODAL */}
+      {isUploadModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '540px', borderRadius: '20px', padding: '2rem', border: '1px solid var(--border-color)', boxShadow: '0 30px 60px rgba(0,0,0,0.6)' }}>
             
-            {/* Viewer Footer */}
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Viewing file in secure sandbox.
-              </span>
-              <button 
-                type="button" 
-                onClick={() => setViewerFile(null)}
-                className="btn btn-primary"
-                style={{ padding: '0.5rem 1.5rem', borderRadius: '8px' }}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <UploadCloud size={20} color="var(--accent-color)" />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Add Resource</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isUploading && setIsUploadModalOpen(false)}
+                disabled={isUploading}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: isUploading ? 'not-allowed' : 'pointer', padding: 0 }}
               >
-                Close Viewer
+                <X size={20} />
               </button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {editingResource && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '550px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2rem',
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
-          }}>
-            <button 
-              onClick={() => setEditingResource(null)}
-              style={{
-                position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-primary)'
-              }}
-            >
-              <X size={20} />
-            </button>
+            <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* Drag & Drop File Zone */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    const f = e.dataTransfer.files[0];
+                    setUploadFile(f);
+                    if (!uploadTitle) setUploadTitle(f.name.replace(/\.[^/.]+$/, ''));
+                  }
+                }}
+                style={{
+                  border: uploadFile ? '2px solid var(--accent-color)' : '2px dashed var(--border-color)',
+                  borderRadius: '14px',
+                  padding: '2rem 1.5rem',
+                  textAlign: 'center',
+                  backgroundColor: uploadFile ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                  transition: 'all 0.2s ease',
+                  cursor: isUploading ? 'not-allowed' : 'pointer'
+                }}
+                onClick={() => {
+                  if (!isUploading) document.getElementById('resource-file-input')?.click();
+                }}
+              >
+                <input
+                  id="resource-file-input"
+                  type="file"
+                  style={{ display: 'none' }}
+                  disabled={isUploading}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      const f = e.target.files[0];
+                      setUploadFile(f);
+                      if (!uploadTitle) setUploadTitle(f.name.replace(/\.[^/.]+$/, ''));
+                    }
+                  }}
+                />
 
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '2rem' }}>
-              Edit Study Resource {!isAdmin && '(Requires Admin Approval)'}
-            </h2>
+                {uploadFile ? (
+                  <div>
+                    <CheckCircle size={32} color="var(--accent-color)" style={{ marginBottom: '0.5rem' }} />
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{uploadFile.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      Size: {formatBytes(uploadFile.size)}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent-color)', marginTop: '0.5rem', display: 'inline-block' }}>
+                      Click to change file
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <UploadCloud size={36} color="var(--text-secondary)" style={{ opacity: 0.6, marginBottom: '0.75rem' }} />
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      Drag & Drop File Here
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      or click to browse from device (Up to 100 MB)
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                      Supports PDF, PNG, JPG, Word, Excel, PPTX
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            <form onSubmit={handleSaveResource}>
-              <div className="input-group">
-                <label className="input-label">Title *</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={editResourceForm.title} 
-                  onChange={e => setEditResourceForm({ ...editResourceForm, title: e.target.value })} 
+              {/* Resource Name */}
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Resource Name</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g. DSA Complete Placement Roadmap"
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  disabled={isUploading}
                   required
                 />
               </div>
 
-              <div className="form-grid-2col" style={{ marginBottom: '1rem' }}>
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">Category *</label>
-                  <select
-                    className="input-field"
-                    value={editResourceForm.category}
-                    onChange={e => setEditResourceForm({ ...editResourceForm, category: e.target.value })}
-                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="Coding">Coding</option>
-                    <option value="College Subjects">College Subjects</option>
-                    <option value="Web Development">Web Development</option>
-                    <option value="CSE">CSE</option>
-                    <option value="Placement">Placement</option>
-                  </select>
-                </div>
-
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">File Type *</label>
-                  <select
-                    className="input-field"
-                    value={editResourceForm.type}
-                    onChange={e => setEditResourceForm({ ...editResourceForm, type: e.target.value })}
-                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="PDF">PDF</option>
-                    <option value="Link">Link</option>
-                    <option value="Note">Note</option>
-                    <option value="Sheet">Sheet</option>
-                    <option value="Roadmap">Roadmap</option>
-                    <option value="Interview Questions">Interview Questions</option>
-                  </select>
-                </div>
+              {/* Description */}
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Description (Optional)</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Brief note or chapter summary"
+                  value={uploadDescription}
+                  onChange={(e) => setUploadDescription(e.target.value)}
+                  disabled={isUploading}
+                />
               </div>
 
-              <div className="form-grid-2col" style={{ marginBottom: '1rem' }}>
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">Folder Location *</label>
+              {/* Target Folder & Category */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label className="input-label">Target Folder</label>
                   <select
                     className="input-field"
-                    value={editResourceForm.folderId}
-                    onChange={e => setEditResourceForm({ ...editResourceForm, folderId: e.target.value })}
+                    value={uploadFolderId}
+                    onChange={(e) => setUploadFolderId(e.target.value)}
+                    disabled={isUploading}
                     style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                   >
                     {folders.map(f => (
-                      <option key={f.id} value={f.id}>{getFolderName(f.id) || f.name}</option>
+                      <option key={f.id} value={f.id}>
+                        {f.parentId ? `  ↳ ${f.name}` : f.name} {f.visibility === 'private' ? '🔒' : ''}
+                      </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">File Link / URL</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    value={editResourceForm.link} 
-                    onChange={e => setEditResourceForm({ ...editResourceForm, link: e.target.value })} 
-                  />
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label className="input-label">Category</label>
+                  <select
+                    className="input-field"
+                    value={uploadCategory}
+                    onChange={(e) => setUploadCategory(e.target.value)}
+                    disabled={isUploading}
+                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="General">General</option>
+                    <option value="Placement">Placement</option>
+                    <option value="Coding">Coding</option>
+                    <option value="Notes">Notes</option>
+                    <option value="Interview">Interview</option>
+                    <option value="Cheatsheet">Cheatsheet</option>
+                  </select>
                 </div>
               </div>
 
-              <button 
-                type="submit" 
-                disabled={submitting}
-                className="btn btn-primary" 
-                style={{ 
-                  width: '100%', 
-                  marginTop: '1rem',
-                  opacity: submitting ? 0.7 : 1,
-                  cursor: submitting ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {submitting ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                    <div style={{ position: 'relative', width: '24px', height: '24px' }}>
-                      <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
-                        <circle
-                          cx="18"
-                          cy="18"
-                          r="15"
-                          fill="none"
-                          stroke="rgba(255, 255, 255, 0.2)"
-                          strokeWidth="3"
-                        />
-                        <circle
-                          cx="18"
-                          cy="18"
-                          r="15"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="3"
-                          strokeDasharray="94.2"
-                          strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
-                          strokeLinecap="round"
-                          style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
-                        />
-                      </svg>
-                      <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '8px',
-                        fontWeight: 'bold',
-                        color: 'currentColor'
-                      }}>
-                        {uploadProgress}%
-                      </div>
-                    </div>
-                    <span>{uploadProgress === 100 ? 'Saving...' : 'Saving...'}</span>
+              {/* Upload Progress Bar & Stats */}
+              {isUploading && uploadStats && (
+                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    <span>Uploading... {uploadStats.percent}%</span>
+                    <span>{uploadStats.loadedFormatted} / {uploadStats.totalFormatted}</span>
                   </div>
-                ) : 'Save Resource Details'}
-              </button>
+                  
+                  {/* Real progress track */}
+                  <div style={{ height: '8px', width: '100%', backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.5rem' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${uploadStats.percent}%`,
+                      backgroundColor: 'var(--accent-color)',
+                      transition: 'width 0.2s linear',
+                      borderRadius: '4px'
+                    }} />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    <span>Speed: {uploadStats.speedFormatted}</span>
+                    <span>{uploadStats.remainingSecs !== null ? `~${uploadStats.remainingSecs} sec remaining` : 'Calculating...'}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Alert */}
+              {uploadError && (
+                <div style={{ backgroundColor: 'rgba(255, 69, 58, 0.1)', border: '1px solid rgba(255, 69, 58, 0.3)', color: '#ff453a', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  {uploadError}
+                </div>
+              )}
+
+              {/* Success Notification */}
+              {uploadSuccess && (
+                <div style={{ backgroundColor: 'rgba(48, 209, 88, 0.1)', border: '1px solid rgba(48, 209, 88, 0.3)', color: '#30d158', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <CheckCircle size={16} />
+                  <span>Upload completed successfully! Added to folder.</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                {isUploading ? (
+                  <button
+                    type="button"
+                    onClick={handleCancelUpload}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.65rem 1.25rem', borderRadius: '10px', color: '#ff453a' }}
+                  >
+                    Cancel Upload
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsUploadModalOpen(false)}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.65rem 1.25rem', borderRadius: '10px' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={!uploadFile}
+                      style={{ padding: '0.65rem 1.5rem', borderRadius: '10px', fontWeight: 600 }}
+                    >
+                      Start Upload
+                    </button>
+                  </>
+                )}
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Custom styled effects */}
-      <style>{`
-        .resource-card {
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .resource-card:hover {
-          transform: translateY(-5px);
-          border-color: var(--text-secondary);
-          box-shadow: var(--card-shadow);
-        }
-        .folder-card {
-          transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .folder-card:hover {
-          transform: translateY(-2px);
-          border-color: var(--text-primary) !important;
-          box-shadow: var(--card-shadow);
-        }
-        .active-folder {
-          box-shadow: var(--card-shadow);
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 0.35; }
-        }
-        .skeleton-pulse {
-          animation: pulse 1.5s infinite ease-in-out;
-        }
-      `}</style>
-    </>
+      {/* CREATE FOLDER MODAL */}
+      {isFolderModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', borderRadius: '20px', padding: '2rem', border: '1px solid var(--border-color)', boxShadow: '0 30px 60px rgba(0,0,0,0.6)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Folder size={20} color="var(--accent-color)" />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Create New Folder</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFolderModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateFolder} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Folder Name</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g. Dynamic Programming, Personal Notes"
+                  value={folderForm.name}
+                  onChange={(e) => setFolderForm({ ...folderForm, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Description (Optional)</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Brief purpose of this folder"
+                  value={folderForm.description}
+                  onChange={(e) => setFolderForm({ ...folderForm, description: e.target.value })}
+                />
+              </div>
+
+              {/* Visibility Options */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label className="input-label">Visibility</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div
+                    onClick={() => setFolderForm({ ...folderForm, visibility: 'private', allowContributions: false })}
+                    style={{
+                      border: folderForm.visibility === 'private' ? '2px solid #ff9f0a' : '1px solid var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      backgroundColor: folderForm.visibility === 'private' ? 'rgba(255, 159, 10, 0.08)' : 'transparent',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <Lock size={18} color="#ff9f0a" style={{ marginBottom: '0.25rem' }} />
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Private</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Only you & admin</div>
+                  </div>
+
+                  <div
+                    onClick={() => setFolderForm({ ...folderForm, visibility: 'public', allowContributions: true })}
+                    style={{
+                      border: folderForm.visibility === 'public' ? '2px solid #30d158' : '1px solid var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      backgroundColor: folderForm.visibility === 'public' ? 'rgba(48, 209, 88, 0.08)' : 'transparent',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <Globe size={18} color="#30d158" style={{ marginBottom: '0.25rem' }} />
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Public</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Visible to college</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Allow Contributions checkbox for public folders */}
+              {folderForm.visibility === 'public' && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={folderForm.allowContributions}
+                    onChange={(e) => setFolderForm({ ...folderForm, allowContributions: e.target.checked })}
+                  />
+                  <span>Allow other students to contribute files to this folder</span>
+                </label>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsFolderModalOpen(false)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.65rem 1.25rem', borderRadius: '10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: '0.65rem 1.5rem', borderRadius: '10px', fontWeight: 600 }}
+                >
+                  Create Folder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT FOLDER MODAL */}
+      {editingFolder && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', borderRadius: '20px', padding: '2rem', border: '1px solid var(--border-color)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Edit size={18} color="var(--accent-color)" />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Edit Folder Details</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingFolder(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditFolder} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Folder Name</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={editingFolder.name}
+                  onChange={(e) => setEditingFolder({ ...editingFolder, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Description</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={editingFolder.description || ''}
+                  onChange={(e) => setEditingFolder({ ...editingFolder, description: e.target.value })}
+                />
+              </div>
+
+              {!editingFolder.isSystemFolder && (
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label className="input-label">Visibility</label>
+                  <select
+                    className="input-field"
+                    value={editingFolder.visibility}
+                    onChange={(e) => setEditingFolder({ ...editingFolder, visibility: e.target.value })}
+                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingFolder(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.65rem 1.25rem', borderRadius: '10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: '0.65rem 1.5rem', borderRadius: '10px', fontWeight: 600 }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT RESOURCE METADATA MODAL */}
+      {editingResource && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', borderRadius: '20px', padding: '2rem', border: '1px solid var(--border-color)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Edit size={18} color="var(--accent-color)" />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Edit Resource Details</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingResource(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditResource} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Title</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={editResourceForm.title}
+                  onChange={(e) => setEditResourceForm({ ...editResourceForm, title: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Description</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={editResourceForm.description}
+                  onChange={(e) => setEditResourceForm({ ...editResourceForm, description: e.target.value })}
+                />
+              </div>
+
+              {/* Move to another folder */}
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label">Move to Folder</label>
+                <select
+                  className="input-field"
+                  value={editResourceForm.folderId}
+                  onChange={(e) => setEditResourceForm({ ...editResourceForm, folderId: e.target.value })}
+                  style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                >
+                  {folders.map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.parentId ? `  ↳ ${f.name}` : f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingResource(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.65rem 1.25rem', borderRadius: '10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: '0.65rem 1.5rem', borderRadius: '10px', fontWeight: 600 }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', borderRadius: '20px', padding: '2rem', border: '1px solid rgba(255, 69, 58, 0.3)', textAlign: 'center' }}>
+            <AlertCircle size={48} color="#ff453a" style={{ marginBottom: '1rem' }} />
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+              Confirm Permanent Deletion
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.75rem', lineHeight: '1.5' }}>
+              Are you sure you want to permanently delete{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>"{deleteConfirm.item?.name || deleteConfirm.item?.title}"</strong>?
+              {deleteConfirm.type === 'folder' && ' All files and subfolders inside it will also be permanently deleted from storage.'}
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.65rem 1.5rem', borderRadius: '10px', flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteDelete}
+                style={{
+                  padding: '0.65rem 1.5rem',
+                  borderRadius: '10px',
+                  flex: 1,
+                  backgroundColor: '#ff453a',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FILE PREVIEW MODAL */}
+      {viewerFile && (
+        <FileViewerModal
+          file={viewerFile}
+          onClose={() => setViewerFile(null)}
+        />
+      )}
+
+    </div>
   );
 }

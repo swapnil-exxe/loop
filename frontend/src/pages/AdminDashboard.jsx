@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, ChevronDown, ChevronUp, Search, Folder, HardDrive, ShieldCheck, ExternalLink } from 'lucide-react';
 import { useCachedData } from '../hooks/useCachedData';
 import {
   getPendingStories,
@@ -30,8 +30,11 @@ import {
   approveProfileEdit,
   rejectProfileEdit,
   approveRegistration,
-  updateUser
+  updateUser,
+  getAdminResourceStats,
+  formatBytes
 } from '../utils/db';
+import FileViewerModal from '../components/FileViewerModal';
 
 const parsePosition = (posStr) => {
   if (!posStr) return { x: 50, y: 50, zoom: 1.0 };
@@ -478,6 +481,7 @@ export default function AdminDashboard() {
   const { data: cachedActiveAchievements, mutate: mutateActiveAchievements } = useCachedData('achievements', getAchievements);
   const { data: cachedUsersList, mutate: mutateUsersList } = useCachedData('users', getUsers);
   const { data: cachedFolders, mutate: mutateFolders } = useCachedData('folders', getFolders);
+  const { data: cachedResourceStats, mutate: mutateResourceStats } = useCachedData('adminResourceStats', getAdminResourceStats);
 
   const pendingStories = cachedPendingStories || [];
   const pendingResources = cachedPendingResources || [];
@@ -486,6 +490,7 @@ export default function AdminDashboard() {
   const activeAchievements = cachedActiveAchievements || [];
   const usersList = cachedUsersList || [];
   const folders = cachedFolders || [];
+  const resourceStats = cachedResourceStats || null;
 
   const loading = !cachedPendingStories || !cachedPendingResources || !cachedActiveStories || !cachedActiveResources || !cachedActiveAchievements || !cachedUsersList || !cachedFolders;
   const [usersSearch, setUsersSearch] = useState('');
@@ -518,9 +523,15 @@ export default function AdminDashboard() {
     return path.join(' > ');
   };
 
-  const handleDeleteFolder = async (folderId) => {
-    if (window.confirm('Are you sure you want to delete this folder? Subfolders and resources inside this folder will be unassigned.')) {
-      await deleteFolder(folderId);
+  const handleDeleteFolder = async (folder) => {
+    const folderObj = typeof folder === 'string' ? folders.find(f => f.id === folder) : folder;
+    if (folderObj && (folderObj.isSystemFolder || folderObj.folderType === 'system')) {
+      alert('System folders cannot be deleted. They are protected by college policy.');
+      return;
+    }
+    const folderName = folderObj?.name || 'this folder';
+    if (window.confirm(`Are you sure you want to delete "${folderName}"? Subfolders and resources inside this folder will be unassigned or removed.`)) {
+      await deleteFolder(folderObj?.id || folder);
       await refreshData();
     }
   };
@@ -667,14 +678,15 @@ export default function AdminDashboard() {
 
   const refreshData = async () => {
     try {
-      const [pStories, pResources, aStories, aResources, aAchievements, uList, savedFolders] = await Promise.all([
+      const [pStories, pResources, aStories, aResources, aAchievements, uList, savedFolders, rStats] = await Promise.all([
         getPendingStories(),
         getPendingResources(),
         getStories(),
         getResources(),
         getAchievements(),
         getUsers(),
-        getFolders()
+        getFolders(),
+        getAdminResourceStats().catch(() => null)
       ]);
       
       mutatePendingStories(pStories, false);
@@ -684,6 +696,7 @@ export default function AdminDashboard() {
       mutateActiveAchievements(aAchievements, false);
       mutateUsersList(uList, false);
       mutateFolders(savedFolders, false);
+      if (rStats) mutateResourceStats(rStats, false);
     } catch (err) {
       console.error("Error refreshing data:", err);
     }
@@ -1440,6 +1453,49 @@ export default function AdminDashboard() {
 
                 {/* Active Resources */}
                 <div>
+                  {/* Storage & Resource Metrics Banner */}
+                  {resourceStats && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                      gap: '1rem',
+                      marginBottom: '1.5rem'
+                    }}>
+                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(0, 113, 227, 0.1)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <HardDrive size={22} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Storage Used</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{resourceStats.totalStorageFormatted || '0 B'}</div>
+                        </div>
+                      </div>
+
+                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(52, 199, 89, 0.1)', color: '#34c759', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <FileText size={22} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Files</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{resourceStats.totalResources || 0} files</div>
+                        </div>
+                      </div>
+
+                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(255, 149, 0, 0.1)', color: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Folder size={22} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Folders</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{resourceStats.totalFolders || 0}</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                            {resourceStats.systemFolders || 0} Sys • {resourceStats.publicFolders || 0} Pub • {resourceStats.privateFolders || 0} Priv
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                     <div 
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }} 
@@ -1449,24 +1505,34 @@ export default function AdminDashboard() {
                       {resourcesExpanded ? <ChevronUp size={20} style={{ color: 'var(--text-secondary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--text-secondary)' }} />}
                     </div>
                     {resourcesExpanded && (
-                      <div style={{ position: 'relative', minWidth: '240px' }}>
-                        <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-                        <input
-                          type="text"
-                          placeholder="Search study resources..."
-                          value={resourcesSearch}
-                          onChange={(e) => setResourcesSearch(e.target.value)}
-                          style={{
-                            padding: '0.4rem 0.75rem 0.4rem 2rem',
-                            fontSize: '0.85rem',
-                            borderRadius: '20px',
-                            border: '1px solid var(--border-color)',
-                            backgroundColor: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)',
-                            outline: 'none',
-                            width: '100%'
-                          }}
-                        />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', minWidth: '220px' }}>
+                          <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                          <input
+                            type="text"
+                            placeholder="Search study resources..."
+                            value={resourcesSearch}
+                            onChange={(e) => setResourcesSearch(e.target.value)}
+                            style={{
+                              padding: '0.4rem 0.75rem 0.4rem 2rem',
+                              fontSize: '0.85rem',
+                              borderRadius: '20px',
+                              border: '1px solid var(--border-color)',
+                              backgroundColor: 'var(--bg-secondary)',
+                              color: 'var(--text-primary)',
+                              outline: 'none',
+                              width: '100%'
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/resources')}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                          <ExternalLink size={14} /> Explorer
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1480,24 +1546,39 @@ export default function AdminDashboard() {
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '1rem 1.5rem',
-                            borderBottom: '1px solid var(--border-color)'
+                            borderBottom: '1px solid var(--border-color)',
+                            gap: '1rem',
+                            flexWrap: 'wrap'
                           }}>
                             <div>
-                              <p style={{ fontWeight: 600 }}>{res.title}</p>
-                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <p style={{ fontWeight: 600, margin: 0 }}>{res.title}</p>
+                                {res.size ? (
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-secondary)', padding: '0.1rem 0.4rem', borderRadius: '6px' }}>
+                                    {res.fileSizeFormatted || formatBytes(res.size)}
+                                  </span>
+                                ) : null}
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  textTransform: 'uppercase',
+                                  color: res.storageProvider === 's3' ? '#ff9500' : '#0071e3',
+                                  backgroundColor: res.storageProvider === 's3' ? 'rgba(255, 149, 0, 0.1)' : 'rgba(0, 113, 227, 0.1)',
+                                  border: `1px solid ${res.storageProvider === 's3' ? 'rgba(255, 149, 0, 0.3)' : 'rgba(0, 113, 227, 0.3)'}`,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '4px',
+                                  fontWeight: 600
+                                }}>
+                                  {res.storageProvider || 'gridfs'}
+                                </span>
+                              </div>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
                                 {res.category} • Folder: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getFolderName(res.folderId) || res.folder || 'None'}</span> • Type: {res.type} • Shared by: {res.uploadedBy}
                               </p>
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                               <button 
                                 type="button" 
-                                onClick={() => setViewerFile({
-                                  title: res.title,
-                                  type: res.type === 'Sheet' || res.type === 'Note' || res.type === 'Roadmap' ? 'PDF' : res.type,
-                                  fileName: res.title + '.pdf',
-                                  fileSize: '1.2 MB',
-                                  previewUrl: res.link || '#'
-                                })}
+                                onClick={() => setViewerFile(res)}
                                 className="btn btn-secondary" 
                                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
                               >
@@ -1610,28 +1691,46 @@ export default function AdminDashboard() {
               <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', maxHeight: '400px', overflowY: 'auto' }}>
                 {folders.map((folder) => {
                   const parentFolder = folders.find(f => f.id === folder.parentId);
+                  const isSys = folder.isSystemFolder || folder.folderType === 'system';
                   return (
                     <div key={folder.id} style={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       padding: '1rem 1.5rem',
-                      borderBottom: '1px solid var(--border-color)'
+                      borderBottom: '1px solid var(--border-color)',
+                      gap: '0.75rem',
+                      flexWrap: 'wrap'
                     }}>
                       <div>
-                        <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{folder.name}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{folder.name}</p>
+                          {isSys ? (
+                            <span style={{ fontSize: '0.65rem', backgroundColor: 'rgba(0, 113, 227, 0.12)', color: '#0071e3', border: '1px solid rgba(0, 113, 227, 0.25)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                              <ShieldCheck size={11} /> System Protected
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.65rem', backgroundColor: folder.visibility === 'private' ? 'rgba(255, 69, 58, 0.1)' : 'rgba(52, 199, 89, 0.1)', color: folder.visibility === 'private' ? '#ff453a' : '#34c759', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                              {folder.visibility === 'private' ? 'Private' : 'Public'}
+                            </span>
+                          )}
+                        </div>
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
-                          ID: {folder.id} {parentFolder ? `• Parent: ${parentFolder.name}` : '• Root Folder'}
+                          ID: {folder.id} {parentFolder ? `• Parent: ${parentFolder.name}` : '• Root Folder'} {folder.ownerName ? `• Owner: ${folder.ownerName}` : ''}
                         </p>
                       </div>
-                      <button 
-                        onClick={() => handleDeleteFolder(folder.id)} 
-                        className="btn btn-secondary" 
-                        style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}
-                        title="Delete Folder"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {!isSys ? (
+                        <button 
+                          onClick={() => handleDeleteFolder(folder)} 
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}
+                          title="Delete Folder"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>Protected</span>
+                      )}
                     </div>
                   );
                 })}
@@ -1646,9 +1745,12 @@ export default function AdminDashboard() {
                   if (!name) return;
                   
                   const newFolder = {
-                    id: name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                    id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
                     name,
-                    parentId: parentId === 'none' ? null : parentId
+                    parentId: parentId === 'none' ? null : parentId,
+                    folderType: 'system',
+                    isSystemFolder: true,
+                    visibility: 'public'
                   };
                   
                   await addFolder(newFolder);
@@ -4051,15 +4153,7 @@ export default function AdminDashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setViewerFile({
-                      title: previewingPendingResource.title,
-                      type: previewingPendingResource.type === 'Sheet' || previewingPendingResource.type === 'Note' || previewingPendingResource.type === 'Roadmap' ? 'PDF' : previewingPendingResource.type,
-                      fileName: previewingPendingResource.title + (previewingPendingResource.type === 'PDF' ? '.pdf' : '.png'),
-                      fileSize: '1.2 MB',
-                      previewUrl: previewingPendingResource.link || '#'
-                    });
-                  }}
+                  onClick={() => setViewerFile(previewingPendingResource)}
                   className="btn btn-secondary"
                   style={{ padding: '0.45rem 1.25rem', fontSize: '0.8rem', borderRadius: '8px', cursor: 'pointer' }}
                 >
@@ -4114,231 +4208,10 @@ export default function AdminDashboard() {
       )}
 
       {viewerFile && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          zIndex: 2000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '2rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '800px',
-            height: '85vh',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.5)'
-          }}>
-            {/* Close Button */}
-            <button 
-              onClick={() => setViewerFile(null)}
-              style={{
-                position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-primary)'
-              }}
-            >
-              <X size={24} />
-            </button>
-
-            {/* Header info */}
-            <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', textAlign: 'left' }}>
-              <span className="badge" style={{ fontSize: '0.7rem', marginBottom: '0.5rem' }}>{viewerFile.type} Preview</span>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>{viewerFile.title}</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {viewerFile.fileName ? `File: ${viewerFile.fileName}` : ''} {viewerFile.fileSize ? ` • Size: ${viewerFile.fileSize}` : ''}
-              </p>
-            </div>
-
-            {/* Document Content Area */}
-            <div style={{ 
-              flexGrow: 1, 
-              overflowY: 'auto', 
-              backgroundColor: '#f9f9fa', 
-              color: '#111112',
-              borderRadius: '12px', 
-              border: '1px solid #e5e5e7',
-              padding: (viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#') ? '0' : '2rem',
-              fontFamily: 'var(--font-sans)',
-              textAlign: 'left',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              {((viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#')) ? (
-                // Render original uploaded file content
-                viewerFile.type === 'Image' || (viewerFile.fileName && (viewerFile.fileName.endsWith('.png') || viewerFile.fileName.endsWith('.jpg') || viewerFile.fileName.endsWith('.jpeg'))) ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexGrow: 1, padding: '1rem' }}>
-                    <img 
-                      src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
-                      alt={viewerFile.title} 
-                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
-                    />
-                  </div>
-                ) : (
-                  <iframe 
-                    src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
-                    style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none', borderRadius: '12px' }} 
-                    title={viewerFile.title}
-                  />
-                )
-              ) : (
-                // Fallback / Pre-seeded Simulated Document Preview templates
-                viewerFile.title.toLowerCase().includes('resume') || viewerFile.title.toLowerCase().includes('cv') || viewerFile.fileName?.toLowerCase().includes('resume') ? (
-                <div style={{ maxWidth: '650px', margin: '0 auto' }}>
-                  {/* CV Header */}
-                  <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0 0 0.25rem 0', letterSpacing: '-0.02em', color: '#111' }}>
-                      SWAPNIL PATIL
-                    </h2>
-                    <p style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}>
-                      swapnil.patil@spit.ac.in | +91 98765 43210 | Mumbai, India
-                    </p>
-                    <p style={{ fontSize: '0.85rem', color: '#007aff', fontWeight: 600, margin: '0.25rem 0 0 0' }}>
-                      github.com/swapnilpatil | linkedin.com/in/swapnil-patil
-                    </p>
-                  </div>
-
-                  {/* CV Section: Education */}
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                      EDUCATION
-                    </h3>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
-                      <span>Sardar Patel Institute of Technology (SPIT)</span>
-                      <span>2022 – 2026</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#555' }}>
-                      <span>B.Tech in Computer Engineering</span>
-                      <span>GPA: 9.8 / 10.0</span>
-                    </div>
-                  </div>
-
-                  {/* CV Section: Experience */}
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                      PROFESSIONAL EXPERIENCE
-                    </h3>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
-                      <span>NVIDIA – Software Engineer Intern</span>
-                      <span>Summer 2025</span>
-                    </div>
-                    <p style={{ fontSize: '0.85rem', color: '#333', margin: '0.25rem 0 0.5rem 0', fontStyle: 'italic' }}>
-                      Deep Learning Frameworks Tools Team
-                    </p>
-                    <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem', margin: 0 }}>
-                      <li style={{ marginBottom: '0.25rem' }}>Accelerated CUDA training workloads for large-scale transformer architectures.</li>
-                      <li>Developed visualization pipeline dashboards to track tensor convergence speeds during epochs.</li>
-                    </ul>
-                  </div>
-
-                  {/* CV Section: Projects */}
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                      PROJECTS
-                    </h3>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                      <span>Loop SPIT Placement Portal</span>
-                    </div>
-                    <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem', margin: '0.25rem 0 0.5rem 0' }}>
-                      <li>Created a peer-to-peer portal for seniors to share preparation strategies, notes, and PDF sheets.</li>
-                      <li>Implemented a document index system with simulated resume previewing overlays.</li>
-                    </ul>
-                  </div>
-
-                  {/* CV Section: Skills */}
-                  <div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ccc', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#222' }}>
-                      TECHNICAL SKILLS
-                    </h3>
-                    <p style={{ fontSize: '0.85rem', color: '#333', margin: 0 }}>
-                      <strong>Languages:</strong> C++, Python, JavaScript (ES6+), SQL, Bash
-                    </p>
-                    <p style={{ fontSize: '0.85rem', color: '#333', margin: '0.25rem 0 0 0' }}>
-                      <strong>Technologies:</strong> React, Node.js, Express, PyTorch, Git, CUDA, Docker
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                // Generic Study Guide / Notes Viewer
-                <div style={{ maxWidth: '650px', margin: '0 auto' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#111', margin: '0 0 0.5rem 0' }}>
-                      {viewerFile.title}
-                    </h2>
-                    <p style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}>
-                      SPIT Placement & Study Resources Network
-                    </p>
-                  </div>
-
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                      1. CORE SYLLABUS OVERVIEW
-                    </h3>
-                    <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
-                      This document serves as a comprehensive study sheet compiled by SPIT seniors. It highlights high-yielding topics frequently asked during technical rounds, coding tests, and engineering exams.
-                    </p>
-                  </div>
-
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                      2. KEY FORMULAS & THEOREMS
-                    </h3>
-                    <div style={{ backgroundColor: '#f0f0f3', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'monospace', color: '#222', borderLeft: '4px solid #007aff', marginBottom: '1rem' }}>
-                      // Time Complexity Approximations<br />
-                      - Quick Sort (Average Case): O(N log N)<br />
-                      - Binary Search Tree Search: O(log N)<br />
-                      - Floyd-Warshall Algorithm: O(V³)
-                    </div>
-                    <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem' }}>
-                      <li style={{ marginBottom: '0.25rem' }}>Understand spatial invariants and reference pointers.</li>
-                      <li>Dry run edge cases including null inputs, circular arrays, and single-node structures.</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                      3. INTERVIEW QUESTIONS & PREPARATION TIPS
-                    </h3>
-                    <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
-                      Prepare standard behavioral answers (STAR method) and explain structural design patterns like Singleton, Observer, and Factory. Ensure you speak clearly during system design mock interviews.
-                    </p>
-                  </div>
-                </div>
-              )
-            )}
-            </div>
-            
-            {/* Viewer Footer */}
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Viewing file in secure sandbox.
-              </span>
-              <button 
-                type="button" 
-                onClick={() => setViewerFile(null)}
-                className="btn btn-primary"
-                style={{ padding: '0.5rem 1.5rem', borderRadius: '8px' }}
-              >
-                Close Viewer
-              </button>
-            </div>
-          </div>
-        </div>
+        <FileViewerModal
+          file={viewerFile}
+          onClose={() => setViewerFile(null)}
+        />
       )}
     </>
   );

@@ -9,7 +9,10 @@ const mongoSanitize = require('express-mongo-sanitize');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
+const busboy = require('busboy');
 const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
+const StorageService = require('./services/storageService');
+const { ensureSystemFolders } = require('./scripts/initSystemFolders');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -71,11 +74,11 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", "ws:", "http://localhost:5173", "http://127.0.0.1:5173"],
-      frameSrc: ["'self'", "data:", "blob:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "ws:", "http://localhost:5173", "http://127.0.0.1:5173", "https:"],
+      frameSrc: ["'self'", "data:", "blob:", "https:"],
       frameAncestors: ["'self'", "https://*.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173"],
-      objectSrc: ["'none'"],
+      objectSrc: ["'self'", "blob:", "data:"],
       upgradeInsecureRequests: [],
     },
   },
@@ -273,6 +276,7 @@ async function connectWithFallback() {
         }
       });
       console.log('Connected to primary MongoDB database successfully.');
+      ensureSystemFolders().catch(e => console.error('System folders sync error:', e.message));
       return;
     } catch (err) {
       console.error('Primary MongoDB connection error:', err.message);
@@ -285,6 +289,7 @@ async function connectWithFallback() {
       serverSelectionTimeoutMS: 4000
     });
     console.log('Connected to local fallback MongoDB successfully.');
+    ensureSystemFolders().catch(e => console.error('System folders sync error:', e.message));
   } catch (err) {
     console.error('Local fallback MongoDB connection error:', err.message);
   }
@@ -316,36 +321,202 @@ function escapeRegExp(string) {
 // 1. Folders
 app.get('/api/folders', authenticateToken, async (req, res) => {
   try {
-    const folders = await Folder.find({});
+    const { category, parentId } = req.query;
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const userEmail = req.user ? req.user.email : null;
+    const userId = req.user ? req.user.id : null;
+
+    // Base query:
+    // 1. System folders: visible to all authenticated users
+    // 2. Public folders: visible to all authenticated users
+    // 3. Private folders: ONLY visible to owner or Admin
+    const visibilityConditions = [
+      { folderType: 'system' },
+      { visibility: 'public' }
+    ];
+
+    if (isAdmin) {
+      visibilityConditions.push({ visibility: 'private' });
+    } else if (userEmail || userId) {
+      visibilityConditions.push({
+        visibility: 'private',
+        $or: [
+          ...(userEmail ? [{ ownerEmail: userEmail }] : []),
+          ...(userId ? [{ ownerId: userId }] : [])
+        ]
+      });
+    }
+
+    let filter = { $or: visibilityConditions };
+
+    if (category === 'system') {
+      filter = { folderType: 'system' };
+    } else if (category === 'public') {
+      filter = { folderType: 'user', visibility: 'public' };
+    } else if (category === 'private') {
+      if (isAdmin) {
+        filter = { folderType: 'user', visibility: 'private' };
+      } else {
+        filter = {
+          folderType: 'user',
+          visibility: 'private',
+          $or: [
+            ...(userEmail ? [{ ownerEmail: userEmail }] : []),
+            ...(userId ? [{ ownerId: userId }] : [])
+          ]
+        };
+      }
+    }
+
+    if (parentId !== undefined) {
+      filter.parentId = parentId === 'null' || parentId === '' ? null : parentId;
+    }
+
+    const folders = await Folder.find(filter).sort({ isSystemFolder: -1, createdAt: 1 });
     res.json(folders);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/folders', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/folders', authenticateToken, async (req, res) => {
   try {
-    const sanitizedBody = sanitizeObject({ ...req.body });
-    const folder = await Folder.create(sanitizedBody);
+    const { name, description, parentId, visibility, allowContributions, isSystemFolder } = req.body;
+    const isAdmin = req.user && req.user.role === 'Admin';
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Folder name is required.' });
+    }
+    if (name.length > 100) {
+      return res.status(400).json({ error: 'Folder name cannot exceed 100 characters.' });
+    }
+
+    // Check parent folder if provided
+    if (parentId) {
+      const parentFolder = await Folder.findOne({ id: parentId });
+      if (!parentFolder) {
+        return res.status(404).json({ error: 'Parent folder not found.' });
+      }
+      if (parentFolder.visibility === 'private') {
+        const isParentOwner = parentFolder.ownerEmail === req.user.email || (parentFolder.ownerId && String(parentFolder.ownerId) === String(req.user.id));
+        if (!isParentOwner && !isAdmin) {
+          return res.status(403).json({ error: 'You do not have permission to add folders inside this private folder.' });
+        }
+      }
+    }
+
+    const folderType = (isAdmin && isSystemFolder) ? 'system' : 'user';
+    const isSystem = (isAdmin && isSystemFolder) ? true : false;
+    const folderVisibility = (visibility === 'private') ? 'private' : 'public';
+
+    const cleanSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30);
+    const folderId = `${cleanSlug}-${Date.now()}`;
+
+    const folder = await Folder.create({
+      id: folderId,
+      name: name.trim(),
+      description: description ? description.trim() : '',
+      parentId: parentId || null,
+      ownerId: req.user.id || null,
+      ownerEmail: req.user.email,
+      ownerName: req.user.name || req.user.email.split('@')[0],
+      folderType,
+      visibility: folderVisibility,
+      allowContributions: allowContributions !== undefined ? Boolean(allowContributions) : true,
+      isSystemFolder: isSystem
+    });
+
     res.status(201).json(folder);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.delete('/api/folders/:id', authenticateToken, requireAdmin, async (req, res) => {
+app.patch('/api/folders/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const sanitizedId = sanitizeString(id);
-    await Folder.deleteOne({ id: sanitizedId });
-    
-    // Update any subfolders to make them root folders
-    await Folder.updateMany({ parentId: sanitizedId }, { parentId: null });
-    
-    // Re-assign study resources inside deleted folder to a fallback folder 'sem-1'
-    await Resource.updateMany({ folderId: sanitizedId }, { folderId: 'sem-1' });
-    
-    res.json({ message: 'Folder deleted and orphaned entities re-assigned.' });
+    const folder = await Folder.findOne({ id });
+    if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
+
+    if (folder.isSystemFolder && !isAdmin) {
+      return res.status(403).json({ error: 'System folders can only be renamed or modified by an Administrator.' });
+    }
+
+    if (!folder.isSystemFolder && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'You do not have permission to modify this folder.' });
+    }
+
+    const updates = {};
+    if (req.body.name && typeof req.body.name === 'string') updates.name = req.body.name.trim();
+    if (req.body.description !== undefined) updates.description = req.body.description.trim();
+    if (req.body.visibility && ['public', 'private'].includes(req.body.visibility)) updates.visibility = req.body.visibility;
+    if (req.body.allowContributions !== undefined) updates.allowContributions = Boolean(req.body.allowContributions);
+
+    const updated = await Folder.findOneAndUpdate({ id }, { $set: updates }, { new: true });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/folders/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const folder = await Folder.findOne({ id });
+    if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
+
+    // Core academic folders are protected from deletion to prevent breaking system hierarchy
+    const PROTECTED_SYSTEM_ROOTS = [
+      'system-placement-material', 'system-cse-ce', 'system-extc',
+      'cse-1st-year', 'cse-2nd-year', 'cse-3rd-year', 'cse-4th-year',
+      'extc-1st-year', 'extc-2nd-year', 'extc-3rd-year', 'extc-4th-year'
+    ];
+    if (PROTECTED_SYSTEM_ROOTS.includes(id)) {
+      return res.status(403).json({ error: 'This core academic system folder is protected and cannot be deleted.' });
+    }
+
+    if (folder.isSystemFolder && !isAdmin) {
+      return res.status(403).json({ error: 'System folders can only be deleted by an Administrator.' });
+    }
+
+    if (!folder.isSystemFolder && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'You do not have permission to delete this folder.' });
+    }
+
+    // Safe cascading deletion: collect all subfolder IDs recursively
+    const allFolderIdsToDelete = [id];
+    const collectChildren = async (parentId) => {
+      const children = await Folder.find({ parentId });
+      for (const child of children) {
+        allFolderIdsToDelete.push(child.id);
+        await collectChildren(child.id);
+      }
+    };
+    await collectChildren(id);
+
+    // Clean up physical/cloud storage files for all resources inside deleted folders
+    const resourcesToDelete = await Resource.find({ folderId: { $in: allFolderIdsToDelete } });
+    for (const resItem of resourcesToDelete) {
+      if (resItem.storageKey) {
+        await StorageService.deleteFile(resItem.storageKey, resItem.storageProvider);
+      }
+    }
+
+    // Delete records from database
+    await Resource.deleteMany({ folderId: { $in: allFolderIdsToDelete } });
+    await Folder.deleteMany({ id: { $in: allFolderIdsToDelete } });
+
+    res.json({
+      message: 'Folder and its contents deleted successfully without orphaned records.',
+      deletedFoldersCount: allFolderIdsToDelete.length,
+      deletedResourcesCount: resourcesToDelete.length
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -959,79 +1130,452 @@ app.post('/api/pending-stories/:id/approve', authenticateToken, requireAdmin, as
 });
 
 // 5. Resources
+
+// Admin Resources Statistics
+app.get('/api/admin/resources-stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const totalFolders = await Folder.countDocuments({});
+    const systemFolders = await Folder.countDocuments({ folderType: 'system' });
+    const publicFolders = await Folder.countDocuments({ folderType: 'user', visibility: 'public' });
+    const privateFolders = await Folder.countDocuments({ folderType: 'user', visibility: 'private' });
+    
+    const totalResources = await Resource.countDocuments({});
+    const pendingResources = await PendingResource.countDocuments({ status: 'pending' });
+
+    // Aggregate total storage used
+    const storageAgg = await Resource.aggregate([
+      { $group: { _id: null, totalBytes: { $sum: '$size' } } }
+    ]);
+    const totalBytes = storageAgg.length > 0 ? storageAgg[0].totalBytes : 0;
+
+    res.json({
+      totalFolders,
+      systemFolders,
+      publicFolders,
+      privateFolders,
+      totalResources,
+      pendingResources,
+      totalBytes,
+      totalStorageFormatted: StorageService.formatBytes(totalBytes)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List Resources with folder privacy & permission checks
 app.get('/api/resources', authenticateToken, async (req, res) => {
   try {
-    // Project out heavy base64 link content in resource listing to optimize payload & latency
-    const resources = await Resource.find({}).select('-link');
+    const { folderId, search, type, visibility } = req.query;
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const userEmail = req.user ? req.user.email : null;
+    const userId = req.user ? req.user.id : null;
+
+    let filter = {};
+
+    if (folderId) {
+      // Privacy enforcement (IDOR protection)
+      const targetFolder = await Folder.findOne({ id: folderId });
+      if (targetFolder && targetFolder.visibility === 'private') {
+        const isOwner = targetFolder.ownerEmail === userEmail || (targetFolder.ownerId && String(targetFolder.ownerId) === String(userId));
+        if (!isOwner && !isAdmin) {
+          return res.status(403).json({ error: 'This folder is private. You do not have permission to access its resources.' });
+        }
+      }
+      filter.folderId = folderId;
+    }
+
+    if (search) {
+      const sanitized = sanitizeString(search);
+      filter.$or = [
+        { title: { $regex: sanitized, $options: 'i' } },
+        { description: { $regex: sanitized, $options: 'i' } },
+        { uploadedBy: { $regex: sanitized, $options: 'i' } },
+        { originalFileName: { $regex: sanitized, $options: 'i' } }
+      ];
+    }
+
+    if (type && type !== 'all') {
+      filter.type = type;
+    }
+
+    if (visibility) {
+      filter.visibility = visibility;
+    }
+
+    // Normal users only see approved resources unless they uploaded it
+    if (!isAdmin) {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { status: 'approved' },
+          ...(userEmail ? [{ uploadedByEmail: userEmail }] : [])
+        ]
+      });
+    }
+
+    const resources = await Resource.find(filter)
+      .select('-link')
+      .sort({ createdAt: -1 });
+
     res.json(resources);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Single Resource Metadata
 app.get('/api/resources/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const sanitizedId = sanitizeString(id);
-    const resource = await Resource.findOne({ id: sanitizedId });
+    const resource = await Resource.findOne({ id: sanitizeString(id) });
     if (!resource) {
       return res.status(404).json({ error: 'Resource not found.' });
     }
+
+    // Verify folder privacy
+    const folder = await Folder.findOne({ id: resource.folderId });
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isUploader = resource.uploadedByEmail === req.user.email;
+
+    if (folder && folder.visibility === 'private') {
+      const isFolderOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
+      if (!isFolderOwner && !isUploader && !isAdmin) {
+        return res.status(403).json({ error: 'Access denied to private resource.' });
+      }
+    }
+
     res.json(resource);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/resources', authenticateToken, requireAdmin, async (req, res) => {
+// Secure File Streaming / Download / Preview
+app.get('/api/resources/:id/file', authenticateToken, async (req, res) => {
   try {
-    const { title, folderId, link } = req.body;
-    // Required fields
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      return res.status(400).json({ error: 'Resource title is required.' });
+    const { id } = req.params;
+    const resource = await Resource.findOne({ id: sanitizeString(id) });
+    if (!resource) {
+      return res.status(404).json({ error: 'Resource not found.' });
     }
-    if (title.length > 500) {
-      return res.status(400).json({ error: 'Resource title is too long.' });
+
+    // Verify privacy
+    const folder = await Folder.findOne({ id: resource.folderId });
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isUploader = resource.uploadedByEmail === req.user.email;
+
+    if (folder && folder.visibility === 'private') {
+      const isFolderOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
+      if (!isFolderOwner && !isUploader && !isAdmin) {
+        return res.status(403).json({ error: 'Access denied to private file.' });
+      }
     }
-    if (!folderId || typeof folderId !== 'string') {
-      return res.status(400).json({ error: 'folderId is required.' });
+
+    // S3 Cloud Storage
+    if (resource.storageProvider === 's3' && resource.storageKey) {
+      const downloadUrl = await StorageService.getDownloadUrl(resource.storageKey, resource.originalFileName || resource.title);
+      if (downloadUrl) {
+        return res.redirect(downloadUrl);
+      }
     }
-    if (link && typeof link !== 'string') {
-      return res.status(400).json({ error: 'Resource link is invalid.' });
+
+    // GridFS Streaming
+    if (resource.storageKey && resource.storageKey.startsWith('gridfs:')) {
+      return await StorageService.streamFromGridFS(
+        resource.storageKey,
+        req,
+        res,
+        resource.originalFileName || `${resource.title}.${resource.type === 'PDF' ? 'pdf' : 'bin'}`,
+        resource.mimeType
+      );
     }
-    if (link && !link.startsWith('data:') && link.length > 2000) {
-      return res.status(400).json({ error: 'Resource link is too long.' });
+
+    // Local Disk Fallback
+    if (resource.link && resource.link.startsWith('/uploads/')) {
+      const localPath = path.join(__dirname, resource.link);
+      if (fs.existsSync(localPath)) {
+        res.setHeader('Content-Type', resource.mimeType || 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(resource.originalFileName || resource.title)}"`);
+        return fs.createReadStream(localPath).pipe(res);
+      }
     }
-    
-    const processedBody = processResourceFiles(req.body);
-    const resourceData = sanitizeObject({ ...processedBody });
-    resourceData.title = title.trim();
-    if (!resourceData.id) resourceData.id = String(Date.now());
-    if (!resourceData.date) resourceData.date = new Date().toISOString().split('T')[0];
-    
-    const resource = await Resource.create(resourceData);
+
+    res.status(404).json({ error: 'File content not found.' });
+  } catch (err) {
+    console.error('File stream error:', err);
+    res.status(500).json({ error: 'Failed to stream file.' });
+  }
+});
+
+// Initialize Upload (Direct S3 Signed URL or GridFS Stream)
+app.post('/api/resources/init-upload', authenticateToken, async (req, res) => {
+  try {
+    const { filename, mimeType, size, folderId } = req.body;
+    if (!filename || !mimeType) {
+      return res.status(400).json({ error: 'Filename and MIME type are required.' });
+    }
+    if (size > 105 * 1024 * 1024) { // 105MB limit
+      return res.status(400).json({ error: 'Maximum allowed file size is 100 MB.' });
+    }
+    if (!StorageService.isAllowedMime(mimeType)) {
+      return res.status(400).json({ error: 'Unsupported file type. Please upload a PDF, image, or document.' });
+    }
+
+    const folder = await Folder.findOne({ id: folderId });
+    if (!folder) {
+      return res.status(404).json({ error: 'Target folder not found.' });
+    }
+
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
+
+    if (folder.visibility === 'private' && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'You cannot upload to another user private folder.' });
+    }
+    if (folder.folderType === 'user' && !folder.allowContributions && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Community contributions are disabled for this folder.' });
+    }
+
+    if (StorageService.isS3Active()) {
+      const presigned = await StorageService.getPresignedUploadUrl({
+        filename,
+        mimeType,
+        size,
+        folderId,
+        userId: req.user.id
+      });
+      return res.json({
+        provider: 's3',
+        ...presigned
+      });
+    }
+
+    // GridFS Streaming Endpoint
+    res.json({
+      provider: 'gridfs',
+      streamEndpoint: '/api/resources/upload-stream'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// High-speed Streaming Multipart Upload (up to 100MB) via busboy directly into GridFS
+app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
+  try {
+    const bb = busboy({
+      headers: req.headers,
+      limits: {
+        fileSize: 105 * 1024 * 1024, // 105 MB max
+        files: 1
+      }
+    });
+
+    const fields = {};
+    let uploadPromise = null;
+    let fileLimitHit = false;
+
+    bb.on('field', (name, val) => {
+      fields[name] = val;
+    });
+
+    bb.on('file', (name, fileStream, info) => {
+      const { filename, mimeType } = info;
+
+      if (!StorageService.isAllowedMime(mimeType)) {
+        fileStream.resume();
+        return res.status(400).json({ error: 'Unsupported file type. Please upload a PDF, image, or document.' });
+      }
+
+      fileStream.on('limit', () => {
+        fileLimitHit = true;
+        fileStream.resume();
+      });
+
+      // Stream directly into MongoDB GridFS
+      uploadPromise = StorageService.uploadToGridFS(fileStream, filename, mimeType, {
+        uploadedBy: req.user.name || req.user.email,
+        uploadedByEmail: req.user.email
+      });
+    });
+
+    bb.on('error', (err) => {
+      console.error('Busboy error:', err);
+      res.status(500).json({ error: 'Stream error during upload.' });
+    });
+
+    bb.on('finish', async () => {
+      if (fileLimitHit) {
+        return res.status(400).json({ error: 'File is too large. Maximum allowed file size is 100 MB.' });
+      }
+      if (!uploadPromise) {
+        return res.status(400).json({ error: 'No file received in upload stream.' });
+      }
+
+      try {
+        const uploadResult = await uploadPromise;
+        const folderId = fields.folderId || 'system-placement-material';
+        const folder = await Folder.findOne({ id: folderId });
+        
+        const isAdmin = req.user && req.user.role === 'Admin';
+        const isOwner = folder && (folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id)));
+
+        // Permissions check on target folder
+        if (folder && folder.visibility === 'private' && !isOwner && !isAdmin) {
+          await StorageService.deleteFile(uploadResult.storageKey, 'gridfs');
+          return res.status(403).json({ error: 'Cannot upload into private folder.' });
+        }
+
+        const title = (fields.title && fields.title.trim()) || uploadResult.filename.replace(/\.[^/.]+$/, "");
+        const category = fields.category || 'General';
+        const detectedType = StorageService.getFileTypeCategory(uploadResult.contentType, uploadResult.filename);
+        const resourceId = String(Date.now());
+        const resourceUrl = `/api/resources/${resourceId}/file`;
+
+        const newResource = await Resource.create({
+          id: resourceId,
+          title,
+          description: fields.description || '',
+          category,
+          type: detectedType,
+          originalFileName: uploadResult.filename,
+          mimeType: uploadResult.contentType || 'application/pdf',
+          size: uploadResult.size,
+          fileSizeFormatted: StorageService.formatBytes(uploadResult.size),
+          storageProvider: 'gridfs',
+          storageKey: uploadResult.storageKey,
+          url: resourceUrl,
+          folderId,
+          ownerId: req.user.id || null,
+          uploadedBy: req.user.name || req.user.email.split('@')[0],
+          uploadedByEmail: req.user.email,
+          date: new Date().toISOString().split('T')[0],
+          visibility: folder?.visibility || 'public',
+          status: 'approved',
+          semester: fields.semester || '',
+          year: fields.year || '',
+          tags: fields.tags ? fields.tags.split(',').map(t => t.trim()) : []
+        });
+
+        res.status(201).json(newResource);
+      } catch (err) {
+        console.error('Save resource error:', err);
+        res.status(500).json({ error: err.message || 'Failed to save resource record.' });
+      }
+    });
+
+    req.pipe(bb);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete Upload (for S3 Direct Upload)
+app.post('/api/resources/complete-upload', authenticateToken, async (req, res) => {
+  try {
+    const { title, description, category, folderId, storageKey, filename, mimeType, size } = req.body;
+    if (!storageKey || !folderId) {
+      return res.status(400).json({ error: 'storageKey and folderId are required.' });
+    }
+
+    const folder = await Folder.findOne({ id: folderId });
+    if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+
+    const resourceId = String(Date.now());
+    const detectedType = StorageService.getFileTypeCategory(mimeType, filename);
+
+    const resource = await Resource.create({
+      id: resourceId,
+      title: title || filename.replace(/\.[^/.]+$/, ""),
+      description: description || '',
+      category: category || 'General',
+      type: detectedType,
+      originalFileName: filename,
+      mimeType: mimeType || 'application/pdf',
+      size: Number(size) || 0,
+      fileSizeFormatted: StorageService.formatBytes(Number(size) || 0),
+      storageProvider: 's3',
+      storageKey,
+      url: `/api/resources/${resourceId}/file`,
+      folderId,
+      ownerId: req.user.id || null,
+      uploadedBy: req.user.name || req.user.email.split('@')[0],
+      uploadedByEmail: req.user.email,
+      date: new Date().toISOString().split('T')[0],
+      visibility: folder.visibility || 'public',
+      status: 'approved'
+    });
+
     res.status(201).json(resource);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.put('/api/resources/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Edit Resource Metadata (Rename, Move folder, Description, Tags)
+app.patch('/api/resources/:id', authenticateToken, async (req, res) => {
   try {
-    const processedBody = processResourceFiles(req.body);
-    const sanitizedBody = sanitizeObject({ ...processedBody });
-    const resource = await Resource.findOneAndUpdate({ id: req.params.id }, sanitizedBody, { new: true });
+    const { id } = req.params;
+    const resource = await Resource.findOne({ id: sanitizeString(id) });
     if (!resource) return res.status(404).json({ error: 'Resource not found.' });
-    res.json(resource);
+
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = resource.uploadedByEmail === req.user.email || (resource.ownerId && String(resource.ownerId) === String(req.user.id));
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ error: 'You do not have permission to edit this resource.' });
+    }
+
+    const updates = {};
+    if (req.body.title) updates.title = req.body.title.trim();
+    if (req.body.description !== undefined) updates.description = req.body.description.trim();
+    if (req.body.category) updates.category = req.body.category;
+    if (req.body.semester !== undefined) updates.semester = req.body.semester;
+    if (req.body.year !== undefined) updates.year = req.body.year;
+    if (req.body.tags) updates.tags = Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',').map(t => t.trim());
+    
+    // Moving file to another folder
+    if (req.body.folderId && req.body.folderId !== resource.folderId) {
+      const targetFolder = await Folder.findOne({ id: req.body.folderId });
+      if (!targetFolder) return res.status(404).json({ error: 'Target destination folder not found.' });
+      
+      const isTargetOwner = targetFolder.ownerEmail === req.user.email || (targetFolder.ownerId && String(targetFolder.ownerId) === String(req.user.id));
+      if (targetFolder.visibility === 'private' && !isTargetOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Cannot move file into private folder of another user.' });
+      }
+      updates.folderId = req.body.folderId;
+      updates.visibility = targetFolder.visibility;
+    }
+
+    const updated = await Resource.findOneAndUpdate({ id: resource.id }, { $set: updates }, { new: true });
+    res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.delete('/api/resources/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Delete Resource (Safe Deletion with Cloud/GridFS cleanup)
+app.delete('/api/resources/:id', authenticateToken, async (req, res) => {
   try {
-    await Resource.deleteOne({ id: req.params.id });
-    res.json({ message: 'Resource deleted.' });
+    const { id } = req.params;
+    const resource = await Resource.findOne({ id: sanitizeString(id) });
+    if (!resource) return res.status(404).json({ error: 'Resource not found.' });
+
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = resource.uploadedByEmail === req.user.email || (resource.ownerId && String(resource.ownerId) === String(req.user.id));
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ error: 'You do not have permission to delete this resource.' });
+    }
+
+    // Clean up physical file
+    if (resource.storageKey) {
+      await StorageService.deleteFile(resource.storageKey, resource.storageProvider);
+    }
+
+    await Resource.deleteOne({ id: resource.id });
+    res.json({ message: 'Resource permanently deleted.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

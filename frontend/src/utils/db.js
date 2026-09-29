@@ -70,7 +70,7 @@ const authFetch = async (url, options = {}) => {
     }
   }
   const res = await fetch(url, { ...options, headers });
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     if (!window.location.pathname.includes('/login')) {
       localStorage.removeItem('loop_current_user');
       window.location.href = '/login';
@@ -521,12 +521,166 @@ export const addFolder = async (folder) => {
   return res.json();
 };
 
+export const updateFolder = async (id, updates) => {
+  const res = await authFetch(`${API_URL}/folders/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update folder');
+  }
+  return res.json();
+};
+
 export const deleteFolder = async (id) => {
   const res = await authFetch(`${API_URL}/folders/${id}`, {
     method: 'DELETE'
   });
-  if (!res.ok) throw new Error('Failed to delete folder');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to delete folder');
+  }
   return res.json();
+};
+
+export const patchResource = async (id, updates) => {
+  const res = await authFetch(`${API_URL}/resources/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update resource metadata');
+  }
+  return res.json();
+};
+
+export const getAdminResourceStats = async () => {
+  const res = await authFetch(`${API_URL}/admin/resources-stats`);
+  if (!res.ok) throw new Error('Failed to fetch resource stats');
+  return res.json();
+};
+
+export const formatBytes = (bytes, decimals = 1) => {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+export const formatSpeed = (bytesPerSec) => {
+  if (!bytesPerSec || bytesPerSec === 0) return '0 KB/s';
+  const mbps = bytesPerSec / (1024 * 1024);
+  if (mbps >= 1) return `${mbps.toFixed(1)} MB/s`;
+  const kbps = bytesPerSec / 1024;
+  return `${kbps.toFixed(0)} KB/s`;
+};
+
+export const getResourceFileUrl = (resource) => {
+  if (!resource) return '';
+  if (resource.url && resource.url.startsWith('http')) return resource.url;
+  if (resource.url && resource.url.startsWith('/api/')) return `${BASE_URL}${resource.url}`;
+  if (resource.id) return `${BASE_URL}/api/resources/${resource.id}/file`;
+  if (resource.link && resource.link.startsWith('/uploads/')) return `${BASE_URL}${resource.link}`;
+  return resource.link || '';
+};
+
+// High-speed 100MB Streaming Upload with Real Progress, Speed, Time Remaining, and Cancellation
+export const uploadResourceStream = ({ file, title, description, category, folderId, semester, year, tags }, onProgressCallback, abortController) => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (abortController) {
+      abortController.signal.addEventListener('abort', () => {
+        xhr.abort();
+        reject(new Error('Upload cancelled'));
+      });
+    }
+
+    xhr.open('POST', `${API_URL}/resources/upload-stream`);
+    const userSession = localStorage.getItem('loop_current_user');
+    if (userSession) {
+      try {
+        const { token } = JSON.parse(userSession);
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      } catch (e) {}
+    }
+
+    let lastLoaded = 0;
+    let lastTime = Date.now();
+
+    if (xhr.upload) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+          const now = Date.now();
+          const timeDiff = (now - lastTime) / 1000;
+          let speedBps = 0;
+          if (timeDiff >= 0.25) {
+            speedBps = (event.loaded - lastLoaded) / timeDiff;
+            lastLoaded = event.loaded;
+            lastTime = now;
+          }
+
+          const remainingBytes = Math.max(0, event.total - event.loaded);
+          const remainingSecs = speedBps > 0 ? Math.round(remainingBytes / speedBps) : null;
+
+          if (onProgressCallback) {
+            onProgressCallback({
+              percent,
+              loadedBytes: event.loaded,
+              totalBytes: event.total,
+              speedFormatted: formatSpeed(speedBps),
+              remainingSecs,
+              loadedFormatted: formatBytes(event.loaded),
+              totalFormatted: formatBytes(event.total)
+            });
+          }
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (onProgressCallback) {
+          onProgressCallback({ percent: 100, remainingSecs: 0 });
+        }
+        try {
+          const res = JSON.parse(xhr.responseText);
+          resolve(res);
+        } catch (e) {
+          resolve(xhr.responseText);
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.error || 'Upload failed'));
+        } catch (e) {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network connection error during upload. Please retry.'));
+    xhr.ontimeout = () => reject(new Error('Upload connection timed out. Please retry.'));
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', title || '');
+    formData.append('description', description || '');
+    formData.append('category', category || 'General');
+    formData.append('folderId', folderId || '');
+    if (semester) formData.append('semester', semester);
+    if (year) formData.append('year', year);
+    if (tags) formData.append('tags', tags);
+
+    xhr.send(formData);
+  });
 };
 
 export const fileToBase64 = (file) => {
