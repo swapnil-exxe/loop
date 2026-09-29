@@ -70,16 +70,16 @@ app.use(cors({
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "ws:", "http://localhost:5173", "http://127.0.0.1:5173", "https:"],
-      frameSrc: ["'self'", "data:", "blob:", "https:"],
-      frameAncestors: ["'self'", "https://*.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173"],
-      objectSrc: ["'self'", "blob:", "data:"],
-      upgradeInsecureRequests: [],
+      'default-src': ["'self'"],
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      'font-src': ["'self'", "https://fonts.gstatic.com"],
+      'img-src': ["'self'", "data:", "blob:", "https:"],
+      'connect-src': ["'self'", "ws:", "http://localhost:5173", "http://127.0.0.1:5173", "https:"],
+      'frame-src': ["'self'", "data:", "blob:", "https:"],
+      'frame-ancestors': ["'self'", "https://*.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173"],
+      'object-src': ["'self'", "blob:", "data:"],
+      'upgrade-insecure-requests': [],
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -297,9 +297,29 @@ async function connectWithFallback() {
 
 connectWithFallback();
 
+// Root & Health Check Endpoints (Guarantees Render and Cloud health probes always pass 200 OK)
+app.get(['/health', '/api/health'], (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'loop-backend',
+    version: '2.1.0',
+    dbState: mongoose.connection.readyState === 1 ? 'connected' : 'connecting',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    name: 'LOOP Backend API',
+    version: '2.1.0'
+  });
+});
+
 // Middleware to check database connection status before handling API requests
 app.use((req, res, next) => {
-  if (req.path === '/health' || req.path === '/api/health') {
+  if (req.path === '/health' || req.path === '/api/health' || req.path === '/') {
     return next();
   }
   if (mongoose.connection.readyState !== 1) {
@@ -1305,6 +1325,42 @@ app.get('/api/resources/:id/file', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('File stream error:', err);
     res.status(500).json({ error: 'Failed to stream file.' });
+  }
+});
+
+// Direct Resource Creation Endpoint (Backward compatible with JSON/Base64 and direct posting)
+app.post('/api/resources', authenticateToken, async (req, res) => {
+  try {
+    const { title, folderId, link, category, semester, year, tags, description } = req.body;
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      return res.status(400).json({ error: 'Resource title is required.' });
+    }
+    const resolvedFolderId = folderId || 'system-placement-material';
+    const folder = await Folder.findOne({ id: resolvedFolderId });
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = folder && (folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id)));
+    if (folder && folder.visibility === 'private' && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'You cannot upload to another user private folder.' });
+    }
+
+    const processedBody = processResourceFiles(req.body);
+    const resourceData = sanitizeObject({ ...processedBody });
+    resourceData.title = title.trim();
+    if (!resourceData.id) resourceData.id = String(Date.now());
+    if (!resourceData.date) resourceData.date = new Date().toISOString().split('T')[0];
+    resourceData.uploadedBy = req.user.name || req.user.email;
+    resourceData.uploadedByEmail = req.user.email;
+    resourceData.folderId = resolvedFolderId;
+    if (category) resourceData.category = category;
+    if (semester) resourceData.semester = semester;
+    if (year) resourceData.year = year;
+    if (description) resourceData.description = description;
+    if (tags) resourceData.tags = Array.isArray(tags) ? tags : [tags];
+
+    const resource = await Resource.create(resourceData);
+    res.status(201).json(resource);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

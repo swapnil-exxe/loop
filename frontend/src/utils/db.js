@@ -659,9 +659,17 @@ export const uploadResourceStream = ({ file, title, description, category, folde
       } else {
         try {
           const err = JSON.parse(xhr.responseText);
-          reject(new Error(err.error || 'Upload failed'));
+          reject(new Error(err.error || `Upload failed with status ${xhr.status}`));
         } catch (e) {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
+          if (xhr.status === 404) {
+            reject(new Error('Upload streaming endpoint updating on Render. Please wait 1-2 minutes for deployment to finish and retry.'));
+          } else if (xhr.status === 413) {
+            reject(new Error('File exceeds maximum upload size limit (100MB).'));
+          } else if (xhr.status === 502 || xhr.status === 503 || xhr.status === 504) {
+            reject(new Error('Backend server is temporarily waking up. Please wait a few seconds and retry.'));
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
         }
       }
     };
