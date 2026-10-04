@@ -1,4 +1,4 @@
-import { uploadDirectR2, formatBytes, formatSpeed, formatEta } from './upload';
+import { uploadResourceStream, formatBytes, formatSpeed, formatEta } from './upload';
 
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? '' : 'https://loop-qnh9.onrender.com';
 const API_URL = `${BASE_URL}/api`;
@@ -566,7 +566,7 @@ export const getAdminResourceStats = async () => {
   return res.json();
 };
 
-export { formatBytes, formatSpeed, formatEta, uploadDirectR2 };
+export { formatBytes, formatSpeed, formatEta, uploadResourceStream, uploadResourceStream as uploadDirectGridFS };
 
 export const getResourceFileUrl = (resource) => {
   if (!resource) return '';
@@ -577,9 +577,9 @@ export const getResourceFileUrl = (resource) => {
   return resource.link || '';
 };
 
-// High-speed 200MB MongoDB GridFS Direct Streaming Upload with Real Progress, Speed, Time Remaining, and Cancellation
-export const uploadResourceStream = (params, onProgressCallback, abortController) => {
-  return uploadDirectR2({
+// High-speed 200MB MongoDB GridFS Parallel Chunk Streaming Upload
+export const uploadResourceStreamGridFS = (params, onProgressCallback, abortController) => {
+  return uploadResourceStream({
     ...params,
     apiUrl: API_URL,
     onProgress: onProgressCallback,

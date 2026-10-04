@@ -410,6 +410,5 @@ export async function uploadResourceStream({
 
 // Aliases for compatibility
 export const uploadDirectGridFS = uploadResourceStream;
-export const uploadDirectR2 = uploadResourceStream;
 export default uploadResourceStream;
 
