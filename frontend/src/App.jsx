@@ -13,6 +13,7 @@ import Onboarding from './pages/Onboarding';
 import FilePreviewPage from './pages/FilePreviewPage';
 import { UploadProvider } from './context/UploadContext';
 import UploadDock from './components/UploadDock';
+import PortalTransition from './components/PortalTransition';
 
 // Route Guard Component
 function ProtectedRoute({ children }) {
@@ -153,45 +154,13 @@ function AppLayout() {
   );
 }
 
-function SplashIntro() {
-  const [visible, setVisible] = React.useState(true);
-  const [fading, setFading] = React.useState(false);
-
-  React.useEffect(() => {
-    // Hide scrollbar on mount to avoid the right white line (scrollbar gutter) during splash animation
-    document.body.style.overflow = 'hidden';
-
-    const fadeTimer = setTimeout(() => {
-      setFading(true);
-    }, 2000);
-
-    const removeTimer = setTimeout(() => {
-      setVisible(false);
-      // Restore scrollbar once splash is fully removed
-      document.body.style.overflow = '';
-    }, 3000);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(removeTimer);
-      document.body.style.overflow = '';
-    };
-  }, []);
-
-  if (!visible) return null;
-
-  return (
-    <div className={`splash-container ${fading ? 'fade-out' : ''}`}>
-      <div className="splash-logo">LOOP</div>
-    </div>
-  );
-}
-
 export default function App() {
+  const [showPortal, setShowPortal] = React.useState(true);
+
   return (
     <Router>
       <UploadProvider>
-        <SplashIntro />
+        {showPortal && <PortalTransition onComplete={() => setShowPortal(false)} />}
         <AppLayout />
       </UploadProvider>
     </Router>
