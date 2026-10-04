@@ -401,10 +401,8 @@ export async function uploadDirectR2({
  * Handles direct base64 / json posting to /resources or /pending-resources with full XHR progress
  */
 async function uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl, onProgress, abortController }) {
-  if (file.size > 50 * 1024 * 1024) {
-    throw new Error(
-      `File size is ${formatBytes(file.size)}. The active server build requires files under 50 MB for legacy fallback. To enable direct 200 MB Cloudflare R2 uploads, please trigger 'Manual Deploy' on Render (loop-qnh9).`
-    );
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File size is ${formatBytes(file.size)}. Maximum allowed size is 200 MB.`);
   }
 
   const userSession = localStorage.getItem('loop_current_user');
