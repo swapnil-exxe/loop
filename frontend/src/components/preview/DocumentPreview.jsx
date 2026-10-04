@@ -17,17 +17,48 @@ export default function DocumentPreview({
   onError
 }) {
   const canvasRef = useRef(null);
-  const pdfDocRef = useRef(null);
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [isPageRendered, setIsPageRendered] = useState(false);
   const [rendering, setRendering] = useState(false);
   const renderTaskRef = useRef(null);
 
-  // Load PDF Document when blobUrl changes
+  // Track window dimensions for responsive canvas sizing on window change
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800
+  });
+
+  useEffect(() => {
+    let timeoutId;
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setWindowDimensions({
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
+      }, 100);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // 1. Load PDF Document when blobUrl changes
   useEffect(() => {
     let active = true;
 
-    if (!isPdf || !blobUrl) return;
+    if (!isPdf || !blobUrl) {
+      setPdfDoc(null);
+      setIsPageRendered(false);
+      return;
+    }
 
     setRendering(true);
+    setIsPageRendered(false);
+    setPdfDoc(null);
 
     const loadingTask = pdfjsLib.getDocument({
       url: blobUrl,
@@ -38,7 +69,7 @@ export default function DocumentPreview({
     loadingTask.promise
       .then((doc) => {
         if (!active) return;
-        pdfDocRef.current = doc;
+        setPdfDoc(doc);
         if (onDocLoaded) {
           onDocLoaded(doc.numPages);
         }
@@ -54,22 +85,19 @@ export default function DocumentPreview({
 
     return () => {
       active = false;
-      if (renderTaskRef.current) {
-        try {
-          renderTaskRef.current.cancel();
-        } catch (e) {}
-      }
+      try {
+        loadingTask.destroy();
+      } catch (e) {}
     };
   }, [blobUrl, isPdf]);
 
-  // Render current page when pageNum, scale, or doc changes
+  // 2. Render current page automatically when pdfDoc, pageNum, scale, or window size changes
   useEffect(() => {
-    const doc = pdfDocRef.current;
-    if (!doc || !canvasRef.current || !isPdf) return;
+    if (!pdfDoc || !canvasRef.current || !isPdf) return;
 
     let cancelRender = false;
 
-    doc.getPage(pageNum)
+    pdfDoc.getPage(pageNum)
       .then((page) => {
         if (cancelRender) return;
 
@@ -77,24 +105,28 @@ export default function DocumentPreview({
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
 
-        // Cancel previous render task if still in progress
+        // Cancel previous render task safely
         if (renderTaskRef.current) {
           try {
             renderTaskRef.current.cancel();
           } catch (e) {}
+          renderTaskRef.current = null;
         }
 
-        const containerWidth = Math.max(window.innerWidth - 80, 400);
+        const availWidth = Math.max(windowDimensions.width - 64, 360);
         const unscaledViewport = page.getViewport({ scale: 1.0 });
 
-        // Calculate responsive base scale to comfortably fit screen width
-        const targetWidth = Math.min(unscaledViewport.width, containerWidth * 0.9);
+        // Calculate responsive, comfortable reading width (840px - 1040px on desktop)
+        const targetWidth = Math.min(
+          Math.max(unscaledViewport.width * 1.35, 820),
+          availWidth * 0.94
+        );
         const baseScale = targetWidth / unscaledViewport.width;
-        const effectiveScale = baseScale * scale;
+        const effectiveScale = +(baseScale * scale).toFixed(2);
 
         const viewport = page.getViewport({ scale: effectiveScale });
 
-        // High-DPI support (devicePixelRatio) for sharp text rendering
+        // High-DPI support (devicePixelRatio) for sharp rendering
         const pixelRatio = window.devicePixelRatio || 1;
         canvas.width = Math.floor(viewport.width * pixelRatio);
         canvas.height = Math.floor(viewport.height * pixelRatio);
@@ -113,6 +145,11 @@ export default function DocumentPreview({
 
         return renderTask.promise;
       })
+      .then(() => {
+        if (!cancelRender) {
+          setIsPageRendered(true);
+        }
+      })
       .catch((err) => {
         if (err?.name !== 'RenderingCancelledException') {
           console.warn('[DocumentPreview] Page render warning:', err);
@@ -125,9 +162,10 @@ export default function DocumentPreview({
         try {
           renderTaskRef.current.cancel();
         } catch (e) {}
+        renderTaskRef.current = null;
       }
     };
-  }, [pageNum, scale, isPdf]);
+  }, [pdfDoc, pageNum, scale, isPdf, windowDimensions]);
 
   if (isPdf) {
     return (
@@ -138,12 +176,13 @@ export default function DocumentPreview({
         justifyContent: 'flex-start',
         width: '100%',
         minHeight: '100%',
-        paddingBottom: '2rem'
+        paddingBottom: '2.5rem',
+        position: 'relative'
       }}>
-        {rendering && (
+        {(!isPageRendered || rendering) && (
           <div style={{
             position: 'absolute',
-            top: '50%',
+            top: '40%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
             display: 'flex',
@@ -152,8 +191,8 @@ export default function DocumentPreview({
             gap: '0.75rem',
             color: '#a1a1aa'
           }}>
-            <Loader size={32} className="spin-animation" color="#0a84ff" />
-            <span style={{ fontSize: '0.85rem' }}>Loading document...</span>
+            <Loader size={36} className="spin-animation" color="#0a84ff" />
+            <span style={{ fontSize: '0.88rem' }}>Rendering document...</span>
           </div>
         )}
         <canvas
@@ -163,7 +202,9 @@ export default function DocumentPreview({
             borderRadius: '6px',
             backgroundColor: '#ffffff',
             maxWidth: '100%',
-            display: 'block'
+            display: isPageRendered ? 'block' : 'none',
+            opacity: isPageRendered ? 1 : 0,
+            transition: 'opacity 0.2s ease'
           }}
         />
       </div>

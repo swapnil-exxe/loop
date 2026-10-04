@@ -7,7 +7,6 @@ import DocumentPreview from '../components/preview/DocumentPreview';
 import ImagePreview from '../components/preview/ImagePreview';
 import VideoPreview from '../components/preview/VideoPreview';
 import UnsupportedFilePreview from '../components/preview/UnsupportedFilePreview';
-import PreviewNavigation from '../components/preview/PreviewNavigation';
 import { 
   getResourceById, 
   getResources, 
@@ -170,9 +169,9 @@ export default function FilePreviewPage() {
   const fileType = file?.type || '';
 
   const isPdf = ext === 'pdf' || mimeType === 'application/pdf' || fileType === 'PDF';
-  const isImage = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext) || mimeType.startsWith('image/') || fileType === 'Image';
-  const isVideo = ['mp4', 'webm', 'mov'].includes(ext) || mimeType.startsWith('video/') || fileType === 'Video';
-  const isCodeOrText = ['txt', 'csv', 'java', 'py', 'js', 'jsx', 'ts', 'tsx', 'c', 'cpp', 'h', 'css', 'html', 'json', 'xml', 'sql', 'md', 'log'].includes(ext) || mimeType.startsWith('text/');
+  const isImage = !isPdf && (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext) || mimeType.startsWith('image/') || fileType === 'Image');
+  const isVideo = !isPdf && !isImage && (['mp4', 'webm', 'mov'].includes(ext) || mimeType.startsWith('video/') || fileType === 'Video');
+  const isCodeOrText = !isPdf && !isImage && !isVideo && (['txt', 'csv', 'java', 'py', 'js', 'jsx', 'ts', 'tsx', 'c', 'cpp', 'h', 'css', 'html', 'json', 'xml', 'sql', 'md', 'log'].includes(ext) || mimeType.startsWith('text/'));
 
   // Compute format badge
   const badge = useMemo(() => {
@@ -214,6 +213,7 @@ export default function FilePreviewPage() {
     setNumPages(0);
     setTextContent('');
     setError(null);
+    setBlobUrl(null);
 
     const fileUrl = getResourceFileUrl(file);
 
@@ -334,15 +334,17 @@ export default function FilePreviewPage() {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         handleClose();
-      } else if (e.key === 'ArrowLeft' && !isPdf && currentIndex > 0) {
-        handlePrevFile();
-      } else if (e.key === 'ArrowRight' && !isPdf && currentIndex < totalFiles - 1) {
-        handleNextFile();
-      } else if (isPdf) {
-        if (e.key === 'ArrowLeft' && pageNum > 1) {
+      } else if (e.key === 'ArrowLeft') {
+        if (isPdf && pageNum > 1 && !e.shiftKey) {
           setPageNum(p => Math.max(1, p - 1));
-        } else if (e.key === 'ArrowRight' && pageNum < numPages) {
+        } else if (currentIndex > 0) {
+          handlePrevFile();
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (isPdf && pageNum < numPages && !e.shiftKey) {
           setPageNum(p => Math.min(numPages, p + 1));
+        } else if (currentIndex < totalFiles - 1) {
+          handleNextFile();
         }
       }
     };
@@ -516,18 +518,6 @@ export default function FilePreviewPage() {
           </>
         )}
       </main>
-
-      {/* 3. Footer Sibling Navigation (Shown when multiple files exist) */}
-      {totalFiles > 1 && (
-        <PreviewNavigation
-          currentIndex={currentIndex}
-          totalFiles={totalFiles}
-          folderName={folderName}
-          storyTitle={storyTitle}
-          onPrev={handlePrevFile}
-          onNext={handleNextFile}
-        />
-      )}
     </div>
   );
 }

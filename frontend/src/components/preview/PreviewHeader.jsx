@@ -106,8 +106,9 @@ export default function PreviewHeader({
             color: '#a1a1aa',
             flexShrink: 0,
             whiteSpace: 'nowrap',
-            display: 'none', // Shown on wider screens via media query/condition or inline
-            marginLeft: '0.25rem'
+            display: 'inline-block',
+            marginLeft: '0.25rem',
+            opacity: 0.85
           }} className="preview-header-context">
             • {contextInfo}
           </span>
