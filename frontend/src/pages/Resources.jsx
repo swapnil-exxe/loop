@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { 
   getResources, getFolders, addFolder, updateFolder, deleteFolder, 
-  uploadResourceStream, deleteResource, patchResource, formatBytes 
+  uploadResourceStream, deleteResource, patchResource, formatBytes,
+  downloadResourceFile
 } from '../utils/db';
 import { useCachedData } from '../hooks/useCachedData';
 import { useUpload } from '../context/UploadContext';
@@ -112,6 +113,23 @@ export default function Resources() {
     category: 'General',
     folderId: ''
   });
+
+  // Track downloading file ID to prevent duplicate requests
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  const handleDownloadResource = async (resItem, e) => {
+    e?.stopPropagation?.();
+    if (downloadingId === resItem.id) return;
+    setDownloadingId(resItem.id);
+    try {
+      await downloadResourceFile(resItem);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert(err.message || 'Failed to download file.');
+    } finally {
+      setTimeout(() => setDownloadingId(null), 800);
+    }
+  };
 
   // Current user authentication & role
   const userSession = localStorage.getItem('loop_current_user');
@@ -629,14 +647,28 @@ export default function Resources() {
                         {res.uploadedBy || 'Senior'}
                       </td>
                       <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
                           <button
                             type="button"
-                            onClick={() => setViewerFile(res)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewerFile(res);
+                            }}
                             className="btn btn-secondary"
                             style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                            title="Preview File"
                           >
                             <Eye size={13} /> Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDownloadResource(res, e)}
+                            disabled={downloadingId === res.id}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: downloadingId === res.id ? 'wait' : 'pointer' }}
+                            title="Download File"
+                          >
+                            <Download size={13} /> {downloadingId === res.id ? '...' : 'Download'}
                           </button>
                         </div>
                       </td>
@@ -1176,12 +1208,26 @@ export default function Resources() {
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                               <button
                                 type="button"
-                                onClick={() => setViewerFile(res)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewerFile(res);
+                                }}
                                 className="btn btn-secondary"
                                 style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                                 title="Preview File"
                               >
                                 <Eye size={14} /> Preview
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => handleDownloadResource(res, e)}
+                                disabled={downloadingId === res.id}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: downloadingId === res.id ? 'wait' : 'pointer' }}
+                                title="Download Original File"
+                              >
+                                <Download size={14} /> {downloadingId === res.id ? '...' : 'Download'}
                               </button>
 
                               {canManage && (
@@ -1780,7 +1826,9 @@ export default function Resources() {
       {viewerFile && (
         <FileViewerModal
           file={viewerFile}
+          files={currentFolderResources.length > 0 ? currentFolderResources : (searchResults.length > 0 ? searchResults : [viewerFile])}
           onClose={() => setViewerFile(null)}
+          onNavigate={(nextFile) => setViewerFile(nextFile)}
         />
       )}
 

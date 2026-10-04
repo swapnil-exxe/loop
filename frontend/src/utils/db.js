@@ -577,6 +577,62 @@ export const getResourceFileUrl = (resource) => {
   return resource.link || '';
 };
 
+// Safe Binary Download Helper preserving original filename and extension
+export const downloadResourceFile = async (resource) => {
+  if (!resource) throw new Error('Resource is required');
+  const fileUrl = getResourceFileUrl(resource);
+  if (!fileUrl || fileUrl === '#') throw new Error('File download link is unavailable');
+
+  const userSession = localStorage.getItem('loop_current_user');
+  const headers = {};
+  if (userSession) {
+    try {
+      const { token } = JSON.parse(userSession);
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch (e) {}
+  }
+
+  // Detect preferred filename
+  let filename = resource.originalFileName || resource.fileName || resource.title || 'download';
+  // Ensure extension is present if known
+  if (!filename.includes('.')) {
+    const ext = resource.type === 'PDF' ? 'pdf' : (resource.mimeType === 'application/pdf' ? 'pdf' : '');
+    if (ext) filename = `${filename}.${ext}`;
+  }
+
+  const res = await fetch(fileUrl, { headers });
+  if (!res.ok) {
+    throw new Error(`Failed to download file (${res.status})`);
+  }
+
+  // Check Content-Disposition from response header if available
+  const disposition = res.headers.get('content-disposition');
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/i);
+    if (match && match[1]) {
+      try {
+        filename = decodeURIComponent(match[1]);
+      } catch (e) {
+        filename = match[1];
+      }
+    }
+  }
+
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  }, 1000);
+  return filename;
+};
+
 // High-speed 200MB MongoDB GridFS Parallel Chunk Streaming Upload
 export const uploadResourceStreamGridFS = (params, onProgressCallback, abortController) => {
   return uploadResourceStream({
