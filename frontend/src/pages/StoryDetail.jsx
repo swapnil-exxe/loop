@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus, ExternalLink,
-  Briefcase, Sparkles, Building2, Calendar, Star, GraduationCap, CheckCircle2, Eye
-} from 'lucide-react';
+import { ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus, ExternalLink } from 'lucide-react';
 import { getStories, getStoryById, updateStory, deleteStory, addPendingStory, fileToBase64 } from '../utils/db';
 
 const getResourceLink = (res) => {
@@ -378,48 +375,11 @@ export default function StoryDetail() {
   // Format multi-line projects list
   const formatProjects = (projectsString) => {
     if (!projectsString) return null;
-    const lines = projectsString.split('\n').filter(l => l.trim().length > 0);
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        {lines.map((line, index) => {
-          const cleanLine = line.replace(/^\d+[\.\)]\s*/, '');
-          return (
-            <div 
-              key={index} 
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.85rem',
-                padding: '1rem 1.25rem',
-                backgroundColor: 'var(--bg-primary)',
-                borderRadius: '12px',
-                border: '1px solid var(--border-color)',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)'
-              }}
-            >
-              <div style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '8px',
-                backgroundColor: 'var(--bg-secondary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                color: 'var(--text-primary)',
-                fontWeight: 700,
-                fontSize: '0.8rem'
-              }}>
-                {index + 1}
-              </div>
-              <p style={{ fontSize: '0.98rem', color: 'var(--text-primary)', lineHeight: '1.6', margin: 0, fontWeight: 500 }}>
-                {cleanLine}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    );
+    return projectsString.split('\n').map((line, index) => (
+      <p key={index} style={{ marginBottom: '0.75rem', fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+        {line}
+      </p>
+    ));
   };
 
   return (
@@ -483,343 +443,213 @@ export default function StoryDetail() {
         )}
       </div>
 
-      {/* Profile Header */}
+      {/* Profile Header (Notion Page Cover/Header Style) */}
       <header style={{
+        borderBottom: '1px solid var(--border-color)',
+        paddingBottom: '2.5rem',
         marginBottom: '3rem'
       }}>
-        <div style={{
-          padding: '2.5rem',
-          borderRadius: '24px',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.03)',
-          position: 'relative',
-          overflow: 'hidden'
+        <div className="story-header-flex" style={{
+          display: 'flex',
+          gap: '2.5rem',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap'
         }}>
-          {/* Subtle gradient background accent */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '4px',
-            background: 'linear-gradient(90deg, #0071e3, #5e5ce6, #30d158)'
-          }} />
+          {/* Details */}
+          <div style={{ flexGrow: 1, minWidth: '280px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              <span className="badge" style={{ fontSize: '0.7rem' }}>
+                {story.branch} {story.subBranch && `(${story.subBranch})`}
+              </span>
+              <span className="badge" style={{ fontSize: '0.7rem' }}>
+                Class of {story.passoutYear}
+              </span>
+              <span className="badge" style={{ fontSize: '0.7rem', backgroundColor: 'var(--text-primary)', color: 'var(--accent-inverse)' }}>
+                Placed
+              </span>
+            </div>
+            
+            <h1 style={{
+              fontSize: '3rem',
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              marginBottom: '0.75rem',
+              fontFamily: 'var(--font-display)',
+              lineHeight: 1.1
+            }}>
+              {story.name}
+            </h1>
 
-          {/* Top metadata pills */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-            <span style={{
-              padding: '0.35rem 0.85rem',
-              borderRadius: '20px',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              color: 'var(--text-primary)'
+            <p style={{
+              fontSize: '1.25rem',
+              color: 'var(--text-secondary)',
+              fontWeight: 500
             }}>
-              {story.branch} {story.subBranch && `(${story.subBranch})`}
-            </span>
-            <span style={{
-              padding: '0.35rem 0.85rem',
-              borderRadius: '20px',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              color: 'var(--text-secondary)'
-            }}>
-              Class of {story.passoutYear}
-            </span>
-            <span style={{
-              padding: '0.35rem 0.85rem',
-              borderRadius: '20px',
-              backgroundColor: 'rgba(48, 209, 88, 0.12)',
-              border: '1px solid rgba(48, 209, 88, 0.3)',
-              color: '#30d158',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}>
-              <CheckCircle2 size={13} /> Placed
-            </span>
+              {story.role} at <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{story.company}</span>
+            </p>
           </div>
-          
-          <h1 style={{
-            fontSize: '2.75rem',
-            fontWeight: 800,
-            letterSpacing: '-0.03em',
-            marginBottom: '0.6rem',
-            fontFamily: 'var(--font-sans)',
-            color: 'var(--text-primary)',
-            lineHeight: 1.15
-          }}>
-            {story.name}
-          </h1>
+        </div>
 
-          <p style={{
-            fontSize: '1.2rem',
-            color: 'var(--text-secondary)',
-            fontWeight: 500,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            flexWrap: 'wrap',
-            margin: '0 0 1.5rem 0'
-          }}>
-            <span>{story.role}</span>
-            <span style={{ color: 'var(--text-muted)' }}>at</span>
-            <span style={{
-              color: 'var(--text-primary)',
-              fontWeight: 700,
-              padding: '0.2rem 0.65rem',
-              borderRadius: '8px',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              {story.company}
-            </span>
-          </p>
-
-          {/* 4-Tile Bento Stats Grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-            gap: '0.85rem',
-            marginTop: '1.5rem'
-          }}>
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-                <Building2 size={13} /> Company
-              </div>
-              <p style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)', margin: 0 }}>
-                {story.company}
-              </p>
-            </div>
-
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-                <Briefcase size={13} /> Role
-              </div>
-              <p style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)', margin: 0 }}>
-                {story.role}
-              </p>
-            </div>
-
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-                <Calendar size={13} /> Semester Placed
-              </div>
-              <p style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)', margin: 0 }}>
-                Semester {story.semester}
-              </p>
-            </div>
-
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-                <Star size={13} /> CGPA
-              </div>
-              <p style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)', margin: 0 }}>
-                {story.cgpa || 'N/A'}
-              </p>
-            </div>
+        {/* Notion-style Page Properties Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '1rem',
+          marginTop: '2.5rem',
+          padding: '1.5rem',
+          borderRadius: '16px',
+          border: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-secondary)'
+        }}>
+          <div>
+            <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+              Semester Placed
+            </p>
+            <p style={{ fontWeight: 600, fontSize: '1rem' }}>Semester {story.semester}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+              CGPA
+            </p>
+            <p style={{ fontWeight: 600, fontSize: '1rem' }}>{story.cgpa || 'N/A'}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+              Company
+            </p>
+            <p style={{ fontWeight: 600, fontSize: '1rem' }}>{story.company}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+              Role
+            </p>
+            <p style={{ fontWeight: 600, fontSize: '1rem' }}>{story.role}</p>
           </div>
         </div>
       </header>
 
-      {/* Main Reading Block */}
+      {/* Main Notion-Style Reading Block */}
       <main style={{ fontFamily: 'var(--font-sans)' }}>
         
-        {/* Senior Advice Card */}
-        <div style={{
-          padding: '1.75rem 2rem',
-          borderRadius: '18px',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          borderLeft: '5px solid #0071e3',
+        {/* Intro Highlight (Notion Callout) */}
+        <div className="glass-panel" style={{
+          padding: '1.5rem 2rem',
+          borderRadius: '16px',
           marginBottom: '3.5rem',
-          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.02)'
+          borderLeft: '4px solid var(--text-primary)',
+          fontSize: '1.1rem',
+          lineHeight: '1.7',
+          color: 'var(--text-secondary)',
+          fontStyle: 'italic'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.75rem', color: '#0071e3', fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            <Sparkles size={15} /> Senior Advice to Juniors
-          </div>
-          <p style={{
-            fontSize: '1.12rem',
-            lineHeight: '1.7',
-            color: 'var(--text-primary)',
-            fontStyle: 'italic',
-            fontWeight: 500,
-            margin: 0
-          }}>
-            "My biggest advice to SPIT juniors is to stay consistent. Don't wait for companies to arrive. Start building projects in your second year and begin coding practice daily. Your hard work will compounding."
-          </p>
+          "My biggest advice to SPIT juniors is to stay consistent. Don't wait for companies to arrive. Start building projects in your second year and begin coding practice daily. Your hard work will compounding."
         </div>
 
         {/* 4-Year Journey Timeline */}
-        <section style={{ marginBottom: '3.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.75rem' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
-              <GraduationCap size={20} color="var(--text-primary)" />
-            </div>
-            <div>
-              <h2 style={{ fontSize: '1.65rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
-                My Four-Year Journey
-              </h2>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
-                How preparation, projects, and coursework evolved from Semester 1 to Placements
-              </p>
-            </div>
-          </div>
+        <section style={{ marginBottom: '4rem' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '2rem', fontFamily: 'var(--font-display)' }}>
+            My Four-Year Journey
+          </h2>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {/* Year 1 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', position: 'relative' }}>
+            {/* Timeline vertical bar */}
             <div style={{
-              display: 'flex',
-              gap: '1.25rem',
-              padding: '1.5rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.02)'
-            }}>
+              position: 'absolute',
+              left: '1.25rem',
+              top: '1rem',
+              bottom: '1rem',
+              width: '1px',
+              backgroundColor: 'var(--border-color)',
+              zIndex: 0
+            }} />
+
+            {/* Year 1 */}
+            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
               <div style={{
-                width: '32px',
-                height: '32px',
+                width: '2.5rem',
+                height: '2.5rem',
                 borderRadius: '50%',
-                backgroundColor: 'var(--text-primary)',
-                color: 'var(--accent-inverse)',
+                backgroundColor: 'var(--bg-primary)',
+                border: '2px solid var(--text-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
                 fontSize: '0.85rem',
-                fontWeight: 800
+                fontWeight: 700
               }}>1</div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
-                  First Year — Exploration & Foundations
-                </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', lineHeight: '1.7', margin: 0 }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>First Year</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
                   {story.journey.firstYear}
                 </p>
               </div>
             </div>
 
             {/* Year 2 */}
-            <div style={{
-              display: 'flex',
-              gap: '1.25rem',
-              padding: '1.5rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.02)'
-            }}>
+            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
               <div style={{
-                width: '32px',
-                height: '32px',
+                width: '2.5rem',
+                height: '2.5rem',
                 borderRadius: '50%',
-                backgroundColor: 'var(--text-primary)',
-                color: 'var(--accent-inverse)',
+                backgroundColor: 'var(--bg-primary)',
+                border: '2px solid var(--text-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
                 fontSize: '0.85rem',
-                fontWeight: 800
+                fontWeight: 700
               }}>2</div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
-                  Second Year — Core DSA & Skill Building
-                </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', lineHeight: '1.7', margin: 0 }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Second Year</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
                   {story.journey.secondYear}
                 </p>
               </div>
             </div>
 
             {/* Year 3 */}
-            <div style={{
-              display: 'flex',
-              gap: '1.25rem',
-              padding: '1.5rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.02)'
-            }}>
+            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
               <div style={{
-                width: '32px',
-                height: '32px',
+                width: '2.5rem',
+                height: '2.5rem',
                 borderRadius: '50%',
-                backgroundColor: 'var(--text-primary)',
-                color: 'var(--accent-inverse)',
+                backgroundColor: 'var(--bg-primary)',
+                border: '2px solid var(--text-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
                 fontSize: '0.85rem',
-                fontWeight: 800
+                fontWeight: 700
               }}>3</div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
-                  Third Year — Deep Dive & Internships
-                </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', lineHeight: '1.7', margin: 0 }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Third Year</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
                   {story.journey.thirdYear}
                 </p>
               </div>
             </div>
 
             {/* Year 4 */}
-            <div style={{
-              display: 'flex',
-              gap: '1.25rem',
-              padding: '1.5rem',
-              borderRadius: '16px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.02)'
-            }}>
+            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
               <div style={{
-                width: '32px',
-                height: '32px',
+                width: '2.5rem',
+                height: '2.5rem',
                 borderRadius: '50%',
-                backgroundColor: 'var(--text-primary)',
-                color: 'var(--accent-inverse)',
+                backgroundColor: 'var(--bg-primary)',
+                border: '2px solid var(--text-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
                 fontSize: '0.85rem',
-                fontWeight: 800
+                fontWeight: 700
               }}>4</div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
-                  Fourth Year — Placements & Job Offers
-                </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', lineHeight: '1.7', margin: 0 }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Fourth Year</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
                   {story.journey.fourthYear}
                 </p>
               </div>
@@ -828,359 +658,367 @@ export default function StoryDetail() {
         </section>
 
         {/* Preparation Strategy */}
-        <section style={{ marginBottom: '3.5rem' }}>
-          <div style={{
-            padding: '2rem',
-            borderRadius: '20px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
-                <Award size={18} color="var(--text-primary)" />
-              </div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
-                Preparation Strategy & Study Routine
-              </h2>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: '1.75', margin: 0 }}>
-              {story.journey.prep}
-            </p>
-          </div>
+        <section style={{ marginBottom: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Award size={24} />
+            Preparation Strategy & Study Routine
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
+            {story.journey.prep}
+          </p>
         </section>
 
-        {/* Key Projects Built */}
+        {/* Projects Built */}
         {story.journey.projects && (
-          <section style={{ marginBottom: '3.5rem' }}>
+          <section style={{ marginBottom: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1.25rem', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Code size={24} />
+              Key Projects Built
+            </h2>
             <div style={{
-              padding: '2rem',
-              borderRadius: '20px',
+              padding: '1.5rem',
+              borderRadius: '16px',
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-color)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
-                  <Code size={18} color="var(--text-primary)" />
-                </div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
-                  Key Projects Built
-                </h2>
-              </div>
               {formatProjects(story.journey.projects)}
             </div>
           </section>
         )}
 
         {/* The Recruitment Process */}
-        <section style={{ marginBottom: '3.5rem' }}>
-          <div style={{
-            padding: '2rem',
-            borderRadius: '20px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
-                <Layers size={18} color="var(--text-primary)" />
-              </div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
-                How I Secured the Role
-              </h2>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: '1.75', margin: 0 }}>
-              {story.journey.howSecured}
-            </p>
-          </div>
+        <section style={{ marginBottom: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Layers size={24} />
+            How I Secured the Role
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
+            {story.journey.howSecured}
+          </p>
         </section>
 
         {/* Custom Prompts / Sections */}
         {story.customSections && story.customSections.map((sec, index) => (
-          <section key={index} style={{ marginBottom: '3.5rem' }}>
-            <div style={{
-              padding: '2rem',
-              borderRadius: '20px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', marginBottom: '1rem' }}>
-                {sec.title}
-              </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: '1.75', whiteSpace: 'pre-wrap', margin: 0 }}>
-                {sec.content}
-              </p>
-            </div>
+          <section key={index} style={{ marginBottom: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem', fontFamily: 'var(--font-display)' }}>
+              {sec.title}
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
+              {sec.content}
+            </p>
           </section>
         ))}
 
         {/* Resources Used List */}
         {story.resources && story.resources.length > 0 && (
-          <section style={{ marginBottom: '3.5rem' }}>
-            <div style={{
-              padding: '2rem',
-              borderRadius: '20px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
-                  <BookOpen size={18} color="var(--text-primary)" />
-                </div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
-                  Resources Used
-                </h2>
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {story.resources.map((res, index) => {
-                  const link = getResourceLink(res);
-                  return link ? (
-                    <a
-                      key={index}
-                      href={link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={`Open ${link} in a new tab`}
-                      style={{
-                        padding: '0.75rem 1.25rem',
-                        borderRadius: '12px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.6rem',
-                        fontSize: '0.9rem',
-                        border: '1px solid var(--border-color)',
-                        backgroundColor: 'var(--bg-primary)',
-                        color: 'var(--text-primary)',
-                        textDecoration: 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--text-primary)';
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{res.name}</span>
-                      {res.type && <span className="badge" style={{ fontSize: '0.65rem' }}>{res.type}</span>}
-                      <ExternalLink size={14} style={{ color: 'var(--text-secondary)' }} />
-                    </a>
-                  ) : (
-                    <div key={index} style={{
+          <section style={{ marginBottom: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1.25rem', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <BookOpen size={24} />
+              Resources Used
+            </h2>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {story.resources.map((res, index) => {
+                const link = getResourceLink(res);
+                return link ? (
+                  <a
+                    key={index}
+                    href={link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="glass-panel"
+                    title={`Open ${link} in a new tab`}
+                    style={{
                       padding: '0.75rem 1.25rem',
                       borderRadius: '12px',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.6rem',
+                      gap: '0.5rem',
                       fontSize: '0.9rem',
                       border: '1px solid var(--border-color)',
-                      backgroundColor: 'var(--bg-primary)',
-                      color: 'var(--text-primary)'
-                    }}>
-                      <span style={{ fontWeight: 600 }}>{res.name}</span>
-                      {res.type && <span className="badge" style={{ fontSize: '0.65rem' }}>{res.type}</span>}
-                    </div>
-                  );
-                })}
-              </div>
+                      color: 'var(--text-primary)',
+                      textDecoration: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      maxWidth: '100%',
+                      overflowWrap: 'anywhere'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary, #0071e3)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{res.name}</span>
+                    {res.type && <span className="badge" style={{ fontSize: '0.65rem', flexShrink: 0 }}>{res.type}</span>}
+                    <ExternalLink size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.25rem' }} />
+                  </a>
+                ) : (
+                  <div key={index} className="glass-panel" style={{
+                    padding: '0.75rem 1.25rem',
+                    borderRadius: '12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.9rem',
+                    border: '1px solid var(--border-color)',
+                    maxWidth: '100%',
+                    overflowWrap: 'anywhere'
+                  }}>
+                    <span style={{ fontWeight: 600 }}>{res.name}</span>
+                    {res.type && <span className="badge" style={{ fontSize: '0.65rem', flexShrink: 0 }}>{res.type}</span>}
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
 
         {/* Resume Preview & Download Section */}
-        <section style={{ marginBottom: '3.5rem' }}>
-          <div style={{
-            padding: '2rem',
-            borderRadius: '20px',
+        <section style={{ marginBottom: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1.25rem', fontFamily: 'var(--font-display)' }}>
+            Resume
+          </h2>
+
+          <div className="loop-card" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '1.5rem 2rem',
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border-color)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
-                <FileText size={18} color="var(--text-primary)" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{
+                padding: '0.75rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                color: 'var(--text-primary)'
+              }}>
+                <FileText size={28} />
               </div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
-                Verified Resume
-              </h2>
+              <div style={{ textAlign: 'left' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                  {typeof story.resume === 'object' ? story.resume.fileName : story.resume}
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Approved standard format resume (PDF)</p>
+              </div>
             </div>
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '1.25rem 1.5rem',
-              backgroundColor: 'var(--bg-primary)',
-              borderRadius: '14px',
-              border: '1px solid var(--border-color)',
-              flexWrap: 'wrap',
-              gap: '1rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(255, 59, 48, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ff3b30'
-                }}>
-                  <FileText size={24} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.2rem 0', color: 'var(--text-primary)' }}>
-                    {typeof story.resume === 'object' ? story.resume.fileName : story.resume}
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    <span style={{ color: '#30d158', fontWeight: 600 }}>• Standard Verified Format</span>
-                    <span>PDF Document</span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                <button 
-                  onClick={() => {
-                    const allFiles = getStoryFiles();
-                    const resumeDoc = allFiles[0];
-                    navigate(`/preview/${resumeDoc.id}?storyId=${story.id}`, {
-                      state: {
-                        file: resumeDoc,
-                        files: allFiles,
-                        storyTitle: story.name
-                      }
-                    });
-                  }}
-                  className="btn btn-secondary"
-                  style={{ padding: '0.55rem 1.1rem', fontSize: '0.85rem', gap: '0.4rem', cursor: 'pointer', display: 'flex', alignItems: 'center', borderRadius: '10px' }}
-                  title="View Resume"
-                >
-                  <Eye size={14} />
-                  <span>View Resume</span>
-                </button>
-                <button 
-                  onClick={() => {
-                    const rf = story.resumeFile;
-                    if (rf?.url && rf.url !== '#') {
-                      handleDownloadFile(rf.fileName || 'resume.pdf', rf.url);
-                    } else if (story.resume && story.resume !== '#') {
-                      handleDownloadFile(story.resume, story.resume);
-                    } else {
-                      alert('No resume file was uploaded for this story.');
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <button 
+                onClick={() => {
+                  const allFiles = getStoryFiles();
+                  const resumeDoc = allFiles[0];
+                  navigate(`/preview/${resumeDoc.id}?storyId=${story.id}`, {
+                    state: {
+                      file: resumeDoc,
+                      files: allFiles,
+                      storyTitle: story.name
                     }
-                  }}
-                  className="btn btn-primary"
-                  style={{ padding: '0.55rem 1.25rem', fontSize: '0.85rem', gap: '0.4rem', borderRadius: '10px', fontWeight: 600 }}
-                >
-                  <Download size={14} />
-                  <span>Download</span>
-                </button>
-              </div>
+                  });
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '0.6rem 1.2rem', fontSize: '0.85rem', gap: '0.4rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                title="View Resume"
+              >
+                <FileText size={14} />
+                <span>View Resume</span>
+              </button>
+              <button 
+                onClick={() => {
+                  const rf = story.resumeFile;
+                  if (rf?.url && rf.url !== '#') {
+                    if (rf.url.startsWith('data:')) {
+                      const blob = dataURItoBlob(rf.url);
+                      if (blob) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = rf.fileName || 'resume.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                      } else {
+                        alert('Failed to process resume file.');
+                      }
+                    } else {
+                      const link = document.createElement('a');
+                      link.href = rf.url;
+                      link.download = rf.fileName || 'resume.pdf';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  } else {
+                    alert('No resume file was uploaded for this story.');
+                  }
+                }}
+                className="btn btn-primary"
+                style={{ padding: '0.6rem 1.2rem', fontSize: '0.85rem', gap: '0.4rem' }}
+              >
+                <Download size={14} />
+                <span>Download Resume</span>
+              </button>
             </div>
           </div>
+
         </section>
 
         {/* Study Materials Uploaded Section */}
         {story.studyMaterials && story.studyMaterials.length > 0 && (
-          <section style={{ marginBottom: '3.5rem' }}>
-            <div style={{
-              padding: '2rem',
-              borderRadius: '20px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
-                  <BookOpen size={18} color="var(--text-primary)" />
-                </div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
-                  Study Materials Uploaded
-                </h2>
-              </div>
+          <section style={{ paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1.25rem', fontFamily: 'var(--font-display)' }}>
+              Study Materials Uploaded
+            </h2>
 
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '1rem'
-              }}>
-                {story.studyMaterials.map((mat, index) => {
-                  const isImage = mat.type === 'Image' && mat.url && mat.url !== '#';
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: '1.25rem'
+            }}>
+              {story.studyMaterials.map((mat, index) => {
+                const isImage = mat.type === 'Image' && mat.url && mat.url !== '#';
+                if (isImage) {
                   return (
-                    <div key={index} style={{
+                    <div key={index} className="glass-panel" style={{
                       padding: '1.25rem',
                       borderRadius: '16px',
-                      backgroundColor: 'var(--bg-primary)',
                       border: '1px solid var(--border-color)',
                       display: 'flex',
                       flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '1rem',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                      gap: '1rem'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
+                          <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                             {mat.title}
                           </h4>
                           <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                            <span className="badge" style={{ fontSize: '0.65rem' }}>
+                            <span className="badge" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem' }}>
                               {mat.type}
                             </span>
                             {mat.fileSize && (
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
                                 {mat.fileSize}
                               </span>
                             )}
                           </div>
                         </div>
-
-                        {mat.url && mat.url !== '#' && (
-                          <button 
-                            onClick={() => handleDownloadFile(mat.fileName || mat.title, mat.url)}
-                            className="btn btn-secondary"
-                            style={{ padding: '0.4rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            title="Download File"
-                          >
-                            <Download size={13} />
-                          </button>
-                        )}
-                      </div>
-
-                      {isImage && (
-                        <div 
+                        <button 
                           onClick={() => {
-                            const allFiles = getStoryFiles();
-                            const matDoc = allFiles[index + 1] || { ...mat, id: `mat-${story.id}-${index}`, type: 'Image' };
-                            navigate(`/preview/${matDoc.id}?storyId=${story.id}`, {
-                              state: {
-                                file: matDoc,
-                                files: allFiles,
-                                storyTitle: story.name
-                              }
-                            });
+                            if (mat.url && mat.url !== '#') {
+                              handleDownloadFile(mat.fileName || mat.title + '.png', mat.url);
+                            } else {
+                              alert('No image file available.');
+                            }
                           }}
-                          style={{
-                            width: '100%',
-                            height: '140px',
-                            borderRadius: '10px',
-                            overflow: 'hidden',
-                            border: '1px solid var(--border-color)',
-                            cursor: 'pointer',
-                            position: 'relative'
-                          }}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          title="Download Image"
                         >
-                          <img 
-                            src={mat.url} 
-                            alt={mat.title}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
+                          <Download size={12} />
+                        </button>
+                      </div>
+ 
+                      <div 
+                        onClick={() => {
+                          const allFiles = getStoryFiles();
+                          const matDoc = allFiles[index + 1] || { ...mat, id: `mat-${story.id}-${index}`, type: 'Image' };
+                          navigate(`/preview/${matDoc.id}?storyId=${story.id}`, {
+                            state: {
+                              file: matDoc,
+                              files: allFiles,
+                              storyTitle: story.name
+                            }
+                          });
+                        }}
+                        style={{ 
+                          width: '100%', 
+                          height: '160px', 
+                          borderRadius: '8px', 
+                          overflow: 'hidden', 
+                          border: '1px solid var(--border-color)',
+                          cursor: 'pointer',
+                          backgroundColor: 'var(--bg-primary)',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          position: 'relative'
+                        }}
+                      >
+                        <img 
+                          src={mat.url} 
+                          alt={mat.title} 
+                          style={{ height: '100%', width: '100%', objectFit: 'contain', transition: 'transform 0.2s' }}
+                          className="material-preview-img"
+                        />
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '0.5rem',
+                          right: '0.5rem',
+                          background: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '4px',
+                          fontSize: '0.65rem',
+                          fontWeight: 500
+                        }}>
+                          Click to Expand
                         </div>
-                      )}
-
-                      <button
+                      </div>
+                    </div>
+                  );
+                }
+ 
+                return (
+                  <div key={index} className="glass-panel" style={{
+                    padding: '1.25rem',
+                    borderRadius: '16px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ 
+                        width: '40px', 
+                        height: '50px', 
+                        border: '1px solid var(--border-color)', 
+                        borderRadius: '6px', 
+                        display: 'flex', 
+                        justifyContent: 'center', 
+                        alignItems: 'center', 
+                        backgroundColor: mat.type === 'PDF' ? '#ffe5e5' : '#e5f1ff', 
+                        color: mat.type === 'PDF' ? '#ff3b30' : '#007aff', 
+                        fontWeight: 'bold', 
+                        fontSize: '0.7rem' 
+                      }}>
+                        {mat.type}
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: '1.3', marginBottom: '0.25rem' }}>
+                          {mat.title}
+                        </h4>
+                        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                          <span className="badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+                            {mat.type}
+                          </span>
+                          {mat.fileSize && (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                              {mat.fileSize}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+ 
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button 
                         onClick={() => {
                           const allFiles = getStoryFiles();
                           const matDoc = allFiles[index + 1] || { ...mat, id: `mat-${story.id}-${index}` };
@@ -1193,15 +1031,28 @@ export default function StoryDetail() {
                           });
                         }}
                         className="btn btn-secondary"
-                        style={{ width: '100%', padding: '0.5rem', borderRadius: '10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                        style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+                        title="View File"
                       >
-                        <Eye size={13} />
-                        <span>View Document</span>
+                        <FileText size={14} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>View File</span>
                       </button>
+                      {mat.url && mat.url !== '#' && (
+                        <button 
+                          onClick={() => {
+                            handleDownloadFile(mat.fileName || mat.title + (mat.type === 'PDF' ? '.pdf' : '.txt'), mat.url);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', width: '32px', height: '32px' }}
+                          title="Download File"
+                        >
+                          <Download size={14} />
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
