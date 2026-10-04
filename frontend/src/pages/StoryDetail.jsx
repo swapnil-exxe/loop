@@ -29,11 +29,41 @@ export default function StoryDetail() {
     return url;
   };
   const navigate = useNavigate();
-  const [activePreviewImage, setActivePreviewImage] = useState(null);
-  const [viewerFile, setViewerFile] = useState(null);
-  const [iframeUrl, setIframeUrl] = useState(null);
   const [story, setStory] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const getStoryFiles = () => {
+    if (!story) return [];
+    const list = [];
+    const rf = story.resumeFile;
+    const resumeName = rf?.fileName || story.resume || 'Resume.pdf';
+    const resumeUrl = rf?.url ? resolveUrl(rf.url) : (story.resume && story.resume.startsWith('http') ? story.resume : (story.resume && story.resume.startsWith('/uploads/') ? resolveUrl(story.resume) : null));
+    list.push({
+      id: `resume-${story.id}`,
+      title: `${story.name}'s Resume`,
+      fileName: resumeName,
+      type: 'PDF',
+      mimeType: 'application/pdf',
+      fileSize: rf?.fileSize || '',
+      url: resumeUrl || '#',
+      previewUrl: resumeUrl || '#'
+    });
+
+    if (Array.isArray(story.studyMaterials)) {
+      story.studyMaterials.forEach((m, idx) => {
+        list.push({
+          id: `mat-${story.id}-${idx}`,
+          title: m.title || `Material ${idx + 1}`,
+          fileName: m.fileName || m.title,
+          type: m.type || 'Document',
+          fileSize: m.fileSize || '',
+          url: m.url ? resolveUrl(m.url) : '#',
+          previewUrl: m.url ? resolveUrl(m.url) : '#'
+        });
+      });
+    }
+    return list;
+  };
 
   const handleDownloadFile = (fileName, url) => {
     if (!url || url === '#') {
@@ -148,7 +178,7 @@ export default function StoryDetail() {
   });
 
   useEffect(() => {
-    if (isEditing || viewerFile || activePreviewImage) {
+    if (isEditing) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -156,7 +186,7 @@ export default function StoryDetail() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isEditing, viewerFile, activePreviewImage]);
+  }, [isEditing]);
 
   const processMaterialFile = (file) => {
     const extension = file.name.split('.').pop().toLowerCase();
@@ -746,17 +776,14 @@ export default function StoryDetail() {
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
               <button 
                 onClick={() => {
-                  // Use resumeFile (actual uploaded file) if available, else fall back to resume string
-                  const rf = story.resumeFile;
-                  const resumeName = rf?.fileName || story.resume || 'resume.pdf';
-                  const resumeSize = rf?.fileSize || '';
-                  const resumeUrl = rf?.url || null;
-                  setViewerFile({
-                    title: 'Resume',
-                    type: 'PDF',
-                    fileName: resumeName,
-                    fileSize: resumeSize,
-                    previewUrl: resumeUrl || '#'
+                  const allFiles = getStoryFiles();
+                  const resumeDoc = allFiles[0];
+                  navigate(`/preview/${resumeDoc.id}?storyId=${story.id}`, {
+                    state: {
+                      file: resumeDoc,
+                      files: allFiles,
+                      storyTitle: story.name
+                    }
                   });
                 }}
                 className="btn btn-secondary"
@@ -864,14 +891,24 @@ export default function StoryDetail() {
                       </div>
  
                       <div 
-                        onClick={() => setActivePreviewImage({ title: mat.title, url: mat.url })}
+                        onClick={() => {
+                          const allFiles = getStoryFiles();
+                          const matDoc = allFiles[index + 1] || { ...mat, id: `mat-${story.id}-${index}`, type: 'Image' };
+                          navigate(`/preview/${matDoc.id}?storyId=${story.id}`, {
+                            state: {
+                              file: matDoc,
+                              files: allFiles,
+                              storyTitle: story.name
+                            }
+                          });
+                        }}
                         style={{ 
                           width: '100%', 
                           height: '160px', 
                           borderRadius: '8px', 
                           overflow: 'hidden', 
                           border: '1px solid var(--border-color)',
-                          cursor: 'zoom-in',
+                          cursor: 'pointer',
                           backgroundColor: 'var(--bg-primary)',
                           display: 'flex',
                           justifyContent: 'center',
@@ -948,12 +985,14 @@ export default function StoryDetail() {
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                       <button 
                         onClick={() => {
-                          setViewerFile({
-                            title: mat.title,
-                            type: mat.type,
-                            fileName: mat.fileName || mat.title + (mat.type === 'PDF' ? '.pdf' : '.txt'),
-                            fileSize: mat.fileSize || '1.2 MB',
-                            previewUrl: mat.url
+                          const allFiles = getStoryFiles();
+                          const matDoc = allFiles[index + 1] || { ...mat, id: `mat-${story.id}-${index}` };
+                          navigate(`/preview/${matDoc.id}?storyId=${story.id}`, {
+                            state: {
+                              file: matDoc,
+                              files: allFiles,
+                              storyTitle: story.name
+                            }
                           });
                         }}
                         className="btn btn-secondary"
@@ -986,56 +1025,7 @@ export default function StoryDetail() {
       </main>
     </div>
 
-    {/* Lightbox / Zoom Image Modal */}
-      {activePreviewImage && (
-        <div 
-          onClick={() => setActivePreviewImage(null)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.95)',
-            zIndex: 2000,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem'
-          }}
-        >
-          <div style={{ position: 'relative', maxWidth: '90%', maxHeight: '80%' }} onClick={(e) => e.stopPropagation()}>
-            <button 
-              onClick={() => setActivePreviewImage(null)}
-              style={{
-                position: 'absolute',
-                top: '-2.5rem',
-                right: 0,
-                background: 'transparent',
-                border: 'none',
-                color: '#fff',
-                fontSize: '1.1rem',
-                cursor: 'pointer',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem'
-              }}
-            >
-              ✕ Close
-            </button>
-            <img 
-              src={activePreviewImage.url} 
-              alt={activePreviewImage.title} 
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }} 
-            />
-            <h3 style={{ color: '#fff', textAlign: 'center', marginTop: '1rem', fontWeight: 600, fontSize: '1.2rem', fontFamily: 'var(--font-display)' }}>
-              {activePreviewImage.title}
-            </h3>
-          </div>
-        </div>
-      )}
+
 
       {/* Edit Story Details Overlay Modal */}
       {isEditing && (
@@ -1610,179 +1600,7 @@ export default function StoryDetail() {
         </div>
       )}
 
-      {viewerFile && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          zIndex: 2000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '2rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '800px',
-            height: '85vh',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.5)'
-          }}>
-            {/* Close Button */}
-            <button 
-              onClick={() => setViewerFile(null)}
-              style={{
-                position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-primary)'
-              }}
-            >
-              <X size={24} />
-            </button>
 
-            {/* Header info */}
-            <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', textAlign: 'left' }}>
-              <span className="badge" style={{ fontSize: '0.7rem', marginBottom: '0.5rem' }}>{viewerFile.type} Preview</span>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>{viewerFile.title}</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {viewerFile.fileName ? `File: ${viewerFile.fileName}` : ''} {viewerFile.fileSize ? ` • Size: ${viewerFile.fileSize}` : ''}
-              </p>
-            </div>
-
-            {/* Document Content Area */}
-            <div style={{ 
-              flexGrow: 1, 
-              overflowY: 'auto', 
-              backgroundColor: '#f9f9fa', 
-              color: '#111112',
-              borderRadius: '12px', 
-              border: '1px solid #e5e5e7',
-              padding: (viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#') ? '0' : '2rem',
-              fontFamily: 'var(--font-sans)',
-              textAlign: 'left',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              {((viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#')) ? (
-                // Render original uploaded file content
-                viewerFile.type === 'Image' || (viewerFile.fileName && (viewerFile.fileName.endsWith('.png') || viewerFile.fileName.endsWith('.jpg') || viewerFile.fileName.endsWith('.jpeg'))) ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexGrow: 1, padding: '1rem' }}>
-                    <img 
-                      src={resolveUrl(viewerFile.previewUrl || viewerFile.url)} 
-                      alt={viewerFile.title} 
-                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
-                    />
-                  </div>
-                ) : (
-                  <iframe 
-                    src={iframeUrl} 
-                    style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none', borderRadius: '12px' }} 
-                    title={viewerFile.title}
-                  />
-                )
-              ) : (
-                // Fallback: no actual file uploaded, show a clean message
-                viewerFile.title.toLowerCase().includes('resume') || viewerFile.title.toLowerCase().includes('cv') || viewerFile.fileName?.toLowerCase().includes('resume') ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem', textAlign: 'center', gap: '1rem' }}>
-                  <FileText size={48} style={{ color: 'var(--text-secondary)', opacity: 0.5 }} />
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#333', margin: 0 }}>No Resume File Uploaded</h3>
-                  <p style={{ fontSize: '0.9rem', color: '#777', maxWidth: '360px', margin: 0 }}>
-                    This story was submitted without an attached resume file. The author may add one later.
-                  </p>
-                </div>
-              ) : (
-                // Generic Study Guide / Notes Viewer
-                <div style={{ maxWidth: '650px', margin: '0 auto' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#111', margin: '0 0 0.5rem 0' }}>
-                      {viewerFile.title}
-                    </h2>
-                    <p style={{ fontSize: '0.85rem', color: '#555', margin: 0 }}>
-                      SPIT Placement & Study Resources Network
-                    </p>
-                  </div>
-
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                      1. CORE SYLLABUS OVERVIEW
-                    </h3>
-                    <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
-                      This document serves as a comprehensive study sheet compiled by SPIT seniors. It highlights high-yielding topics frequently asked during technical rounds, coding tests, and engineering exams.
-                    </p>
-                  </div>
-
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                      2. KEY FORMULAS & THEOREMS
-                    </h3>
-                    <div style={{ backgroundColor: '#f0f0f3', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'monospace', color: '#222', borderLeft: '4px solid #007aff', marginBottom: '1rem' }}>
-                      // Time Complexity Approximations<br />
-                      - Quick Sort (Average Case): O(N log N)<br />
-                      - Binary Search Tree Search: O(log N)<br />
-                      - Floyd-Warshall Algorithm: O(V³)
-                    </div>
-                    <ul style={{ fontSize: '0.85rem', color: '#444', paddingLeft: '1.25rem' }}>
-                      <li style={{ marginBottom: '0.25rem' }}>Understand spatial invariants and reference pointers.</li>
-                      <li>Dry run edge cases including null inputs, circular arrays, and single-node structures.</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid #ddd', paddingBottom: '0.25rem', marginBottom: '0.75rem', color: '#333' }}>
-                      3. INTERVIEW QUESTIONS & PREPARATION TIPS
-                    </h3>
-                    <p style={{ fontSize: '0.88rem', color: '#333', lineHeight: '1.6' }}>
-                      Prepare standard behavioral answers (STAR method) and explain structural design patterns like Singleton, Observer, and Factory. Ensure you speak clearly during system design mock interviews.
-                    </p>
-                  </div>
-                </div>
-              )
-            )}
-            </div>
-            
-            {/* Viewer Footer */}
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Viewing file in secure sandbox.
-              </span>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                {((viewerFile.previewUrl && viewerFile.previewUrl !== '#') || (viewerFile.url && viewerFile.url !== '#')) && (
-                  <button 
-                    type="button" 
-                    onClick={() => handleDownloadFile(viewerFile.fileName || viewerFile.title, viewerFile.previewUrl || viewerFile.url)}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
-                  >
-                    <Download size={14} />
-                    <span>Download File</span>
-                  </button>
-                )}
-                <button 
-                  type="button" 
-                  onClick={() => setViewerFile(null)}
-                  className="btn btn-primary"
-                  style={{ padding: '0.5rem 1.5rem', borderRadius: '8px' }}
-                >
-                  Close Viewer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Media styling adjustments */}
       <style>{`

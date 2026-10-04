@@ -10,6 +10,7 @@ import Achievements from './pages/Achievements';
 import AchievementDetail from './pages/AchievementDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import Onboarding from './pages/Onboarding';
+import FilePreviewPage from './pages/FilePreviewPage';
 import { UploadProvider } from './context/UploadContext';
 import UploadDock from './components/UploadDock';
 
@@ -37,6 +38,7 @@ function ProtectedRoute({ children }) {
 function AppLayout() {
   const location = useLocation();
   const isAuthPage = location.pathname === '/login' || location.pathname === '/onboarding';
+  const isPreviewPage = location.pathname.startsWith('/preview');
 
   return (
     <div style={{
@@ -46,7 +48,7 @@ function AppLayout() {
       backgroundColor: 'var(--bg-primary)',
       color: 'var(--text-primary)'
     }}>
-      <Navbar />
+      {!isPreviewPage && <Navbar />}
       
       <main style={{ flexGrow: 1 }}>
         <Routes>
@@ -57,6 +59,13 @@ function AppLayout() {
           <Route path="/onboarding" element={
             <ProtectedRoute>
               <Onboarding />
+            </ProtectedRoute>
+          } />
+
+          {/* Dedicated Full-Viewport File Preview Route */}
+          <Route path="/preview/:id" element={
+            <ProtectedRoute>
+              <FilePreviewPage />
             </ProtectedRoute>
           } />
 
@@ -103,11 +112,11 @@ function AppLayout() {
         </Routes>
       </main>
 
-      {/* Global Background Upload Dock */}
-      <UploadDock />
+      {/* Global Background Upload Dock (hidden during full-screen preview) */}
+      {!isPreviewPage && <UploadDock />}
 
       {/* Modern Monochrome Footer */}
-      {!isAuthPage && (
+      {!isAuthPage && !isPreviewPage && (
         <footer style={{
           borderTop: '1px solid var(--border-color)',
           padding: '3rem 0',

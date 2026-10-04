@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Search, Download, Plus, X, Folder, Lock, Globe, Shield, 
   Trash2, Edit, ChevronRight, ArrowLeft, FileText, Image as ImageIcon, 
@@ -13,9 +13,9 @@ import {
 } from '../utils/db';
 import { useCachedData } from '../hooks/useCachedData';
 import { useUpload } from '../context/UploadContext';
-import FileViewerModal from '../components/FileViewerModal';
 
 export default function Resources() {
+  const navigate = useNavigate();
   const { data: cachedResources, loading: loadingResources, mutate: mutateResources } = useCachedData('resources', getResources);
   const { data: cachedFolders, loading: loadingFolders, mutate: mutateFolders } = useCachedData('folders', getFolders);
   const { startUpload } = useUpload();
@@ -83,7 +83,6 @@ export default function Resources() {
   const [editingResource, setEditingResource] = useState(null);
   const [editingFolder, setEditingFolder] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { type: 'file' | 'folder', item: any }
-  const [viewerFile, setViewerFile] = useState(null);
 
   // Upload state
   const [uploadFile, setUploadFile] = useState(null);
@@ -652,7 +651,13 @@ export default function Resources() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setViewerFile(res);
+                              navigate(`/preview/${res.id}`, {
+                                state: {
+                                  file: res,
+                                  files: searchResults,
+                                  folderName: 'Search Results'
+                                }
+                              });
                             }}
                             className="btn btn-secondary"
                             style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
@@ -1210,7 +1215,13 @@ export default function Resources() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setViewerFile(res);
+                                  navigate(`/preview/${res.id}?folderId=${activeFolderId}`, {
+                                    state: {
+                                      file: res,
+                                      files: currentFolderResources,
+                                      folderName: currentFolder?.name || 'Folder'
+                                    }
+                                  });
                                 }}
                                 className="btn btn-secondary"
                                 style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
@@ -1822,15 +1833,7 @@ export default function Resources() {
         </div>
       )}
 
-      {/* FILE PREVIEW MODAL */}
-      {viewerFile && (
-        <FileViewerModal
-          file={viewerFile}
-          files={currentFolderResources.length > 0 ? currentFolderResources : (searchResults.length > 0 ? searchResults : [viewerFile])}
-          onClose={() => setViewerFile(null)}
-          onNavigate={(nextFile) => setViewerFile(nextFile)}
-        />
-      )}
+
 
     </div>
   );

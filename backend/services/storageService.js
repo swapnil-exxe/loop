@@ -424,20 +424,39 @@ async function streamFromGridFS(storageKey, req, res, originalFileName, mimeType
     return res.status(404).json({ error: 'File not found in storage.' });
   }
 
-  const file = files[0];
   const fileSize = file.length;
-  const contentType = mimeType || file.contentType || 'application/octet-stream';
   const filename = originalFileName || file.filename || 'download';
+  const cleanExt = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+
+  // Resolve precise canonical MIME type based on file extension
+  let resolvedContentType = mimeType || file.contentType || 'application/octet-stream';
+  if (cleanExt === 'pdf') resolvedContentType = 'application/pdf';
+  else if (cleanExt === 'pptx') resolvedContentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  else if (cleanExt === 'ppt') resolvedContentType = 'application/vnd.ms-powerpoint';
+  else if (cleanExt === 'docx') resolvedContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  else if (cleanExt === 'doc') resolvedContentType = 'application/msword';
+  else if (cleanExt === 'xlsx') resolvedContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  else if (cleanExt === 'xls') resolvedContentType = 'application/vnd.ms-excel';
+  else if (cleanExt === 'csv') resolvedContentType = 'text/csv';
+  else if (cleanExt === 'png') resolvedContentType = 'image/png';
+  else if (cleanExt === 'jpg' || cleanExt === 'jpeg') resolvedContentType = 'image/jpeg';
+  else if (cleanExt === 'webp') resolvedContentType = 'image/webp';
+  else if (cleanExt === 'mp4') resolvedContentType = 'video/mp4';
+  else if (cleanExt === 'webm') resolvedContentType = 'video/webm';
+  else if (cleanExt === 'zip') resolvedContentType = 'application/zip';
+
+  const isDownload = req.query.download === '1' || req.query.download === 'true';
+  const dispositionType = isDownload ? 'attachment' : 'inline';
 
   const uploadTime = file.uploadDate ? new Date(file.uploadDate).getTime() : 0;
   const etag = `"${file._id.toString()}-${fileSize}-${uploadTime}"`;
   const lastModified = file.uploadDate ? new Date(file.uploadDate).toUTCString() : new Date().toUTCString();
 
-  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Type', resolvedContentType);
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('ETag', etag);
   res.setHeader('Last-Modified', lastModified);
-  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+  res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
 
   if (isPrivate) {
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');

@@ -135,9 +135,17 @@ function saveBase64File(dataUri, prefix = 'file') {
     else if (mime === 'image/png') ext = '.png';
     else if (mime === 'image/jpeg' || mime === 'image/jpg') ext = '.jpg';
     else if (mime === 'image/webp') ext = '.webp';
+    else if (mime === 'image/gif') ext = '.gif';
+    else if (mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') ext = '.pptx';
+    else if (mime === 'application/vnd.ms-powerpoint') ext = '.ppt';
+    else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') ext = '.docx';
+    else if (mime === 'application/msword') ext = '.doc';
     else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ext = '.xlsx';
     else if (mime === 'application/vnd.ms-excel') ext = '.xls';
+    else if (mime === 'video/mp4') ext = '.mp4';
+    else if (mime === 'video/webm') ext = '.webm';
     else if (mime === 'text/plain') ext = '.txt';
+    else if (mime === 'application/zip') ext = '.zip';
     else ext = '.bin';
 
     const filename = `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
@@ -1649,10 +1657,13 @@ app.get('/api/resources/:id', authenticateToken, async (req, res) => {
 });
 
 // Secure File Streaming / Download / Preview
-app.get('/api/resources/:id/file', authenticateToken, async (req, res) => {
+app.get(['/api/resources/:id/file', '/api/pending-resources/:id/file'], authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const resource = await Resource.findOne({ id: sanitizeString(id) });
+    let resource = await Resource.findOne({ id: sanitizeString(id) });
+    if (!resource) {
+      resource = await PendingResource.findOne({ id: sanitizeString(id) });
+    }
     if (!resource) {
       return res.status(404).json({ error: 'Resource not found.' });
     }

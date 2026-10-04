@@ -39,7 +39,6 @@ import {
   getAdminResourceStats,
   formatBytes
 } from '../utils/db';
-import FileViewerModal from '../components/FileViewerModal';
 
 const parsePosition = (posStr) => {
   if (!posStr) return { x: 50, y: 50, zoom: 1.0 };
@@ -687,7 +686,6 @@ export default function AdminDashboard() {
     fileSize: '',
     previewUrl: ''
   });
-  const [viewerFile, setViewerFile] = useState(null);
 
   const processMaterialFile = (file) => {
     const extension = file.name.split('.').pop().toLowerCase();
@@ -1669,7 +1667,13 @@ export default function AdminDashboard() {
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                               <button 
                                 type="button" 
-                                onClick={() => setViewerFile(res)}
+                                onClick={() => navigate(`/preview/${res.id}?folderId=${res.folderId || ''}`, {
+                                  state: {
+                                    file: res,
+                                    files: [res],
+                                    folderName: getFolderName(res.folderId) || 'Resource'
+                                  }
+                                })}
                                 className="btn btn-secondary" 
                                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
                               >
@@ -3230,12 +3234,21 @@ export default function AdminDashboard() {
                             onClick={(e) => {
                               e.stopPropagation();
                               const currentResume = editStoryForm.resume;
-                              setViewerFile({
-                                title: 'Resume',
+                              const resumeDoc = {
+                                id: `resume-${editingStory?.id || 'edit'}`,
+                                title: `${editStoryForm.name || 'Candidate'}'s Resume`,
                                 type: 'PDF',
-                                fileName: typeof currentResume === 'object' ? currentResume.fileName : currentResume,
-                                fileSize: typeof currentResume === 'object' ? currentResume.fileSize : '1.2 MB',
+                                fileName: typeof currentResume === 'object' ? currentResume.fileName : (currentResume || 'resume.pdf'),
+                                fileSize: typeof currentResume === 'object' ? currentResume.fileSize : '',
+                                url: typeof currentResume === 'object' ? currentResume.url : '#',
                                 previewUrl: typeof currentResume === 'object' ? currentResume.url : '#'
+                              };
+                              navigate(`/preview/${resumeDoc.id}`, {
+                                state: {
+                                  file: resumeDoc,
+                                  files: [resumeDoc],
+                                  storyTitle: editStoryForm.name
+                                }
                               });
                             }}
                             className="btn btn-secondary"
@@ -3310,7 +3323,21 @@ export default function AdminDashboard() {
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                               <button 
                                 type="button"
-                                onClick={() => setViewerFile(material)}
+                                onClick={() => navigate(`/preview/mat-${editingStory?.id || 'edit'}-${idx}`, {
+                                  state: {
+                                    file: {
+                                      ...material,
+                                      id: `mat-${editingStory?.id || 'edit'}-${idx}`,
+                                      title: material.title || material.fileName
+                                    },
+                                    files: (editStoryForm.studyMaterials || []).map((m, i) => ({
+                                      ...m,
+                                      id: `mat-${editingStory?.id || 'edit'}-${i}`,
+                                      title: m.title || m.fileName
+                                    })),
+                                    storyTitle: editStoryForm.name
+                                  }
+                                })}
                                 className="btn btn-secondary"
                                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
                               >
@@ -4300,12 +4327,21 @@ export default function AdminDashboard() {
                       onClick={() => {
                         const rf = previewingPendingStory.resumeFile;
                         const cr = previewingPendingStory.resume;
-                        setViewerFile({
-                          title: 'Resume',
+                        const resumeDoc = {
+                          id: `resume-${previewingPendingStory.id}`,
+                          title: `${previewingPendingStory.name}'s Resume`,
                           type: 'PDF',
-                          fileName: rf?.fileName || (typeof cr === 'object' ? cr.fileName : cr),
-                          fileSize: rf?.fileSize || (typeof cr === 'object' ? cr.fileSize : '1.2 MB'),
+                          fileName: rf?.fileName || (typeof cr === 'object' ? cr.fileName : (cr || 'resume.pdf')),
+                          fileSize: rf?.fileSize || '',
+                          url: rf?.url || (typeof cr === 'object' ? cr.url : '#'),
                           previewUrl: rf?.url || (typeof cr === 'object' ? cr.url : '#')
+                        };
+                        navigate(`/preview/${resumeDoc.id}?pending=true`, {
+                          state: {
+                            file: resumeDoc,
+                            files: [resumeDoc],
+                            storyTitle: previewingPendingStory.name
+                          }
                         });
                       }}
                       className="btn btn-secondary"
@@ -4344,7 +4380,24 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                         <button 
-                          onClick={() => setViewerFile(mat)}
+                          onClick={() => {
+                            const pendingMatDoc = {
+                              ...mat,
+                              id: `mat-${previewingPendingStory.id}-${idx}`,
+                              title: mat.title || mat.fileName
+                            };
+                            navigate(`/preview/${pendingMatDoc.id}?pending=true`, {
+                              state: {
+                                file: pendingMatDoc,
+                                files: (previewingPendingStory.studyMaterials || []).map((m, i) => ({
+                                  ...m,
+                                  id: `mat-${previewingPendingStory.id}-${i}`,
+                                  title: m.title || m.fileName
+                                })),
+                                storyTitle: previewingPendingStory.name
+                              }
+                            });
+                          }}
                           className="btn btn-secondary"
                           style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
                         >
@@ -4502,7 +4555,13 @@ export default function AdminDashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setViewerFile(previewingPendingResource)}
+                  onClick={() => navigate(`/preview/${previewingPendingResource.id}?pending=true`, {
+                    state: {
+                      file: previewingPendingResource,
+                      files: [previewingPendingResource],
+                      folderName: getFolderName(previewingPendingResource.folderId) || 'Pending Resource'
+                    }
+                  })}
                   className="btn btn-secondary"
                   style={{ padding: '0.45rem 1.25rem', fontSize: '0.8rem', borderRadius: '8px', cursor: 'pointer' }}
                 >
@@ -4670,12 +4729,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {viewerFile && (
-        <FileViewerModal
-          file={viewerFile}
-          onClose={() => setViewerFile(null)}
-        />
-      )}
+
     </>
   );
 }

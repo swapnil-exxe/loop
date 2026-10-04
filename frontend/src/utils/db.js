@@ -570,11 +570,18 @@ export { formatBytes, formatSpeed, formatEta, uploadResourceStream, uploadResour
 
 export const getResourceFileUrl = (resource) => {
   if (!resource) return '';
+  if (resource.previewUrl && resource.previewUrl.startsWith('http')) return resource.previewUrl;
+  if (resource.previewUrl && resource.previewUrl.startsWith('/api/')) return `${BASE_URL}${resource.previewUrl}`;
+  if (resource.previewUrl && resource.previewUrl.startsWith('/uploads/')) return `${BASE_URL}${resource.previewUrl}`;
   if (resource.url && resource.url.startsWith('http')) return resource.url;
   if (resource.url && resource.url.startsWith('/api/')) return `${BASE_URL}${resource.url}`;
-  if (resource.id) return `${BASE_URL}/api/resources/${resource.id}/file`;
+  if (resource.url && resource.url.startsWith('/uploads/')) return `${BASE_URL}${resource.url}`;
+  if (resource.link && resource.link.startsWith('http')) return resource.link;
   if (resource.link && resource.link.startsWith('/uploads/')) return `${BASE_URL}${resource.link}`;
-  return resource.link || '';
+  if (resource.id && !String(resource.id).startsWith('resume-') && !String(resource.id).startsWith('mat-')) {
+    return `${BASE_URL}/api/resources/${resource.id}/file`;
+  }
+  return resource.url || resource.previewUrl || resource.link || '';
 };
 
 // Safe Binary Download Helper preserving original filename and extension
@@ -596,11 +603,21 @@ export const downloadResourceFile = async (resource) => {
   let filename = resource.originalFileName || resource.fileName || resource.title || 'download';
   // Ensure extension is present if known
   if (!filename.includes('.')) {
-    const ext = resource.type === 'PDF' ? 'pdf' : (resource.mimeType === 'application/pdf' ? 'pdf' : '');
+    const ext = resource.type === 'PDF' ? 'pdf' : 
+                (resource.type === 'Presentation' || resource.type === 'PPT') ? 'pptx' :
+                (resource.type === 'Sheet' || resource.type === 'Excel') ? 'xlsx' :
+                (resource.type === 'Document' || resource.type === 'Word') ? 'docx' :
+                resource.type === 'Image' ? 'png' :
+                resource.mimeType === 'application/pdf' ? 'pdf' : '';
     if (ext) filename = `${filename}.${ext}`;
   }
 
-  const res = await fetch(fileUrl, { headers });
+  // If download URL points to API, attach download=1 query parameter
+  const finalFetchUrl = (fileUrl.includes('/api/resources/') || fileUrl.includes('/api/pending-resources/')) && !fileUrl.includes('download=1')
+    ? `${fileUrl}${fileUrl.includes('?') ? '&' : '?'}download=1`
+    : fileUrl;
+
+  const res = await fetch(finalFetchUrl, { headers });
   if (!res.ok) {
     throw new Error(`Failed to download file (${res.status})`);
   }
