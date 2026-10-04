@@ -2187,4 +2187,12 @@ app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}.`);
   console.log('[UPLOAD ROUTES] chunked upload routes loaded');
   console.log('[UPLOAD ROUTES] GridFS parallel streaming active (200MB limit)');
+
+  // Initial startup cleanup of stale temporary upload chunks
+  StorageService.purgeStaleTempUploads(2).catch(() => {});
+
+  // Periodic automatic purge every 60 minutes
+  setInterval(() => {
+    StorageService.purgeStaleTempUploads(2).catch(() => {});
+  }, 60 * 60 * 1000);
 });

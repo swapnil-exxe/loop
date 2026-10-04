@@ -223,12 +223,66 @@ async function cleanupTempChunks(uploadId) {
     for (const file of files) {
       await bucket.delete(file._id).catch(() => {});
     }
+
+    // If temp bucket is now completely empty, drop collections to reclaim WiredTiger disk space immediately
+    const remainingTempFiles = await bucket.find({}).limit(1).toArray();
+    if (remainingTempFiles.length === 0 && mongoose.connection?.db) {
+      await mongoose.connection.db.collection('loop_temp_chunks.chunks').drop().catch(() => {});
+      await mongoose.connection.db.collection('loop_temp_chunks.files').drop().catch(() => {});
+      tempChunksBucket = null;
+    }
+
     return files.length;
   } catch (err) {
     console.warn('[Cleanup Temp Chunks] Warning:', err.message);
     return 0;
   }
 }
+
+/**
+ * Automatically purge stale temporary chunks and upload sessions older than maxAgeHours
+ * Reclaims storage on MongoDB Atlas Free Tier to prevent quota limits.
+ */
+async function purgeStaleTempUploads(maxAgeHours = 2) {
+  try {
+    if (!mongoose.connection || !mongoose.connection.db) return 0;
+    const db = mongoose.connection.db;
+    const bucket = getTempChunksBucket();
+    const cutoff = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+
+    const staleFiles = await bucket.find({ uploadDate: { $lt: cutoff } }).toArray();
+    let purgedCount = 0;
+    for (const file of staleFiles) {
+      await bucket.delete(file._id).catch(() => {});
+      purgedCount++;
+    }
+
+    // Also purge stale upload session records
+    await db.collection('uploadsessions').deleteMany({
+      $or: [
+        { updatedAt: { $lt: cutoff } },
+        { createdAt: { $lt: cutoff } }
+      ]
+    }).catch(() => {});
+
+    // If temp bucket is now completely empty, drop collections to reclaim WiredTiger disk space immediately
+    const remainingTempFiles = await bucket.find({}).limit(1).toArray();
+    if (remainingTempFiles.length === 0) {
+      await db.collection('loop_temp_chunks.chunks').drop().catch(() => {});
+      await db.collection('loop_temp_chunks.files').drop().catch(() => {});
+      tempChunksBucket = null;
+    }
+
+    if (purgedCount > 0) {
+      console.log(`[Storage Cleanup] Purged ${purgedCount} stale upload chunks older than ${maxAgeHours}h.`);
+    }
+    return purgedCount;
+  } catch (err) {
+    console.warn('[Storage Cleanup] Error purging stale uploads:', err.message);
+    return 0;
+  }
+}
+
 
 /**
  * Assemble final GridFS file from verified temporary chunks in index order
@@ -502,6 +556,7 @@ module.exports = {
   saveTempChunk,
   getUploadedChunkIndexes,
   cleanupTempChunks,
+  purgeStaleTempUploads,
   assembleFinalGridFSFile,
   uploadToGridFS,
   streamFromGridFS,
