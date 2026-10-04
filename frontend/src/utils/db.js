@@ -290,7 +290,10 @@ export const deleteResource = async (id) => {
   const res = await authFetch(`${API_URL}/resources/${id}`, {
     method: 'DELETE'
   });
-  if (!res.ok) throw new Error('Failed to delete resource');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed to delete resource (${res.status})`);
+  }
   return res.json();
 };
 
@@ -300,7 +303,10 @@ export const updateResource = async (id, updatedResource) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updatedResource)
   });
-  if (!res.ok) throw new Error('Failed to update resource');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed to update resource (${res.status})`);
+  }
   return res.json();
 };
 

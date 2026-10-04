@@ -256,9 +256,15 @@ async function authenticateToken(req, res, next) {
   }
 }
 
+function isUserAdmin(user) {
+  if (!user) return false;
+  const email = (user.email || '').toLowerCase().trim();
+  const role = user.role || '';
+  return email === 'admin@spit.ac.in' || role === 'Administrator' || role === 'Admin' || Boolean(user.isAdmin);
+}
+
 function requireAdmin(req, res, next) {
-  const isUserAdmin = req.user && (req.user.email.toLowerCase() === 'admin@spit.ac.in' || req.user.role === 'Administrator' || req.user.role === 'Admin');
-  if (!isUserAdmin) {
+  if (!isUserAdmin(req.user)) {
     return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
   }
   next();
@@ -371,7 +377,7 @@ function escapeRegExp(string) {
 app.get('/api/folders', authenticateToken, async (req, res) => {
   try {
     const { category, parentId } = req.query;
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
     const userEmail = req.user ? req.user.email : null;
     const userId = req.user ? req.user.id : null;
 
@@ -431,7 +437,7 @@ app.get('/api/folders', authenticateToken, async (req, res) => {
 app.post('/api/folders', authenticateToken, async (req, res) => {
   try {
     const { name, description, parentId, visibility, allowContributions, isSystemFolder } = req.body;
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'Folder name is required.' });
@@ -487,7 +493,7 @@ app.patch('/api/folders/:id', authenticateToken, async (req, res) => {
     const folder = await Folder.findOne({ id });
     if (!folder) return res.status(404).json({ error: 'Folder not found.' });
 
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
     const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
 
     if (folder.isSystemFolder && !isAdmin) {
@@ -517,7 +523,7 @@ app.delete('/api/folders/:id', authenticateToken, async (req, res) => {
     const folder = await Folder.findOne({ id });
     if (!folder) return res.status(404).json({ error: 'Folder not found.' });
 
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
     const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
 
     // Core academic folders are protected from non-admin deletion
@@ -1572,7 +1578,7 @@ app.delete('/api/pending-resources/upload/:uploadId', authenticateToken, handleU
 app.get('/api/resources', authenticateToken, async (req, res) => {
   try {
     const { folderId, search, type, visibility } = req.query;
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
     const userEmail = req.user ? req.user.email : null;
     const userId = req.user ? req.user.id : null;
 
@@ -1640,7 +1646,7 @@ app.get('/api/resources/:id', authenticateToken, async (req, res) => {
 
     // Verify folder privacy
     const folder = await Folder.findOne({ id: resource.folderId });
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
     const isUploader = resource.uploadedByEmail === req.user.email;
 
     if (folder && folder.visibility === 'private') {
@@ -1670,7 +1676,7 @@ app.get(['/api/resources/:id/file', '/api/pending-resources/:id/file'], authenti
 
     // Verify privacy
     const folder = await Folder.findOne({ id: resource.folderId });
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
     const isUploader = resource.uploadedByEmail === req.user.email;
 
     if (folder && folder.visibility === 'private') {
@@ -1737,7 +1743,7 @@ app.post('/api/resources', authenticateToken, async (req, res) => {
     }
     const resolvedFolderId = folderId || 'system-placement-material';
     const folder = await Folder.findOne({ id: resolvedFolderId });
-    const isAdmin = req.user && req.user.role === 'Admin';
+    const isAdmin = isUserAdmin(req.user);
     const isOwner = folder && (folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id)));
     if (folder && folder.visibility === 'private' && !isOwner && !isAdmin) {
       return res.status(403).json({ error: 'You cannot upload to another user private folder.' });
@@ -1883,7 +1889,7 @@ const handleStreamingUpload = (req, res, { isPending = false } = {}) => {
         const resolvedFolderId = fields.folderId || 'system-placement-material';
         const folder = await Folder.findOne({ id: resolvedFolderId });
 
-        const isAdmin = req.user && req.user.role === 'Admin';
+        const isAdmin = isUserAdmin(req.user);
         const isOwner = folder && (folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id)));
 
         // Strict folder permission verification
@@ -1982,14 +1988,17 @@ app.post('/api/pending-resources/upload', authenticateToken, (req, res) => {
 
 
 // Edit Resource Metadata (Rename, Move folder, Description, Tags)
-app.patch('/api/resources/:id', authenticateToken, async (req, res) => {
+const handleUpdateResource = async (req, res) => {
   try {
     const { id } = req.params;
     const resource = await Resource.findOne({ id: sanitizeString(id) });
     if (!resource) return res.status(404).json({ error: 'Resource not found.' });
 
-    const isAdmin = req.user && req.user.role === 'Admin';
-    const isOwner = resource.uploadedByEmail === req.user.email || (resource.ownerId && String(resource.ownerId) === String(req.user.id));
+    const isAdmin = isUserAdmin(req.user);
+    const userEmail = (req.user?.email || '').toLowerCase().trim();
+    const uploaderEmail = (resource.uploadedByEmail || '').toLowerCase().trim();
+    const isOwner = (uploaderEmail && uploaderEmail === userEmail) || 
+                    (resource.ownerId && String(resource.ownerId) === String(req.user.id || req.user._id));
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'You do not have permission to edit this resource.' });
@@ -2008,7 +2017,8 @@ app.patch('/api/resources/:id', authenticateToken, async (req, res) => {
       const targetFolder = await Folder.findOne({ id: req.body.folderId });
       if (!targetFolder) return res.status(404).json({ error: 'Target destination folder not found.' });
       
-      const isTargetOwner = targetFolder.ownerEmail === req.user.email || (targetFolder.ownerId && String(targetFolder.ownerId) === String(req.user.id));
+      const isTargetOwner = (targetFolder.ownerEmail || '').toLowerCase().trim() === userEmail || 
+                            (targetFolder.ownerId && String(targetFolder.ownerId) === String(req.user.id || req.user._id));
       if (targetFolder.visibility === 'private' && !isTargetOwner && !isAdmin) {
         return res.status(403).json({ error: 'Cannot move file into private folder of another user.' });
       }
@@ -2021,7 +2031,10 @@ app.patch('/api/resources/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
-});
+};
+
+app.patch('/api/resources/:id', authenticateToken, handleUpdateResource);
+app.put('/api/resources/:id', authenticateToken, handleUpdateResource);
 
 // Delete Resource (Safe Deletion with Cloud/GridFS cleanup)
 app.delete('/api/resources/:id', authenticateToken, async (req, res) => {
@@ -2030,21 +2043,29 @@ app.delete('/api/resources/:id', authenticateToken, async (req, res) => {
     const resource = await Resource.findOne({ id: sanitizeString(id) });
     if (!resource) return res.status(404).json({ error: 'Resource not found.' });
 
-    const isAdmin = req.user && req.user.role === 'Admin';
-    const isOwner = resource.uploadedByEmail === req.user.email || (resource.ownerId && String(resource.ownerId) === String(req.user.id));
+    const isAdmin = isUserAdmin(req.user);
+    const userEmail = (req.user?.email || '').toLowerCase().trim();
+    const uploaderEmail = (resource.uploadedByEmail || '').toLowerCase().trim();
+    const isOwner = (uploaderEmail && uploaderEmail === userEmail) || 
+                    (resource.ownerId && String(resource.ownerId) === String(req.user.id || req.user._id));
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'You do not have permission to delete this resource.' });
     }
 
-    // Clean up physical file
+    // Clean up physical file in GridFS or legacy storage
     if (resource.storageKey) {
       await StorageService.deleteFile(resource.storageKey, resource.storageProvider);
+    } else if (resource.gridFsFileId) {
+      await StorageService.deleteFile(`gridfs:${resource.gridFsFileId}`);
+    } else if (resource.url) {
+      await StorageService.deleteFile(resource.url);
     }
 
     await Resource.deleteOne({ id: resource.id });
     res.json({ message: 'Resource permanently deleted.' });
   } catch (err) {
+    console.error('Error in DELETE /api/resources/:id:', err);
     res.status(500).json({ error: err.message });
   }
 });
