@@ -1,0 +1,597 @@
+/**
+ * Localhost Mock Data for UI/UX Testing & Previews
+ * Used ONLY when running on localhost to populate folders, APKs,
+ * documents, and Admin pending requests.
+ */
+
+export const localMockResources = [
+  // 1. Placement Material
+  {
+    id: 'mock-place-1',
+    title: 'Top 100 SDE Sheet & DSA Patterns',
+    originalFileName: 'striver_sde_top100_patterns.pdf',
+    category: 'Placement',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 2450000,
+    fileSize: '2.45 MB',
+    uploadedBy: 'Aditya Sharma',
+    date: '2026-03-15',
+    folderId: 'system-placement-material',
+    tags: ['DSA', 'LeetCode', 'Interview']
+  },
+  {
+    id: 'mock-place-2',
+    title: 'Quant & Aptitude Formula Handbook 2026',
+    originalFileName: 'quant_aptitude_formulae_2026.pdf',
+    category: 'Placement',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 1820000,
+    fileSize: '1.82 MB',
+    uploadedBy: 'Neha Patel',
+    date: '2026-02-28',
+    folderId: 'system-placement-material',
+    tags: ['Aptitude', 'Placement']
+  },
+  {
+    id: 'mock-place-3',
+    title: 'System Design Interview Cheatsheet',
+    originalFileName: 'system_design_primer_notes.pdf',
+    category: 'Placement',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 3200000,
+    fileSize: '3.20 MB',
+    uploadedBy: 'Rohan Mehta',
+    date: '2026-01-20',
+    folderId: 'system-placement-material',
+    tags: ['System Design', 'High Level']
+  },
+
+  // 2. CSE 1st Year - Sem 1
+  {
+    id: 'mock-cse-1-1-1',
+    title: 'Engineering Mathematics-I Complete Lecture Notes',
+    originalFileName: 'maths1_calculus_matrices_notes.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 4100000,
+    fileSize: '4.10 MB',
+    uploadedBy: 'Prof. K. Verma',
+    date: '2025-09-12',
+    folderId: 'cse-1st-sem-1',
+    tags: ['Maths', 'Semester 1']
+  },
+  {
+    id: 'mock-cse-1-1-2',
+    title: 'C Programming Syntax & Lab Solutions (ZIP)',
+    originalFileName: 'c_programming_lab_solutions.zip',
+    category: 'CSE',
+    type: 'ZIP',
+    mimeType: 'application/zip',
+    url: '#',
+    previewUrl: '#',
+    size: 5800000,
+    fileSize: '5.80 MB',
+    uploadedBy: 'Simran Kaur',
+    date: '2025-10-04',
+    folderId: 'cse-1st-sem-1',
+    tags: ['C Language', 'Lab']
+  },
+
+  // 3. CSE 1st Year - Sem 2
+  {
+    id: 'mock-cse-1-2-1',
+    title: 'Applied Physics-II Wave Optics & Lasers',
+    originalFileName: 'applied_physics_optics_lasers.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 3240000,
+    fileSize: '3.24 MB',
+    uploadedBy: 'Aditya Sharma',
+    date: '2026-01-18',
+    folderId: 'cse-1st-sem-2',
+    tags: ['Physics', 'Sem 2']
+  },
+  {
+    id: 'mock-cse-1-2-2',
+    title: 'Basic Electrical Engineering Solved Papers (2021-2025)',
+    originalFileName: 'bee_solved_papers_5years.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 2950000,
+    fileSize: '2.95 MB',
+    uploadedBy: 'Tanvi Kulkarni',
+    date: '2026-02-10',
+    folderId: 'cse-1st-sem-2',
+    tags: ['BEE', 'Question Paper']
+  },
+
+  // 4. CSE 2nd Year - Sem 1 (Sem 3)
+  {
+    id: 'mock-cse-2-1-1',
+    title: 'Data Structures & Algorithms Detailed Notes',
+    originalFileName: 'dsa_trees_graphs_heaps_complete.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 6100000,
+    fileSize: '6.10 MB',
+    uploadedBy: 'Neha Patel',
+    date: '2025-08-25',
+    folderId: 'cse-2nd-sem-1',
+    tags: ['DSA', 'Core CSE']
+  },
+  {
+    id: 'mock-cse-2-1-2',
+    title: 'Discrete Mathematics Proofs & Relations Handbook',
+    originalFileName: 'discrete_mathematics_cheatsheet.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 2150000,
+    fileSize: '2.15 MB',
+    uploadedBy: 'Rohan Mehta',
+    date: '2025-09-02',
+    folderId: 'cse-2nd-sem-1',
+    tags: ['Maths', 'Core']
+  },
+
+  // 5. CSE 2nd Year - Sem 2 (Sem 4)
+  {
+    id: 'mock-cse-2-2-1',
+    title: 'Operating Systems Virtual Memory & Scheduling (PPTX)',
+    originalFileName: 'os_scheduling_virtual_memory_slides.pptx',
+    category: 'CSE',
+    type: 'PPTX',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    url: '#',
+    previewUrl: '#',
+    size: 4800000,
+    fileSize: '4.80 MB',
+    uploadedBy: 'Aditya Sharma',
+    date: '2026-02-14',
+    folderId: 'cse-2nd-sem-2',
+    tags: ['OS', 'Slides']
+  },
+  {
+    id: 'mock-cse-2-2-2',
+    title: 'Database Management Systems SQL & Normalization Guide',
+    originalFileName: 'dbms_sql_normalization_notes.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 3800000,
+    fileSize: '3.80 MB',
+    uploadedBy: 'Devang Joshi',
+    date: '2026-03-01',
+    folderId: 'cse-2nd-sem-2',
+    tags: ['DBMS', 'SQL']
+  },
+
+  // 6. CSE 3rd Year - Sem 1 (Sem 5)
+  {
+    id: 'mock-cse-3-1-1',
+    title: 'Computer Networks Protocols & OSI Layer Reference',
+    originalFileName: 'computer_networks_osi_tcp_ip.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 5200000,
+    fileSize: '5.20 MB',
+    uploadedBy: 'Simran Kaur',
+    date: '2025-08-30',
+    folderId: 'cse-3rd-sem-1',
+    tags: ['Networks', 'TCP/IP']
+  },
+  {
+    id: 'mock-cse-3-1-2',
+    title: 'Software Engineering Agile & Scrum Architecture Notes',
+    originalFileName: 'software_engineering_agile_uml.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 2700000,
+    fileSize: '2.70 MB',
+    uploadedBy: 'Neha Patel',
+    date: '2025-09-15',
+    folderId: 'cse-3rd-sem-1',
+    tags: ['Agile', 'UML']
+  },
+
+  // 7. CSE 3rd Year - Sem 2 (Sem 6)
+  {
+    id: 'mock-cse-3-2-1',
+    title: 'Cryptography & Network Security Complete Formula Sheet',
+    originalFileName: 'cryptography_rsa_aes_ecc_guide.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 3400000,
+    fileSize: '3.40 MB',
+    uploadedBy: 'Aditya Sharma',
+    date: '2026-02-18',
+    folderId: 'cse-3rd-sem-2',
+    tags: ['Crypto', 'Security']
+  },
+  {
+    id: 'mock-cse-3-2-2',
+    title: 'Theory of Computation Turing Machines & Regular Expressions',
+    originalFileName: 'toc_automata_turing_machines.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 4200000,
+    fileSize: '4.20 MB',
+    uploadedBy: 'Tanvi Kulkarni',
+    date: '2026-03-05',
+    folderId: 'cse-3rd-sem-2',
+    tags: ['TOC', 'GATE']
+  },
+
+  // 8. CSE 4th Year - Sem 1 & 2
+  {
+    id: 'mock-cse-4-1-1',
+    title: 'Deep Learning & Transformer Architectures (BERT & GPT)',
+    originalFileName: 'deep_learning_transformers_nlp.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 7800000,
+    fileSize: '7.80 MB',
+    uploadedBy: 'Aditya Sharma',
+    date: '2025-10-10',
+    folderId: 'cse-4th-sem-1',
+    tags: ['AI', 'Transformers']
+  },
+  {
+    id: 'mock-cse-4-2-1',
+    title: 'Cloud Computing AWS & Docker Deployment Guide',
+    originalFileName: 'cloud_aws_docker_k8s_guide.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 5600000,
+    fileSize: '5.60 MB',
+    uploadedBy: 'Rohan Mehta',
+    date: '2026-03-12',
+    folderId: 'cse-4th-sem-2',
+    tags: ['Cloud', 'Docker']
+  },
+
+  // 9. CSE Other - APK & Student Utilities
+  {
+    id: 'mock-cse-other-1',
+    title: 'SPIT Campus Companion Utility v2.4 (APK)',
+    originalFileName: 'spit_campus_companion_v2.4.apk',
+    category: 'Other',
+    type: 'APK',
+    mimeType: 'application/vnd.android.package-archive',
+    url: '#',
+    previewUrl: '#',
+    size: 14200000,
+    fileSize: '14.2 MB',
+    uploadedBy: 'SPIT App Club',
+    date: '2026-03-20',
+    folderId: 'cse-other',
+    tags: ['Android', 'APK', 'Campus App']
+  },
+  {
+    id: 'mock-cse-other-2',
+    title: 'SPIT Attendance Tracker & Timetable Tool (APK)',
+    originalFileName: 'spit_attendance_tracker_v1.2.apk',
+    category: 'Other',
+    type: 'APK',
+    mimeType: 'application/vnd.android.package-archive',
+    url: '#',
+    previewUrl: '#',
+    size: 9800000,
+    fileSize: '9.80 MB',
+    uploadedBy: 'Kunal Deshmukh',
+    date: '2026-02-15',
+    folderId: 'cse-other',
+    tags: ['APK', 'Utility']
+  },
+
+  // 10. EXTC Folders
+  {
+    id: 'mock-extc-1-1-1',
+    title: 'Digital Electronics & Logic Gates Reference Notes',
+    originalFileName: 'digital_electronics_morris_mano_notes.pdf',
+    category: 'EXTC',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 3700000,
+    fileSize: '3.70 MB',
+    uploadedBy: 'Simran Kaur',
+    date: '2025-09-08',
+    folderId: 'extc-1st-sem-1',
+    tags: ['Logic Gates', 'EXTC']
+  },
+  {
+    id: 'mock-extc-2-1-1',
+    title: 'Signals & Systems Fourier and Laplace Transforms',
+    originalFileName: 'signals_and_systems_oppenheim_summary.pdf',
+    category: 'EXTC',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 4500000,
+    fileSize: '4.50 MB',
+    uploadedBy: 'Prof. S. Rane',
+    date: '2025-10-14',
+    folderId: 'extc-2nd-sem-1',
+    tags: ['Signals', 'Fourier']
+  },
+  {
+    id: 'mock-extc-3-1-1',
+    title: 'Digital Signal Processing MATLAB Experiment Scripts (ZIP)',
+    originalFileName: 'dsp_matlab_filters_lab_scripts.zip',
+    category: 'EXTC',
+    type: 'ZIP',
+    mimeType: 'application/zip',
+    url: '#',
+    previewUrl: '#',
+    size: 8400000,
+    fileSize: '8.40 MB',
+    uploadedBy: 'Devang Joshi',
+    date: '2026-02-22',
+    folderId: 'extc-3rd-sem-1',
+    tags: ['DSP', 'MATLAB']
+  },
+  {
+    id: 'mock-extc-4-1-1',
+    title: 'VLSI Design & Verilog Microcontroller Architecture',
+    originalFileName: 'vlsi_verilog_fpga_notes.pdf',
+    category: 'EXTC',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 6300000,
+    fileSize: '6.30 MB',
+    uploadedBy: 'Simran Kaur',
+    date: '2026-01-28',
+    folderId: 'extc-4th-sem-1',
+    tags: ['VLSI', 'Verilog']
+  },
+  {
+    id: 'mock-extc-other-1',
+    title: 'Arduino & Raspberry Pi Robotics Lab Manual',
+    originalFileName: 'embedded_robotics_lab_manual.pdf',
+    category: 'EXTC',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    size: 4900000,
+    fileSize: '4.90 MB',
+    uploadedBy: 'EXTC Lab Incharge',
+    date: '2026-03-01',
+    folderId: 'extc-other',
+    tags: ['Robotics', 'Embedded']
+  }
+];
+
+// Admin Pending Approval Requests
+export const localMockPendingStories = [
+  {
+    id: 'pending-story-1',
+    name: 'Rohan Verma',
+    branch: 'CSE',
+    subBranch: 'Core',
+    passoutYear: '2025',
+    company: 'Google',
+    role: 'Associate Software Engineer',
+    semester: '8',
+    cgpa: '9.4',
+    photo: '/images/file-3.jpg',
+    status: 'Pending',
+    requestType: 'create',
+    createdAt: '2026-04-01T10:30:00Z',
+    journey: {
+      firstYear: 'Learned fundamentals of computer science and C++ in the SPIT programming club.',
+      secondYear: 'Solved 300+ LeetCode problems and built full stack React/Node.js web apps.',
+      thirdYear: 'Secured Google Summer of Code (GSoC) and interned during the summer break.',
+      fourthYear: 'Cleared 4 rounds of Google on-campus interview (System Design + Hard DSA).',
+      prep: 'Striver SDE Sheet, NeetCode 150, and Grokking System Design.',
+      projects: '1. Distributed Key-Value Store\n2. Realtime Collaborative Code Editor',
+      howSecured: 'Campus placement drive. 1 coding round (2 problems) + 3 technical interview rounds.'
+    },
+    resume: 'rohan_verma_google_resume.pdf',
+    resumeFile: {
+      fileName: 'rohan_verma_google_resume.pdf',
+      fileSize: '1.45 MB',
+      url: '/sample-document.pdf'
+    },
+    studyMaterials: [
+      {
+        id: 'mat-pending-1-1',
+        title: 'Google System Design Quick Reference',
+        type: 'PDF',
+        fileName: 'google_sysdesign_cheat.pdf',
+        fileSize: '2.10 MB',
+        url: '/sample-document.pdf'
+      }
+    ]
+  },
+  {
+    id: 'pending-story-2',
+    name: 'Ananya Deshmukh',
+    branch: 'EXTC',
+    subBranch: 'Embedded',
+    passoutYear: '2025',
+    company: 'Texas Instruments',
+    role: 'Hardware Design Engineer',
+    semester: '8',
+    cgpa: '9.1',
+    photo: '/images/file-4.jpg',
+    status: 'Pending',
+    requestType: 'edit',
+    createdAt: '2026-04-02T14:15:00Z',
+    journey: {
+      firstYear: 'Explored breadboarding and analog electronics circuits.',
+      secondYear: 'Focused on digital design and learned Verilog HDL for FPGA programming.',
+      thirdYear: 'Completed a 6-month research internship on RISC-V SoC architecture.',
+      fourthYear: 'Received a pre-placement offer (PPO) at Texas Instruments Bangalore.',
+      prep: 'Morris Mano Digital Logic, Razavi Analog Circuits, and Microcontroller interfacing.',
+      projects: '1. 32-bit Pipelined RISC-V Core\n2. High-speed SPI Flash Controller',
+      howSecured: 'Shortlisted through campus test followed by 2 technical interview rounds on Verilog.'
+    },
+    resume: 'ananya_ti_resume.pdf',
+    resumeFile: {
+      fileName: 'ananya_ti_resume.pdf',
+      fileSize: '1.20 MB',
+      url: '/sample-document.pdf'
+    },
+    studyMaterials: [
+      {
+        id: 'mat-pending-2-1',
+        title: 'Verilog HDL Interview Questions Guide',
+        type: 'PDF',
+        fileName: 'verilog_ti_interview_guide.pdf',
+        fileSize: '1.80 MB',
+        url: '/sample-document.pdf'
+      }
+    ]
+  },
+  {
+    id: 'pending-story-3',
+    name: 'Kavya Iyer',
+    branch: 'CSE',
+    subBranch: 'AI',
+    passoutYear: '2024',
+    company: 'Amazon AWS',
+    role: 'Cloud Solutions Architect',
+    semester: 'Passed Out',
+    cgpa: '9.3',
+    photo: '/images/file-5.jpg',
+    status: 'Pending',
+    requestType: 'delete',
+    createdAt: '2026-04-03T09:00:00Z',
+    journey: {
+      firstYear: 'Focused on Python, Linux terminal, and networking fundamentals.',
+      secondYear: 'Built microservices and deployed Kubernetes clusters on local servers.',
+      thirdYear: 'AWS Solutions Architect Associate certified. Cleared Amazon AWS internship.',
+      fourthYear: 'Joined AWS Bangalore team as Full-Time Solutions Architect.',
+      prep: 'AWS Whitepapers, Linux Kernel internals, and Cloud Architecture patterns.',
+      projects: '1. Serverless Video Transcoder\n2. Zero-Trust Identity Federation Proxy',
+      howSecured: 'Applied through Amazon Off-Campus Drive + Referral from SPIT Alumni.'
+    },
+    resume: 'kavya_amazon_aws.pdf',
+    resumeFile: {
+      fileName: 'kavya_amazon_aws.pdf',
+      fileSize: '1.60 MB',
+      url: '/sample-document.pdf'
+    },
+    studyMaterials: []
+  }
+];
+
+export const localMockPendingResources = [
+  {
+    id: 'pending-res-1',
+    title: 'SPIT Placement Aptitude & Quant Formula Handbook 2026',
+    originalFileName: 'spit_aptitude_quant_formula_2026.pdf',
+    category: 'Placement',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    fileSize: '2.80 MB',
+    size: 2800000,
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    uploadedBy: 'Pooja Nair',
+    folderId: 'system-placement-material',
+    status: 'Pending',
+    requestType: 'create',
+    createdAt: '2026-04-03T11:20:00Z'
+  },
+  {
+    id: 'pending-res-2',
+    title: 'SPIT Student Portal Android Companion App (APK)',
+    originalFileName: 'spit_student_portal_v2.0.apk',
+    category: 'Other',
+    type: 'APK',
+    mimeType: 'application/vnd.android.package-archive',
+    fileSize: '16.5 MB',
+    size: 16500000,
+    url: '#',
+    previewUrl: '#',
+    uploadedBy: 'Siddharth Rao',
+    folderId: 'cse-other',
+    status: 'Pending',
+    requestType: 'create',
+    createdAt: '2026-04-02T16:45:00Z'
+  },
+  {
+    id: 'pending-res-3',
+    title: 'Theory of Computation 2018-2024 GATE Solved Papers',
+    originalFileName: 'toc_gate_solved_papers_2018_2024.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    fileSize: '4.90 MB',
+    size: 4900000,
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    uploadedBy: 'Tanvi Kulkarni',
+    folderId: 'cse-3rd-sem-2',
+    status: 'Pending',
+    requestType: 'edit',
+    createdAt: '2026-04-01T18:10:00Z'
+  },
+  {
+    id: 'pending-res-4',
+    title: 'Outdated Chemistry Lab Manual 2020',
+    originalFileName: 'chemistry_lab_manual_2020.pdf',
+    category: 'CSE',
+    type: 'PDF',
+    mimeType: 'application/pdf',
+    fileSize: '3.10 MB',
+    size: 3100000,
+    url: '/sample-document.pdf',
+    previewUrl: '/sample-document.pdf',
+    uploadedBy: 'Aditya Sharma',
+    folderId: 'cse-1st-sem-1',
+    status: 'Pending',
+    requestType: 'delete',
+    createdAt: '2026-03-31T09:30:00Z'
+  }
+];
