@@ -91,13 +91,15 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="glass-panel" style={{
+    <nav style={{
       position: 'sticky',
       top: 0,
-      zIndex: 100,
+      zIndex: 1000,
+      backgroundColor: 'var(--bg-primary)',
       borderBottom: '1px solid var(--border-color)',
-      padding: '1.25rem 0',
-      transition: 'all 0.3s ease'
+      padding: '1.15rem 0',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)'
     }}>
       <div className="container navbar-grid" style={{
         display: 'grid',
