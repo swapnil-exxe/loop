@@ -303,9 +303,28 @@ app.get(['/health', '/api/health'], (req, res) => {
   res.status(200).json({
     status: 'healthy',
     service: 'loop-backend',
-    version: '2.1.0',
+    version: '2.2.0-gridfs-streaming',
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'connecting',
     uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Dedicated Public Diagnostic Endpoint for Route & Deployment Verification
+app.get(['/api/upload-route-health', '/upload-route-health'], (req, res) => {
+  res.status(200).json({
+    uploadRoutes: true,
+    version: '2.2.0-gridfs-streaming',
+    architecture: 'MongoDB GridFS Parallel Chunk Streaming',
+    maxFileSize: '200MB',
+    endpoints: [
+      'POST /api/resources/upload/init',
+      'PUT /api/resources/upload/chunk',
+      'POST /api/resources/upload/chunk',
+      'GET /api/resources/upload/:uploadId',
+      'POST /api/resources/upload/finalize',
+      'DELETE /api/resources/upload/:uploadId'
+    ],
     timestamp: new Date().toISOString()
   });
 });
@@ -314,13 +333,14 @@ app.get('/', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     name: 'LOOP Backend API',
-    version: '2.1.0'
+    version: '2.2.0-gridfs-streaming',
+    uploadRoutes: true
   });
 });
 
 // Middleware to check database connection status before handling API requests
 app.use((req, res, next) => {
-  if (req.path === '/health' || req.path === '/api/health' || req.path === '/') {
+  if (req.path === '/health' || req.path === '/api/health' || req.path === '/' || req.path === '/api/upload-route-health' || req.path === '/upload-route-health') {
     return next();
   }
   if (mongoose.connection.readyState !== 1) {
@@ -1182,6 +1202,8 @@ app.get('/api/admin/resources-stats', authenticateToken, requireAdmin, async (re
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
 // =========================================================================
 // MONGODB GRIDFS PARALLEL CHUNKED UPLOAD ARCHITECTURE (Up to 200 MB)
 // Explicit routes registered BEFORE any generic /api/resources/:id routes
@@ -2163,4 +2185,6 @@ app.delete('/api/achievements/:id', authenticateToken, requireAdmin, async (req,
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}.`);
+  console.log('[UPLOAD ROUTES] chunked upload routes loaded');
+  console.log('[UPLOAD ROUTES] GridFS parallel streaming active (200MB limit)');
 });
