@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download, 
   Maximize2, Minimize2, FileText, AlertCircle, Loader, FileCode,
@@ -23,12 +24,11 @@ export default function FileViewerModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [blobUrl, setBlobUrl] = useState(null);
   const [textContent, setTextContent] = useState('');
 
   const canvasRef = useRef(null);
-  const modalContainerRef = useRef(null);
+  const stageScrollRef = useRef(null);
   const pdfDocRef = useRef(null);
 
   // File identity and format determination
@@ -62,6 +62,15 @@ export default function FileViewerModal({
       onNavigate(files[currentIndex + 1]);
     }
   };
+
+  // Lock body scroll completely while modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   // Keyboard navigation (Escape, Left, Right)
   useEffect(() => {
@@ -106,7 +115,7 @@ export default function FileViewerModal({
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => {
       abortController.abort();
-    }, 25000); // 25s timeout safeguard against infinite spinner
+    }, 25000); // 25s safeguard against infinite spinner
 
     const loadFile = async () => {
       try {
@@ -127,7 +136,7 @@ export default function FileViewerModal({
         clearTimeout(timeoutId);
 
         if (!res.ok) {
-          throw new Error(`Failed to load file preview (${res.status})`);
+          throw new Error(`Failed to load file content (${res.status})`);
         }
 
         const blob = await res.blob();
@@ -148,7 +157,7 @@ export default function FileViewerModal({
         } else if (isCodeOrText) {
           const text = await blob.text();
           if (!active) return;
-          setTextContent(text.slice(0, 500000)); // safe 500KB cap for browser DOM
+          setTextContent(text.slice(0, 500000));
           setLoading(false);
         } else {
           setLoading(false);
@@ -177,7 +186,7 @@ export default function FileViewerModal({
     };
   }, [file?.id, fileUrl, isPdf, isImage, isCodeOrText, isOfficeDoc]);
 
-  // Render PDF page on canvas when pageNum or scale changes
+  // Render PDF page on canvas with responsive fit-to-width/aspect ratio calculation
   useEffect(() => {
     if (!isPdf || !pdfDocRef.current || !canvasRef.current || loading || error) return;
 
@@ -189,7 +198,15 @@ export default function FileViewerModal({
         const page = await pdfDocRef.current.getPage(pageNum);
         if (isCancelled) return;
 
-        const viewport = page.getViewport({ scale });
+        // Base unscaled viewport
+        const baseViewport = page.getViewport({ scale: 1.0 });
+        
+        // Calculate available display dimensions inside the scroll stage
+        const containerWidth = stageScrollRef.current ? (stageScrollRef.current.clientWidth - 48) : 900;
+        const autoFitScale = Math.min(1.4, Math.max(0.75, containerWidth / baseViewport.width));
+        const effectiveScale = autoFitScale * scale;
+
+        const viewport = page.getViewport({ scale: effectiveScale });
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -206,7 +223,7 @@ export default function FileViewerModal({
         await renderTask.promise;
       } catch (err) {
         if (!isCancelled && err.name !== 'RenderingCancelledException') {
-          console.error('Page render error:', err);
+          console.error('PDF page render error:', err);
         }
       }
     };
@@ -221,19 +238,6 @@ export default function FileViewerModal({
     };
   }, [isPdf, pageNum, scale, loading, error]);
 
-  // Fullscreen toggle
-  const toggleFullscreen = (e) => {
-    e?.stopPropagation?.();
-    if (!modalContainerRef.current) return;
-    if (!document.fullscreenElement) {
-      modalContainerRef.current.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
-
   // Safe Binary Download Handler (prevents duplicate clicks and event propagation)
   const handleDownload = async (e) => {
     e?.stopPropagation?.();
@@ -243,7 +247,6 @@ export default function FileViewerModal({
       await downloadResourceFile(file);
     } catch (err) {
       console.error('Modal download error:', err);
-      // Fallback direct window download
       if (fileUrl) {
         window.open(fileUrl, '_blank');
       }
@@ -253,249 +256,475 @@ export default function FileViewerModal({
   };
 
   const getFormatBadge = () => {
-    if (isPdf) return { label: 'PDF', bg: 'rgba(255, 69, 58, 0.2)', text: '#ff453a' };
-    if (isImage) return { label: (ext || 'IMAGE').toUpperCase(), bg: 'rgba(10, 132, 255, 0.2)', text: '#0a84ff' };
-    if (isCodeOrText) return { label: (ext || 'CODE').toUpperCase(), bg: 'rgba(48, 209, 88, 0.2)', text: '#30d158' };
-    if (ext === 'pptx' || ext === 'ppt') return { label: 'PPTX', bg: 'rgba(255, 149, 0, 0.2)', text: '#ff9500' };
-    if (ext === 'docx' || ext === 'doc') return { label: 'DOCX', bg: 'rgba(0, 122, 255, 0.2)', text: '#007aff' };
-    if (ext === 'xlsx' || ext === 'xls') return { label: 'XLSX', bg: 'rgba(52, 199, 89, 0.2)', text: '#34c759' };
-    return { label: (ext || 'FILE').toUpperCase(), bg: 'rgba(255, 255, 255, 0.12)', text: '#ffffff' };
+    if (isPdf) return { label: 'PDF', bg: 'rgba(255, 69, 58, 0.25)', text: '#ff453a' };
+    if (isImage) return { label: (ext || 'IMAGE').toUpperCase(), bg: 'rgba(10, 132, 255, 0.25)', text: '#0a84ff' };
+    if (isCodeOrText) return { label: (ext || 'CODE').toUpperCase(), bg: 'rgba(48, 209, 88, 0.25)', text: '#30d158' };
+    if (ext === 'pptx' || ext === 'ppt') return { label: 'PPTX', bg: 'rgba(255, 149, 0, 0.25)', text: '#ff9500' };
+    if (ext === 'docx' || ext === 'doc') return { label: 'DOCX', bg: 'rgba(0, 122, 255, 0.25)', text: '#007aff' };
+    if (ext === 'xlsx' || ext === 'xls') return { label: 'XLSX', bg: 'rgba(52, 199, 89, 0.25)', text: '#34c759' };
+    return { label: (ext || 'FILE').toUpperCase(), bg: 'rgba(255, 255, 255, 0.15)', text: '#ffffff' };
   };
 
   const badge = getFormatBadge();
 
-  return (
+  // Pure Full-Viewport Modal via Portal
+  return createPortal(
     <div 
       style={{
         position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.88)',
-        backdropFilter: 'blur(10px)',
-        zIndex: 99999,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: '#09090b',
+        zIndex: 2147483647, // Maximum stacking context (guarantees viewer is above navbar, footer, modals)
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        color: '#ffffff',
+        fontFamily: 'var(--font-sans, sans-serif)'
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* ======================================================== */}
+      {/* 1. SLIM, FIXED TOP VIEWER TOOLBAR                         */}
+      {/* ======================================================== */}
+      <header style={{
+        height: '56px',
+        minHeight: '56px',
+        backgroundColor: '#18181b',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: isFullscreen ? '0' : '1.5rem',
-        overflow: 'hidden'
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          e.stopPropagation();
-          onClose();
-        }
-      }}
-    >
-      <div 
-        ref={modalContainerRef}
+        justifyContent: 'space-between',
+        padding: '0 1.25rem',
+        zIndex: 100,
+        flexShrink: 0,
+        gap: '1rem',
+        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)'
+      }}>
+        {/* Left: File Name & Format Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, overflow: 'hidden' }}>
+          <span style={{
+            backgroundColor: badge.bg,
+            color: badge.text,
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            padding: '0.2rem 0.55rem',
+            borderRadius: '6px',
+            letterSpacing: '0.04em',
+            flexShrink: 0
+          }}>
+            {badge.label}
+          </span>
+
+          <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ 
+              fontSize: '0.95rem', 
+              fontWeight: 700, 
+              color: '#ffffff',
+              marginRight: '0.6rem'
+            }}>
+              {file?.title || file?.originalFileName || 'File Preview'}
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#71717a' }}>
+              {file?.fileSizeFormatted ? `(${file.fileSizeFormatted})` : file?.size ? `(${formatBytes(file.size)})` : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Controls & Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          {/* PDF Page Navigation */}
+          {isPdf && !loading && !error && numPages > 0 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              borderRadius: '8px',
+              padding: '0.15rem 0.4rem',
+              marginRight: '0.25rem'
+            }}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPageNum(p => Math.max(1, p - 1));
+                }}
+                disabled={pageNum <= 1}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: pageNum <= 1 ? '#52525b' : '#fff',
+                  cursor: pageNum <= 1 ? 'not-allowed' : 'pointer',
+                  padding: '4px',
+                  display: 'flex'
+                }}
+                title="Previous Page"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span style={{ fontSize: '0.78rem', color: '#e4e4e7', minWidth: '56px', textAlign: 'center' }}>
+                {pageNum} / {numPages}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPageNum(p => Math.min(numPages, p + 1));
+                }}
+                disabled={pageNum >= numPages}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: pageNum >= numPages ? '#52525b' : '#fff',
+                  cursor: pageNum >= numPages ? 'not-allowed' : 'pointer',
+                  padding: '4px',
+                  display: 'flex'
+                }}
+                title="Next Page"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Zoom Controls (PDF and Image) */}
+          {(isPdf || isImage) && !loading && !error && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              borderRadius: '8px',
+              padding: '0.15rem 0.4rem',
+              marginRight: '0.25rem'
+            }}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setScale(s => Math.max(0.5, s - 0.25));
+                }}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px', display: 'flex' }}
+                title="Zoom Out"
+              >
+                <ZoomOut size={15} />
+              </button>
+              <span style={{ fontSize: '0.78rem', color: '#e4e4e7', minWidth: '42px', textAlign: 'center' }}>
+                {Math.round(scale * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setScale(s => Math.min(3.0, s + 0.25));
+                }}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px', display: 'flex' }}
+                title="Zoom In"
+              >
+                <ZoomIn size={15} />
+              </button>
+            </div>
+          )}
+
+          {/* Folder File Navigation (Previous / Next) */}
+          {totalFilesInFolder > 1 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              borderRadius: '8px',
+              padding: '0.15rem 0.35rem',
+              marginRight: '0.25rem'
+            }}>
+              <button
+                type="button"
+                onClick={handlePrev}
+                disabled={!hasPrevious}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: !hasPrevious ? '#52525b' : '#fff',
+                  cursor: !hasPrevious ? 'not-allowed' : 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Previous File (Left Arrow)"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span style={{ fontSize: '0.76rem', color: '#a1a1aa', padding: '0 4px', minWidth: '48px', textAlign: 'center' }}>
+                {currentIndex >= 0 ? `${currentIndex + 1} of ${totalFilesInFolder}` : '•'}
+              </span>
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={!hasNext}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: !hasNext ? '#52525b' : '#fff',
+                  cursor: !hasNext ? 'not-allowed' : 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Next File (Right Arrow)"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Prominent Download Button */}
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading}
+            style={{
+              backgroundColor: 'var(--accent-color, #0a84ff)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '0.45rem 0.95rem',
+              cursor: downloading ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              transition: 'opacity 0.15s ease'
+            }}
+            title="Download Original File"
+          >
+            <Download size={14} />
+            <span>{downloading ? 'Downloading...' : 'Download'}</span>
+          </button>
+
+          {/* Close Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: 'none',
+              color: '#fff',
+              borderRadius: '8px',
+              padding: '0.45rem 0.65rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              marginLeft: '0.25rem'
+            }}
+            title="Close Viewer (Esc)"
+          >
+            <X size={16} />
+            <span className="hide-on-mobile">Close</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ======================================================== */}
+      {/* 2. DEDICATED FULL-VIEWPORT SCROLLABLE STAGE               */}
+      {/* Uses remaining 100% height without any clipping/overlap  */}
+      {/* ======================================================== */}
+      <main 
+        ref={stageScrollRef}
         style={{
-          width: isFullscreen ? '100vw' : '92vw',
-          maxWidth: isFullscreen ? '100vw' : '1080px',
-          height: isFullscreen ? '100vh' : '88vh',
-          maxHeight: isFullscreen ? '100vh' : '820px',
-          backgroundColor: '#151517',
-          border: isFullscreen ? 'none' : '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: isFullscreen ? '0' : '18px',
+          flex: 1,
+          width: '100%',
+          height: 'calc(100vh - 56px)',
+          overflowY: 'auto',
+          overflowX: 'auto',
+          backgroundColor: '#0c0c0e',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 30px 80px rgba(0, 0, 0, 0.85)',
-          overflow: 'hidden',
-          color: '#ffffff',
+          alignItems: 'center',
+          justifyContent: (loading || error || isOfficeDoc || (!isPdf && !isImage && !isCodeOrText)) ? 'center' : 'flex-start',
+          padding: '2rem 1.5rem',
+          boxSizing: 'border-box',
           position: 'relative'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ======================================================== */}
-        {/* HEADER BAR                                                */}
-        {/* ======================================================== */}
-        <div style={{
-          padding: '0.85rem 1.25rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: '#1b1b1e',
-          flexShrink: 0,
-          gap: '1rem',
-          zIndex: 10
-        }}>
-          {/* File Name & Metadata Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, overflow: 'hidden' }}>
-            <span style={{
+        {/* Loading Indicator */}
+        {loading && (
+          <div style={{ 
+            textAlign: 'center', 
+            color: '#a1a1aa', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            gap: '0.85rem' 
+          }}>
+            <div style={{ animation: 'spin 1s linear infinite' }}>
+              <Loader size={36} color="var(--accent-color, #0a84ff)" />
+            </div>
+            <p style={{ fontSize: '0.9rem', margin: 0 }}>Loading file preview...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div style={{
+            textAlign: 'center',
+            maxWidth: '440px',
+            padding: '2.5rem 2rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)'
+          }}>
+            <AlertCircle size={44} color="#ff453a" style={{ marginBottom: '0.85rem' }} />
+            <h4 style={{ color: '#fff', fontSize: '1.15rem', margin: '0 0 0.5rem 0' }}>Preview Unavailable</h4>
+            <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: '0 0 1.5rem 0', lineHeight: '1.5' }}>
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={handleDownload}
+              style={{
+                backgroundColor: 'var(--accent-color, #0a84ff)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.65rem 1.4rem',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontWeight: 600,
+                fontSize: '0.88rem',
+                cursor: 'pointer'
+              }}
+            >
+              <Download size={16} /> Download File
+            </button>
+          </div>
+        )}
+
+        {/* 1. PDF Canvas View (Centered, aspect-ratio preserved, vertical scrolling supported) */}
+        {isPdf && !loading && !error && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            width: '100%',
+            paddingBottom: '2.5rem'
+          }}>
+            <canvas
+              ref={canvasRef}
+              style={{
+                boxShadow: '0 12px 48px rgba(0, 0, 0, 0.85)',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                maxWidth: '100%',
+                display: 'block'
+              }}
+            />
+          </div>
+        )}
+
+        {/* 2. Image View (Contained, centered, zoom supported) */}
+        {isImage && !loading && !error && blobUrl && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '100%',
+            height: '100%',
+            paddingBottom: '2rem'
+          }}>
+            <img
+              src={blobUrl}
+              alt={file?.title || 'Preview'}
+              style={{
+                transform: `scale(${scale})`,
+                transition: 'transform 0.15s ease',
+                maxWidth: scale <= 1.0 ? '100%' : 'none',
+                maxHeight: scale <= 1.0 ? 'calc(100vh - 120px)' : 'none',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                boxShadow: '0 12px 40px rgba(0, 0, 0, 0.65)'
+              }}
+            />
+          </div>
+        )}
+
+        {/* 3. Text & Code File View */}
+        {isCodeOrText && !isPdf && !isImage && !loading && !error && (
+          <div style={{
+            width: '100%',
+            maxWidth: '1000px',
+            minHeight: '75vh',
+            backgroundColor: '#111113',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '1.5rem',
+            overflow: 'auto',
+            boxSizing: 'border-box',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
+          }}>
+            <pre style={{
+              margin: 0,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              fontSize: '0.88rem',
+              lineHeight: '1.65',
+              color: '#e4e4e7',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word'
+            }}>
+              <code>{textContent || 'Empty file'}</code>
+            </pre>
+          </div>
+        )}
+
+        {/* 4. Format-Aware Fallback (PPTX, DOCX, XLSX, ZIP, etc.) */}
+        {!isPdf && !isImage && !isCodeOrText && !loading && !error && (
+          <div style={{
+            textAlign: 'center',
+            maxWidth: '480px',
+            padding: '3rem 2.25rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '18px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.6)',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              width: '68px',
+              height: '68px',
+              borderRadius: '16px',
               backgroundColor: badge.bg,
               color: badge.text,
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              padding: '0.22rem 0.55rem',
-              borderRadius: '6px',
-              letterSpacing: '0.04em',
-              flexShrink: 0
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.25rem'
             }}>
-              {badge.label}
-            </span>
-
-            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              <div style={{ 
-                fontSize: '1rem', 
-                fontWeight: 700, 
-                color: '#ffffff',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {file?.title || file?.originalFileName || 'File Preview'}
-              </div>
-              <div style={{ fontSize: '0.74rem', color: '#8e8e93', marginTop: '1px' }}>
-                {file?.originalFileName || file?.fileName || ''}
-                {file?.fileSizeFormatted ? ` • ${file.fileSizeFormatted}` : file?.size ? ` • ${formatBytes(file.size)}` : ''}
-              </div>
+              {ext === 'pptx' || ext === 'ppt' ? <Presentation size={34} /> :
+               ext === 'xlsx' || ext === 'xls' ? <FileSpreadsheet size={34} /> :
+               isCodeOrText ? <FileCode size={34} /> :
+               <FileText size={34} />}
             </div>
-          </div>
 
-          {/* Action & Navigation Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
-            {/* PDF Page Navigation */}
-            {isPdf && !loading && !error && numPages > 0 && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                borderRadius: '8px',
-                padding: '0.15rem 0.4rem',
-                marginRight: '0.25rem'
-              }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPageNum(p => Math.max(1, p - 1));
-                  }}
-                  disabled={pageNum <= 1}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: pageNum <= 1 ? '#444' : '#fff',
-                    cursor: pageNum <= 1 ? 'not-allowed' : 'pointer',
-                    padding: '4px',
-                    display: 'flex'
-                  }}
-                  title="Previous Page"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span style={{ fontSize: '0.76rem', color: '#ccc', minWidth: '54px', textAlign: 'center' }}>
-                  {pageNum} / {numPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPageNum(p => Math.min(numPages, p + 1));
-                  }}
-                  disabled={pageNum >= numPages}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: pageNum >= numPages ? '#444' : '#fff',
-                    cursor: pageNum >= numPages ? 'not-allowed' : 'pointer',
-                    padding: '4px',
-                    display: 'flex'
-                  }}
-                  title="Next Page"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
+            <h4 style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
+              {file?.title || file?.originalFileName}
+            </h4>
 
-            {/* Zoom Controls (PDF and Image) */}
-            {(isPdf || isImage) && !loading && !error && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                borderRadius: '8px',
-                padding: '0.15rem 0.4rem',
-                marginRight: '0.25rem'
-              }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setScale(s => Math.max(0.5, s - 0.25));
-                  }}
-                  style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px', display: 'flex' }}
-                  title="Zoom Out"
-                >
-                  <ZoomOut size={15} />
-                </button>
-                <span style={{ fontSize: '0.76rem', color: '#ccc', minWidth: '40px', textAlign: 'center' }}>
-                  {Math.round(scale * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setScale(s => Math.min(3.0, s + 0.25));
-                  }}
-                  style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px', display: 'flex' }}
-                  title="Zoom In"
-                >
-                  <ZoomIn size={15} />
-                </button>
-              </div>
-            )}
+            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: '0 0 1.75rem 0', lineHeight: '1.55' }}>
+              Preview is not available for this file type ({badge.label}). You can download the file to open it with your device application.
+            </p>
 
-            {/* Folder Previous / Next Navigation in Header */}
-            {totalFilesInFolder > 1 && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                borderRadius: '8px',
-                padding: '0.15rem 0.35rem',
-                marginRight: '0.25rem'
-              }}>
-                <button
-                  type="button"
-                  onClick={handlePrev}
-                  disabled={!hasPrevious}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: !hasPrevious ? '#444' : '#fff',
-                    cursor: !hasPrevious ? 'not-allowed' : 'pointer',
-                    padding: '4px',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  title="Previous File in Folder"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span style={{ fontSize: '0.74rem', color: '#aaa', padding: '0 4px', minWidth: '46px', textAlign: 'center' }}>
-                  {currentIndex >= 0 ? `${currentIndex + 1} / ${totalFilesInFolder}` : '•'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  disabled={!hasNext}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: !hasNext ? '#444' : '#fff',
-                    cursor: !hasNext ? 'not-allowed' : 'pointer',
-                    padding: '4px',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  title="Next File in Folder"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
-
-            {/* Prominent Download Button */}
             <button
               type="button"
               onClick={handleDownload}
@@ -504,316 +733,24 @@ export default function FileViewerModal({
                 backgroundColor: 'var(--accent-color, #0a84ff)',
                 color: '#ffffff',
                 border: 'none',
-                borderRadius: '8px',
-                padding: '0.45rem 0.85rem',
-                cursor: downloading ? 'wait' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                transition: 'opacity 0.15s ease'
-              }}
-              title="Download Original File"
-            >
-              <Download size={14} />
-              <span>{downloading ? 'Downloading...' : 'Download'}</span>
-            </button>
-
-            {/* Fullscreen Toggle */}
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#fff',
-                borderRadius: '8px',
-                padding: '0.45rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-            >
-              {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </button>
-
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose();
-              }}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#fff',
-                borderRadius: '8px',
-                padding: '0.45rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                marginLeft: '0.2rem'
-              }}
-              title="Close Preview (Esc)"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* ======================================================== */}
-        {/* PREVIEW CONTAINER STAGE (Overflow strictly contained)     */}
-        {/* ======================================================== */}
-        <div style={{
-          flex: 1,
-          width: '100%',
-          overflow: 'auto',
-          backgroundColor: '#0c0c0e',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.25rem',
-          boxSizing: 'border-box',
-          position: 'relative'
-        }}>
-          {/* Loading Indicator */}
-          {loading && (
-            <div style={{ 
-              textAlign: 'center', 
-              color: '#8e8e93', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              gap: '0.75rem' 
-            }}>
-              <div style={{ animation: 'spin 1s linear infinite' }}>
-                <Loader size={34} color="var(--accent-color, #0a84ff)" />
-              </div>
-              <p style={{ fontSize: '0.88rem', margin: 0 }}>Loading file preview...</p>
-            </div>
-          )}
-
-          {/* Error State */}
-          {error && !loading && (
-            <div style={{
-              textAlign: 'center',
-              maxWidth: '420px',
-              padding: '2rem 1.5rem',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-              borderRadius: '14px',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
-            }}>
-              <AlertCircle size={40} color="#ff453a" style={{ marginBottom: '0.75rem' }} />
-              <h4 style={{ color: '#fff', fontSize: '1.05rem', margin: '0 0 0.4rem 0' }}>Preview Unavailable</h4>
-              <p style={{ color: '#999', fontSize: '0.82rem', margin: '0 0 1.25rem 0', lineHeight: '1.45' }}>
-                {error}
-              </p>
-              <button
-                type="button"
-                onClick={handleDownload}
-                style={{
-                  backgroundColor: 'var(--accent-color, #0a84ff)',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: '8px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <Download size={15} /> Download File
-              </button>
-            </div>
-          )}
-
-          {/* 1. PDF Canvas View */}
-          {isPdf && !loading && !error && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              width: '100%',
-              minHeight: '100%',
-              boxSizing: 'border-box'
-            }}>
-              <canvas
-                ref={canvasRef}
-                style={{
-                  boxShadow: '0 10px 40px rgba(0, 0, 0, 0.8)',
-                  borderRadius: '6px',
-                  backgroundColor: '#ffffff',
-                  maxWidth: '100%',
-                  objectFit: 'contain'
-                }}
-              />
-            </div>
-          )}
-
-          {/* 2. Image View (contained, no distortion, no overflow) */}
-          {isImage && !loading && !error && blobUrl && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              width: '100%',
-              height: '100%',
-              overflow: 'auto',
-              boxSizing: 'border-box'
-            }}>
-              <img
-                src={blobUrl}
-                alt={file?.title || 'Preview'}
-                style={{
-                  transform: `scale(${scale})`,
-                  transition: 'transform 0.15s ease',
-                  maxWidth: scale <= 1.0 ? '100%' : 'none',
-                  maxHeight: scale <= 1.0 ? '100%' : 'none',
-                  objectFit: 'contain',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
-                }}
-              />
-            </div>
-          )}
-
-          {/* 3. Text & Code File View */}
-          {isCodeOrText && !isPdf && !isImage && !loading && !error && (
-            <div style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: '#111113',
-              borderRadius: '10px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              padding: '1.25rem',
-              overflow: 'auto',
-              boxSizing: 'border-box'
-            }}>
-              <pre style={{
-                margin: 0,
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                fontSize: '0.85rem',
-                lineHeight: '1.6',
-                color: '#e4e4e7',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}>
-                <code>{textContent || 'Empty file'}</code>
-              </pre>
-            </div>
-          )}
-
-          {/* 4. Format-Aware Fallback (PPTX, DOCX, XLSX, ZIP, etc.) */}
-          {!isPdf && !isImage && !isCodeOrText && !loading && !error && (
-            <div style={{
-              textAlign: 'center',
-              maxWidth: '460px',
-              padding: '2.5rem 2rem',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-              borderRadius: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              boxSizing: 'border-box'
-            }}>
-              <div style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '14px',
-                backgroundColor: badge.bg,
-                color: badge.text,
+                padding: '0.75rem 2rem',
+                borderRadius: '10px',
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '1.25rem'
-              }}>
-                {ext === 'pptx' || ext === 'ppt' ? <Presentation size={32} /> :
-                 ext === 'xlsx' || ext === 'xls' ? <FileSpreadsheet size={32} /> :
-                 isCodeOrText ? <FileCode size={32} /> :
-                 <FileText size={32} />}
-              </div>
-
-              <h4 style={{ color: '#ffffff', fontSize: '1.2rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
-                {file?.title || file?.originalFileName}
-              </h4>
-
-              <p style={{ color: '#a1a1aa', fontSize: '0.88rem', margin: '0 0 1.75rem 0', lineHeight: '1.5' }}>
-                Preview is not available for this file type ({badge.label}). You can download the file to open it with your device application.
-              </p>
-
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={downloading}
-                style={{
-                  backgroundColor: 'var(--accent-color, #0a84ff)',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.7rem 1.75rem',
-                  borderRadius: '10px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: downloading ? 'wait' : 'pointer',
-                  transition: 'opacity 0.15s ease'
-                }}
-              >
-                <Download size={17} />
-                <span>{downloading ? 'Downloading...' : 'Download File'}</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* ======================================================== */}
-        {/* FOOTER BAR                                                */}
-        {/* ======================================================== */}
-        <div style={{
-          padding: '0.65rem 1.25rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          backgroundColor: '#1b1b1e',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '0.75rem',
-          color: '#8e8e93',
-          flexShrink: 0
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span>SPIT LOOP Secure Resource Viewer</span>
-            {file?.folderId && <span>• Folder: {file.folderId}</span>}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {totalFilesInFolder > 0 && (
-              <span>File {currentIndex + 1} of {totalFilesInFolder}</span>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose();
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-secondary, #a1a1aa)',
-                cursor: 'pointer',
-                padding: 0,
-                textDecoration: 'underline'
+                gap: '0.55rem',
+                fontWeight: 600,
+                fontSize: '0.92rem',
+                cursor: downloading ? 'wait' : 'pointer',
+                transition: 'opacity 0.15s ease'
               }}
             >
-              Close Viewer
+              <Download size={18} />
+              <span>{downloading ? 'Downloading...' : 'Download File'}</span>
             </button>
           </div>
-        </div>
-      </div>
-    </div>
+        )}
+      </main>
+    </div>,
+    document.body
   );
 }
