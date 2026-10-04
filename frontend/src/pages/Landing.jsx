@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, CornerRightDown } from 'lucide-react';
-import ThrowableDeck from '../components/ThrowableDeck';
 
 const heroImage = '/images/spit-college.jpg';
 const labImage = '/images/loop-labs.png';
@@ -308,9 +307,6 @@ export default function Landing() {
           pointerEvents: 'none'
         }} />
       </section>
-
-      {/* THROWABLE CARD DECK ARCHIVE */}
-      <ThrowableDeck />
 
 
 
