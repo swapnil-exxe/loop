@@ -1652,14 +1652,14 @@ export default function AdminDashboard() {
                                 <span style={{
                                   fontSize: '0.65rem',
                                   textTransform: 'uppercase',
-                                  color: res.storageProvider === 's3' ? '#ff9500' : '#0071e3',
-                                  backgroundColor: res.storageProvider === 's3' ? 'rgba(255, 149, 0, 0.1)' : 'rgba(0, 113, 227, 0.1)',
-                                  border: `1px solid ${res.storageProvider === 's3' ? 'rgba(255, 149, 0, 0.3)' : 'rgba(0, 113, 227, 0.3)'}`,
+                                  color: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? '#ff9500' : '#0071e3',
+                                  backgroundColor: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.1)' : 'rgba(0, 113, 227, 0.1)',
+                                  border: `1px solid ${(res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.3)' : 'rgba(0, 113, 227, 0.3)'}`,
                                   padding: '0.1rem 0.4rem',
                                   borderRadius: '4px',
                                   fontWeight: 600
                                 }}>
-                                  {res.storageProvider || 'gridfs'}
+                                  Storage: {res.storageProvider?.toUpperCase() || 'R2'}
                                 </span>
                               </div>
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>

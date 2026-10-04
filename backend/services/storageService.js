@@ -2,6 +2,7 @@ const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = re
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const mongoose = require('mongoose');
 const { GridFSBucket, ObjectId } = require('mongodb');
+const R2StorageService = require('./r2StorageService');
 
 // Environment configurations
 const S3_BUCKET = process.env.S3_BUCKET || '';
@@ -119,7 +120,11 @@ const StorageService = {
   },
 
   // Get Signed Download/Preview URL
-  async getDownloadUrl(storageKey, originalFileName = 'file') {
+  async getDownloadUrl(storageKey, originalFileName = 'file', storageProvider = 'r2') {
+    if (storageProvider === 'r2' || R2StorageService.isR2Configured()) {
+      const r2Url = await R2StorageService.getPresignedDownloadUrl({ objectKey: storageKey, originalFileName });
+      if (r2Url) return r2Url;
+    }
     if (hasS3Config && storageKey && !storageKey.startsWith('gridfs:')) {
       const command = new GetObjectCommand({
         Bucket: S3_BUCKET,
@@ -222,6 +227,11 @@ const StorageService = {
   // Delete file from storage
   async deleteFile(storageKey, storageProvider) {
     try {
+      if (storageProvider === 'r2' || (!storageKey.startsWith('gridfs:') && R2StorageService.isR2Configured())) {
+        const deleted = await R2StorageService.deleteObject(storageKey);
+        if (deleted) return true;
+      }
+
       if ((storageProvider === 's3' || (!storageKey.startsWith('gridfs:') && hasS3Config)) && hasS3Config) {
         const command = new DeleteObjectCommand({
           Bucket: S3_BUCKET,

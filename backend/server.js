@@ -12,6 +12,7 @@ const helmet = require('helmet');
 const busboy = require('busboy');
 const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
 const StorageService = require('./services/storageService');
+const R2StorageService = require('./services/r2StorageService');
 const { ensureSystemFolders } = require('./scripts/initSystemFolders');
 
 const app = express();
@@ -1292,10 +1293,17 @@ app.get('/api/resources/:id/file', authenticateToken, async (req, res) => {
       }
     }
 
-    // S3 Cloud Storage
-    if (resource.storageProvider === 's3' && resource.storageKey) {
-      const downloadUrl = await StorageService.getDownloadUrl(resource.storageKey, resource.originalFileName || resource.title);
+    // Cloudflare R2 / S3 Cloud Storage Direct Download
+    if ((resource.storageProvider === 'r2' || resource.storageProvider === 's3') && resource.storageKey) {
+      const downloadUrl = await R2StorageService.getPresignedDownloadUrl({
+        objectKey: resource.storageKey,
+        originalFileName: resource.originalFileName || resource.title
+      }) || await StorageService.getDownloadUrl(resource.storageKey, resource.originalFileName || resource.title, resource.storageProvider);
+
       if (downloadUrl) {
+        if (req.query.json === 'true' || req.headers.accept?.includes('application/json')) {
+          return res.json({ url: downloadUrl, provider: resource.storageProvider });
+        }
         return res.redirect(downloadUrl);
       }
     }
@@ -1325,6 +1333,41 @@ app.get('/api/resources/:id/file', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('File stream error:', err);
     res.status(500).json({ error: 'Failed to stream file.' });
+  }
+});
+
+// Dedicated Fast Signed Download/Preview URL Endpoint
+app.get('/api/resources/:id/download-url', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resource = await Resource.findOne({ id: sanitizeString(id) });
+    if (!resource) {
+      return res.status(404).json({ error: 'Resource not found.' });
+    }
+
+    const folder = await Folder.findOne({ id: resource.folderId });
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isUploader = resource.uploadedByEmail === req.user.email;
+
+    if (folder && folder.visibility === 'private') {
+      const isFolderOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
+      if (!isFolderOwner && !isUploader && !isAdmin) {
+        return res.status(403).json({ error: 'Access denied to private file.' });
+      }
+    }
+
+    if ((resource.storageProvider === 'r2' || resource.storageProvider === 's3') && resource.storageKey) {
+      const url = await R2StorageService.getPresignedDownloadUrl({
+        objectKey: resource.storageKey,
+        originalFileName: resource.originalFileName || resource.title
+      });
+      if (url) return res.json({ url, provider: resource.storageProvider });
+    }
+
+    // Fallback: return file streaming route
+    res.json({ url: `/api/resources/${resource.id}/file`, provider: resource.storageProvider || 'gridfs' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1364,21 +1407,34 @@ app.post('/api/resources', authenticateToken, async (req, res) => {
   }
 });
 
-// Initialize Upload (Direct S3 Signed URL or GridFS Stream)
-app.post('/api/resources/init-upload', authenticateToken, async (req, res) => {
+// =========================================================================
+// CLOUDFLARE R2 DIRECT MULTIPART UPLOAD ARCHITECTURE (Up to 200 MB)
+// =========================================================================
+
+// 1. Initiate Multipart Upload on Cloudflare R2
+const handleInitiateUpload = async (req, res) => {
   try {
     const { filename, mimeType, size, folderId } = req.body;
     if (!filename || !mimeType) {
       return res.status(400).json({ error: 'Filename and MIME type are required.' });
     }
-    if (size > 105 * 1024 * 1024) { // 105MB limit
-      return res.status(400).json({ error: 'Maximum allowed file size is 100 MB.' });
-    }
-    if (!StorageService.isAllowedMime(mimeType)) {
-      return res.status(400).json({ error: 'Unsupported file type. Please upload a PDF, image, or document.' });
+
+    // Backend size validation (Enforce 200 MB maximum)
+    try {
+      R2StorageService.validateFileSize(size);
+    } catch (sizeErr) {
+      return res.status(400).json({ error: sizeErr.message });
     }
 
-    const folder = await Folder.findOne({ id: folderId });
+    // Backend format validation
+    if (!R2StorageService.isAllowedFile({ filename, mimeType })) {
+      return res.status(400).json({ 
+        error: 'Unsupported file format. Please upload an educational document (PDF, DOCX, TXT), spreadsheet, presentation, image, archive (ZIP), or code file.' 
+      });
+    }
+
+    const resolvedFolderId = folderId || 'system-placement-material';
+    const folder = await Folder.findOne({ id: resolvedFolderId });
     if (!folder) {
       return res.status(404).json({ error: 'Target folder not found.' });
     }
@@ -1386,6 +1442,7 @@ app.post('/api/resources/init-upload', authenticateToken, async (req, res) => {
     const isAdmin = req.user && req.user.role === 'Admin';
     const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
 
+    // Enforce folder permissions strictly
     if (folder.visibility === 'private' && !isOwner && !isAdmin) {
       return res.status(403).json({ error: 'You cannot upload to another user private folder.' });
     }
@@ -1393,12 +1450,38 @@ app.post('/api/resources/init-upload', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Community contributions are disabled for this folder.' });
     }
 
+    // Initiate multipart upload on Cloudflare R2
+    if (R2StorageService.isR2Configured() || R2StorageService.getClient()) {
+      const r2Upload = await R2StorageService.initiateMultipartUpload({
+        filename,
+        mimeType,
+        size,
+        folderId: resolvedFolderId,
+        userId: req.user.id
+      });
+
+      const partSize = r2Upload.partSize || (10 * 1024 * 1024); // 10 MB chunks
+      const totalParts = Math.max(1, Math.ceil(Number(size) / partSize));
+
+      return res.json({
+        provider: 'r2',
+        uploadId: r2Upload.uploadId,
+        objectKey: r2Upload.objectKey,
+        bucket: r2Upload.bucket,
+        partSize,
+        totalParts,
+        maxConcurrency: 4,
+        maxFileSize: R2StorageService.MAX_FILE_SIZE
+      });
+    }
+
+    // Fallback: If R2 is not yet configured, return informative status
     if (StorageService.isS3Active()) {
       const presigned = await StorageService.getPresignedUploadUrl({
         filename,
         mimeType,
         size,
-        folderId,
+        folderId: resolvedFolderId,
         userId: req.user.id
       });
       return res.json({
@@ -1407,24 +1490,171 @@ app.post('/api/resources/init-upload', authenticateToken, async (req, res) => {
       });
     }
 
-    // GridFS Streaming Endpoint
+    // Local/GridFS streaming fallback
     res.json({
       provider: 'gridfs',
-      streamEndpoint: '/api/resources/upload-stream'
+      streamEndpoint: '/api/resources/upload-stream',
+      maxFileSize: R2StorageService.MAX_FILE_SIZE
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Initiate upload error:', err);
+    res.status(500).json({ error: err.message || 'Failed to initiate upload.' });
+  }
+};
+
+app.post('/api/resources/upload/initiate', authenticateToken, handleInitiateUpload);
+app.post('/api/resources/init-upload', authenticateToken, handleInitiateUpload); // Backward compatibility alias
+
+// 2. Get Presigned Upload URL for Individual Multipart Part(s)
+app.post('/api/resources/upload/part-url', authenticateToken, async (req, res) => {
+  try {
+    const { uploadId, objectKey, partNumber, partNumbers } = req.body;
+    if (!uploadId || !objectKey) {
+      return res.status(400).json({ error: 'uploadId and objectKey are required.' });
+    }
+
+    // Batch part URLs request (greatly optimizes frontend latency)
+    if (Array.isArray(partNumbers) && partNumbers.length > 0) {
+      const urls = await Promise.all(
+        partNumbers.map(async (num) => {
+          const partData = await R2StorageService.getPresignedPartUrl({
+            objectKey,
+            uploadId,
+            partNumber: num
+          });
+          return partData;
+        })
+      );
+      return res.json({ parts: urls });
+    }
+
+    // Single part URL request
+    if (!partNumber) {
+      return res.status(400).json({ error: 'partNumber is required.' });
+    }
+
+    const partData = await R2StorageService.getPresignedPartUrl({
+      objectKey,
+      uploadId,
+      partNumber
+    });
+
+    res.json(partData);
+  } catch (err) {
+    console.error('Part URL generation error:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate part upload URL.' });
   }
 });
 
-// High-speed Streaming Multipart Upload (up to 100MB) via busboy directly into GridFS
+// 3. Complete Multipart Upload & Save Resource Record
+const handleCompleteUpload = async (req, res) => {
+  try {
+    const {
+      uploadId,
+      objectKey,
+      parts,
+      filename,
+      title,
+      description,
+      category,
+      folderId,
+      semester,
+      year,
+      tags,
+      size,
+      mimeType,
+      storageKey
+    } = req.body;
+
+    const actualKey = objectKey || storageKey;
+    const resolvedFolderId = folderId || 'system-placement-material';
+
+    if (!actualKey || !resolvedFolderId) {
+      return res.status(400).json({ error: 'objectKey and folderId are required.' });
+    }
+
+    const folder = await Folder.findOne({ id: resolvedFolderId });
+    if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id));
+
+    if (folder.visibility === 'private' && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Cannot upload into private folder.' });
+    }
+
+    // If multipart upload ID and parts are supplied, complete the R2 multipart upload
+    if (uploadId && Array.isArray(parts) && parts.length > 0) {
+      await R2StorageService.completeMultipartUpload({
+        objectKey: actualKey,
+        uploadId,
+        parts
+      });
+    }
+
+    const resourceId = String(Date.now());
+    const originalFileName = filename || actualKey.split('/').pop() || 'resource';
+    const detectedType = R2StorageService.getFileTypeCategory(mimeType, originalFileName);
+
+    const resource = await Resource.create({
+      id: resourceId,
+      title: (title && title.trim()) || originalFileName.replace(/\.[^/.]+$/, ''),
+      description: description || '',
+      category: category || 'General',
+      type: detectedType,
+      originalFileName,
+      mimeType: mimeType || 'application/octet-stream',
+      size: Number(size) || 0,
+      fileSizeFormatted: R2StorageService.formatBytes(Number(size) || 0),
+      storageProvider: 'r2',
+      storageKey: actualKey,
+      url: `/api/resources/${resourceId}/file`,
+      folderId: resolvedFolderId,
+      ownerId: req.user.id || null,
+      uploadedBy: req.user.name || req.user.email.split('@')[0],
+      uploadedByEmail: req.user.email,
+      date: new Date().toISOString().split('T')[0],
+      visibility: folder.visibility || 'public',
+      status: 'approved',
+      semester: semester || '',
+      year: year || '',
+      tags: Array.isArray(tags) ? tags : (tags ? tags.split(',').map(t => t.trim()) : [])
+    });
+
+    res.status(201).json(resource);
+  } catch (err) {
+    console.error('Complete upload error:', err);
+    res.status(400).json({ error: err.message || 'Failed to complete upload.' });
+  }
+};
+
+app.post('/api/resources/upload/complete', authenticateToken, handleCompleteUpload);
+app.post('/api/resources/complete-upload', authenticateToken, handleCompleteUpload); // Backward compatibility alias
+
+// 4. Abort Multipart Upload (Cleans up R2 temporary parts)
+app.post('/api/resources/upload/abort', authenticateToken, async (req, res) => {
+  try {
+    const { uploadId, objectKey } = req.body;
+    if (!uploadId || !objectKey) {
+      return res.status(400).json({ error: 'uploadId and objectKey are required.' });
+    }
+
+    await R2StorageService.abortMultipartUpload({ objectKey, uploadId });
+    res.json({ success: true, message: 'Upload aborted and temporary parts cleaned up.' });
+  } catch (err) {
+    console.error('Abort upload error:', err);
+    res.status(500).json({ error: err.message || 'Failed to abort upload.' });
+  }
+});
+
+// Legacy GridFS stream fallback (retained for backward compatibility)
 app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
   try {
     const bb = busboy({
       headers: req.headers,
-      highWaterMark: 2 * 1024 * 1024, // 2MB streaming buffer to eliminate socket pause backpressure
+      highWaterMark: 2 * 1024 * 1024,
       limits: {
-        fileSize: 105 * 1024 * 1024, // 105 MB max
+        fileSize: 205 * 1024 * 1024, // 200 MB limit
         files: 1
       }
     });
@@ -1440,9 +1670,9 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
     bb.on('file', (name, fileStream, info) => {
       const { filename, mimeType } = info;
 
-      if (!StorageService.isAllowedMime(mimeType)) {
+      if (!R2StorageService.isAllowedFile({ filename, mimeType })) {
         fileStream.resume();
-        return res.status(400).json({ error: 'Unsupported file type. Please upload a PDF, image, or document.' });
+        return res.status(400).json({ error: 'Unsupported file type. Please upload a PDF, image, document, or archive.' });
       }
 
       fileStream.on('limit', () => {
@@ -1450,7 +1680,6 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
         fileStream.resume();
       });
 
-      // Stream directly into MongoDB GridFS
       uploadPromise = StorageService.uploadToGridFS(fileStream, filename, mimeType, {
         uploadedBy: req.user.name || req.user.email,
         uploadedByEmail: req.user.email
@@ -1464,7 +1693,7 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
 
     bb.on('finish', async () => {
       if (fileLimitHit) {
-        return res.status(400).json({ error: 'File is too large. Maximum allowed file size is 100 MB.' });
+        return res.status(400).json({ error: 'File exceeds the maximum allowed size of 200 MB.' });
       }
       if (!uploadPromise) {
         return res.status(400).json({ error: 'No file received in upload stream.' });
@@ -1478,7 +1707,6 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
         const isAdmin = req.user && req.user.role === 'Admin';
         const isOwner = folder && (folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id)));
 
-        // Permissions check on target folder
         if (folder && folder.visibility === 'private' && !isOwner && !isAdmin) {
           await StorageService.deleteFile(uploadResult.storageKey, 'gridfs');
           return res.status(403).json({ error: 'Cannot upload into private folder.' });
@@ -1486,7 +1714,7 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
 
         const title = (fields.title && fields.title.trim()) || uploadResult.filename.replace(/\.[^/.]+$/, "");
         const category = fields.category || 'General';
-        const detectedType = StorageService.getFileTypeCategory(uploadResult.contentType, uploadResult.filename);
+        const detectedType = R2StorageService.getFileTypeCategory(uploadResult.contentType, uploadResult.filename);
         const resourceId = String(Date.now());
         const resourceUrl = `/api/resources/${resourceId}/file`;
 
@@ -1499,7 +1727,7 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
           originalFileName: uploadResult.filename,
           mimeType: uploadResult.contentType || 'application/pdf',
           size: uploadResult.size,
-          fileSizeFormatted: StorageService.formatBytes(uploadResult.size),
+          fileSizeFormatted: R2StorageService.formatBytes(uploadResult.size),
           storageProvider: 'gridfs',
           storageKey: uploadResult.storageKey,
           url: resourceUrl,
@@ -1525,48 +1753,6 @@ app.post('/api/resources/upload-stream', authenticateToken, (req, res) => {
     req.pipe(bb);
   } catch (err) {
     res.status(500).json({ error: err.message });
-  }
-});
-
-// Complete Upload (for S3 Direct Upload)
-app.post('/api/resources/complete-upload', authenticateToken, async (req, res) => {
-  try {
-    const { title, description, category, folderId, storageKey, filename, mimeType, size } = req.body;
-    if (!storageKey || !folderId) {
-      return res.status(400).json({ error: 'storageKey and folderId are required.' });
-    }
-
-    const folder = await Folder.findOne({ id: folderId });
-    if (!folder) return res.status(404).json({ error: 'Folder not found.' });
-
-    const resourceId = String(Date.now());
-    const detectedType = StorageService.getFileTypeCategory(mimeType, filename);
-
-    const resource = await Resource.create({
-      id: resourceId,
-      title: title || filename.replace(/\.[^/.]+$/, ""),
-      description: description || '',
-      category: category || 'General',
-      type: detectedType,
-      originalFileName: filename,
-      mimeType: mimeType || 'application/pdf',
-      size: Number(size) || 0,
-      fileSizeFormatted: StorageService.formatBytes(Number(size) || 0),
-      storageProvider: 's3',
-      storageKey,
-      url: `/api/resources/${resourceId}/file`,
-      folderId,
-      ownerId: req.user.id || null,
-      uploadedBy: req.user.name || req.user.email.split('@')[0],
-      uploadedByEmail: req.user.email,
-      date: new Date().toISOString().split('T')[0],
-      visibility: folder.visibility || 'public',
-      status: 'approved'
-    });
-
-    res.status(201).json(resource);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
   }
 });
 

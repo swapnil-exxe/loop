@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { uploadResourceStream } from '../utils/db';
+import { uploadDirectR2 } from '../utils/upload';
 
 const UploadContext = createContext(null);
 
@@ -22,6 +22,7 @@ export function UploadProvider({ children }) {
       folderId,
       percent: 0,
       speedFormatted: 'Starting...',
+      etaFormatted: 'Calculating...',
       remainingSecs: null,
       loadedFormatted: '0 B',
       totalFormatted: '',
@@ -34,15 +35,23 @@ export function UploadProvider({ children }) {
     setIsDockMinimized(false); // Pop up dock when new upload starts
 
     try {
-      const result = await uploadResourceStream(
-        { file, title, description, category, folderId, semester, year, tags },
-        (stats) => {
+      const result = await uploadDirectR2({
+        file,
+        title,
+        description,
+        category,
+        folderId,
+        semester,
+        year,
+        tags,
+        onProgress: (stats) => {
           setUploads(prev => prev.map(u => {
             if (u.id !== uploadId) return u;
             return {
               ...u,
               percent: stats.percent,
               speedFormatted: stats.speedFormatted,
+              etaFormatted: stats.etaFormatted,
               remainingSecs: stats.remainingSecs,
               loadedFormatted: stats.loadedFormatted,
               totalFormatted: stats.totalFormatted
@@ -50,7 +59,7 @@ export function UploadProvider({ children }) {
           }));
         },
         abortController
-      );
+      });
 
       // Mark completed
       setUploads(prev => prev.map(u => {

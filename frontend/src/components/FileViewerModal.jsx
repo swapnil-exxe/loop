@@ -23,8 +23,12 @@ export default function FileViewerModal({ file, onClose }) {
   const fileUrl = getResourceFileUrl(file);
   const mimeType = (file?.mimeType || '').toLowerCase();
   const fileType = file?.type || (mimeType === 'application/pdf' ? 'PDF' : mimeType.startsWith('image/') ? 'Image' : 'Document');
-  const isPdf = fileType === 'PDF' || mimeType === 'application/pdf' || file?.originalFileName?.toLowerCase().endsWith('.pdf') || file?.fileName?.toLowerCase().endsWith('.pdf');
-  const isImage = fileType === 'Image' || mimeType.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(file?.originalFileName || file?.fileName || file?.title || '');
+  const fileName = file?.originalFileName || file?.fileName || file?.title || '';
+  const ext = fileName.split('.').pop().toLowerCase();
+  const isPdf = fileType === 'PDF' || mimeType === 'application/pdf' || ext === 'pdf';
+  const isImage = fileType === 'Image' || mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext);
+  const isCodeOrText = ['txt', 'csv', 'java', 'py', 'js', 'jsx', 'ts', 'tsx', 'c', 'cpp', 'h', 'css', 'html', 'json', 'xml', 'sql', 'md'].includes(ext) || mimeType.startsWith('text/');
+  const [textContent, setTextContent] = useState('');
 
   // Fetch file with authorization header to create clean blob URL
   useEffect(() => {
@@ -39,6 +43,7 @@ export default function FileViewerModal({ file, onClose }) {
 
     setLoading(true);
     setError(null);
+    setTextContent('');
 
     const loadFile = async () => {
       try {
@@ -70,6 +75,11 @@ export default function FileViewerModal({ file, onClose }) {
           pdfDocRef.current = doc;
           setNumPages(doc.numPages);
           setPageNum(1);
+          setLoading(false);
+        } else if (isCodeOrText && !isImage) {
+          const text = await blob.text();
+          if (!active) return;
+          setTextContent(text.slice(0, 500000)); // safe 500KB cap for browser DOM
           setLoading(false);
         } else {
           setLoading(false);
@@ -380,13 +390,39 @@ export default function FileViewerModal({ file, onClose }) {
             </div>
           )}
 
-          {/* Non-previewable File Types */}
-          {!isPdf && !isImage && !loading && !error && (
+          {/* Text / Code File Preview */}
+          {isCodeOrText && !isPdf && !isImage && !loading && !error && (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#121214',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              padding: '1rem',
+              overflow: 'auto',
+              boxSizing: 'border-box'
+            }}>
+              <pre style={{
+                margin: 0,
+                fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
+                fontSize: '0.85rem',
+                lineHeight: '1.6',
+                color: '#e4e4e7',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}>
+                <code>{textContent || 'Empty file'}</code>
+              </pre>
+            </div>
+          )}
+
+          {/* Non-previewable File Types (DOCX, PPTX, XLSX, ZIP, RAR, 7Z, etc.) */}
+          {!isPdf && !isImage && !isCodeOrText && !loading && !error && (
             <div style={{ textAlign: 'center', maxWidth: '440px', padding: '2.5rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <FileText size={56} color="var(--accent-color, #0a84ff)" style={{ marginBottom: '1rem' }} />
               <h4 style={{ color: '#fff', fontSize: '1.2rem', marginBottom: '0.5rem' }}>{file?.title || file?.originalFileName}</h4>
               <p style={{ color: '#999', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: '1.5' }}>
-                Preview is not available for this document type ({file?.mimeType || 'binary'}). You can download the file directly to your device.
+                Preview not available for this file type ({ext ? ext.toUpperCase() : file?.mimeType || 'binary'}). You can download the file to open it with your device application.
               </p>
               <button
                 type="button"

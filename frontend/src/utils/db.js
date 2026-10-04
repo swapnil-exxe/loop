@@ -1,3 +1,5 @@
+import { uploadDirectR2, formatBytes, formatSpeed, formatEta } from './upload';
+
 const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? '' : 'https://loop-qnh9.onrender.com';
 const API_URL = `${BASE_URL}/api`;
 
@@ -564,22 +566,7 @@ export const getAdminResourceStats = async () => {
   return res.json();
 };
 
-export const formatBytes = (bytes, decimals = 1) => {
-  if (!bytes || bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-};
-
-export const formatSpeed = (bytesPerSec) => {
-  if (!bytesPerSec || bytesPerSec === 0) return '0 KB/s';
-  const mbps = bytesPerSec / (1024 * 1024);
-  if (mbps >= 1) return `${mbps.toFixed(1)} MB/s`;
-  const kbps = bytesPerSec / 1024;
-  return `${kbps.toFixed(0)} KB/s`;
-};
+export { formatBytes, formatSpeed, formatEta, uploadDirectR2 };
 
 export const getResourceFileUrl = (resource) => {
   if (!resource) return '';
@@ -590,104 +577,13 @@ export const getResourceFileUrl = (resource) => {
   return resource.link || '';
 };
 
-// High-speed 100MB Streaming Upload with Real Progress, Speed, Time Remaining, and Cancellation
-export const uploadResourceStream = ({ file, title, description, category, folderId, semester, year, tags }, onProgressCallback, abortController) => {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    if (abortController) {
-      abortController.signal.addEventListener('abort', () => {
-        xhr.abort();
-        reject(new Error('Upload cancelled'));
-      });
-    }
-
-    xhr.open('POST', `${API_URL}/resources/upload-stream`);
-    const userSession = localStorage.getItem('loop_current_user');
-    if (userSession) {
-      try {
-        const { token } = JSON.parse(userSession);
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      } catch (e) {}
-    }
-
-    let lastLoaded = 0;
-    let lastTime = Date.now();
-
-    if (xhr.upload) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
-          const now = Date.now();
-          const timeDiff = (now - lastTime) / 1000;
-          let speedBps = 0;
-          if (timeDiff >= 0.25) {
-            speedBps = (event.loaded - lastLoaded) / timeDiff;
-            lastLoaded = event.loaded;
-            lastTime = now;
-          }
-
-          const remainingBytes = Math.max(0, event.total - event.loaded);
-          const remainingSecs = speedBps > 0 ? Math.round(remainingBytes / speedBps) : null;
-
-          if (onProgressCallback) {
-            onProgressCallback({
-              percent,
-              loadedBytes: event.loaded,
-              totalBytes: event.total,
-              speedFormatted: formatSpeed(speedBps),
-              remainingSecs,
-              loadedFormatted: formatBytes(event.loaded),
-              totalFormatted: formatBytes(event.total)
-            });
-          }
-        }
-      };
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        if (onProgressCallback) {
-          onProgressCallback({ percent: 100, remainingSecs: 0 });
-        }
-        try {
-          const res = JSON.parse(xhr.responseText);
-          resolve(res);
-        } catch (e) {
-          resolve(xhr.responseText);
-        }
-      } else {
-        try {
-          const err = JSON.parse(xhr.responseText);
-          reject(new Error(err.error || `Upload failed with status ${xhr.status}`));
-        } catch (e) {
-          if (xhr.status === 404) {
-            reject(new Error('Upload streaming endpoint updating on Render. Please wait 1-2 minutes for deployment to finish and retry.'));
-          } else if (xhr.status === 413) {
-            reject(new Error('File exceeds maximum upload size limit (100MB).'));
-          } else if (xhr.status === 502 || xhr.status === 503 || xhr.status === 504) {
-            reject(new Error('Backend server is temporarily waking up. Please wait a few seconds and retry.'));
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        }
-      }
-    };
-
-    xhr.onerror = () => reject(new Error('Network connection error during upload. Please retry.'));
-    xhr.ontimeout = () => reject(new Error('Upload connection timed out. Please retry.'));
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', title || '');
-    formData.append('description', description || '');
-    formData.append('category', category || 'General');
-    formData.append('folderId', folderId || '');
-    if (semester) formData.append('semester', semester);
-    if (year) formData.append('year', year);
-    if (tags) formData.append('tags', tags);
-
-    xhr.send(formData);
+// High-speed 200MB Cloudflare R2 Direct Multipart Upload with Real Progress, Speed, Time Remaining, and Cancellation
+export const uploadResourceStream = (params, onProgressCallback, abortController) => {
+  return uploadDirectR2({
+    ...params,
+    apiUrl: API_URL,
+    onProgress: onProgressCallback,
+    abortController
   });
 };
 

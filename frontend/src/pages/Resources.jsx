@@ -261,8 +261,8 @@ export default function Resources() {
       setUploadError('Please select a file to upload.');
       return;
     }
-    if (uploadFile.size > 105 * 1024 * 1024) {
-      setUploadError('File size exceeds the 100 MB limit.');
+    if (uploadFile.size > 200 * 1024 * 1024) {
+      setUploadError('File exceeds the maximum allowed size of 200 MB.');
       return;
     }
 
@@ -1307,10 +1307,10 @@ export default function Resources() {
                       Drag & Drop File Here
                     </div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      or click to browse from device (Up to 100 MB)
+                      or click to browse from device (Up to 200 MB)
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '6px' }}>
-                      Supports PDF, PNG, JPG, Word, Excel, PPTX
+                      PDF • DOCX • PPTX • XLSX • ZIP • Images • Code
                     </div>
                   </div>
                 )}
