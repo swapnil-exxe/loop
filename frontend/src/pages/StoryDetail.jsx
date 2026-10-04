@@ -1,7 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus, ExternalLink } from 'lucide-react';
 import { getStories, getStoryById, updateStory, deleteStory, addPendingStory, fileToBase64 } from '../utils/db';
+
+const getResourceLink = (res) => {
+  if (!res) return null;
+  const raw = res.url || res.link || (typeof res.name === 'string' ? res.name : '');
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^www\./i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  if (/^[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(\/.*)?$/i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return null;
+};
 
 const dataURItoBlob = (dataURI) => {
   if (!dataURI || !dataURI.startsWith('data:')) return null;
@@ -700,20 +717,61 @@ export default function StoryDetail() {
               Resources Used
             </h2>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              {story.resources.map((res, index) => (
-                <div key={index} className="glass-panel" style={{
-                  padding: '0.75rem 1.25rem',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.9rem',
-                  border: '1px solid var(--border-color)'
-                }}>
-                  <span style={{ fontWeight: 600 }}>{res.name}</span>
-                  <span className="badge" style={{ fontSize: '0.65rem' }}>{res.type}</span>
-                </div>
-              ))}
+              {story.resources.map((res, index) => {
+                const link = getResourceLink(res);
+                return link ? (
+                  <a
+                    key={index}
+                    href={link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="glass-panel"
+                    title={`Open ${link} in a new tab`}
+                    style={{
+                      padding: '0.75rem 1.25rem',
+                      borderRadius: '12px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.9rem',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                      textDecoration: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      maxWidth: '100%',
+                      overflowWrap: 'anywhere'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary, #0071e3)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{res.name}</span>
+                    {res.type && <span className="badge" style={{ fontSize: '0.65rem', flexShrink: 0 }}>{res.type}</span>}
+                    <ExternalLink size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.25rem' }} />
+                  </a>
+                ) : (
+                  <div key={index} className="glass-panel" style={{
+                    padding: '0.75rem 1.25rem',
+                    borderRadius: '12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.9rem',
+                    border: '1px solid var(--border-color)',
+                    maxWidth: '100%',
+                    overflowWrap: 'anywhere'
+                  }}>
+                    <span style={{ fontWeight: 600 }}>{res.name}</span>
+                    {res.type && <span className="badge" style={{ fontSize: '0.65rem', flexShrink: 0 }}>{res.type}</span>}
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

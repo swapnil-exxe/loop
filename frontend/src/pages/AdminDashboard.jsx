@@ -77,6 +77,23 @@ const parseCrop = (posStr) => {
   return defaults;
 };
 
+const getResourceLink = (res) => {
+  if (!res) return null;
+  const raw = res.url || res.link || (typeof res.name === 'string' ? res.name : '');
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^www\./i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  if (/^[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(\/.*)?$/i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return null;
+};
+
 const parseSliders = (posStr) => {
   const defaults = {
     outer: { x: 48, y: 0, zoom: 1.8 },
@@ -4412,6 +4429,67 @@ export default function AdminDashboard() {
                   </p>
                 )}
               </div>
+
+              {/* Resources Used */}
+              {previewingPendingStory.resources && previewingPendingStory.resources.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                    Resources Used
+                  </h3>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginLeft: '0.5rem' }}>
+                    {previewingPendingStory.resources.map((res, idx) => {
+                      const link = getResourceLink(res);
+                      return link ? (
+                        <a
+                          key={idx}
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="glass-panel"
+                          title={`Open ${link} in a new tab`}
+                          style={{
+                            padding: '0.5rem 0.85rem',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            fontSize: '0.85rem',
+                            border: '1px solid var(--border-color)',
+                            color: 'var(--text-primary)',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
+                            maxWidth: '100%',
+                            overflowWrap: 'anywhere'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{res.name}</span>
+                          {res.type && <span className="badge" style={{ fontSize: '0.65rem' }}>{res.type}</span>}
+                          <ExternalLink size={12} style={{ color: 'var(--text-secondary)' }} />
+                        </a>
+                      ) : (
+                        <div
+                          key={idx}
+                          className="glass-panel"
+                          style={{
+                            padding: '0.5rem 0.85rem',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            fontSize: '0.85rem',
+                            border: '1px solid var(--border-color)',
+                            maxWidth: '100%',
+                            overflowWrap: 'anywhere'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{res.name}</span>
+                          {res.type && <span className="badge" style={{ fontSize: '0.65rem' }}>{res.type}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Actions */}
