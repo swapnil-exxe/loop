@@ -127,29 +127,65 @@ export async function uploadDirectR2({
   const headers = getAuthHeaders();
 
   // 1. Initiate Multipart Upload with Node/Express authorization
-  const initRes = await fetch(`${cleanApiUrl}/resources/upload/initiate`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      filename: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      size: file.size,
-      folderId: folderId || 'system-placement-material'
-    }),
-    signal: abortController?.signal
-  });
+  let initRes = null;
+  let is404Fallback = false;
 
-  if (!initRes.ok) {
-    const err = await initRes.json().catch(() => ({}));
-    throw new Error(err.error || `Upload authorization failed (${initRes.status})`);
+  try {
+    initRes = await fetch(`${cleanApiUrl}/resources/upload/initiate`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        filename: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        folderId: folderId || 'system-placement-material'
+      }),
+      signal: abortController?.signal
+    });
+
+    if (initRes.status === 404) {
+      // Try alias route
+      const aliasRes = await fetch(`${cleanApiUrl}/resources/init-upload`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          filename: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+          folderId: folderId || 'system-placement-material'
+        }),
+        signal: abortController?.signal
+      });
+
+      if (aliasRes.status === 404) {
+        is404Fallback = true;
+      } else {
+        initRes = aliasRes;
+      }
+    }
+  } catch (netErr) {
+    if (abortController?.signal?.aborted) throw netErr;
+    console.warn('[Upload] Initiate request failed, falling back to legacy endpoint:', netErr);
+    return uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl: cleanApiUrl, onProgress, abortController });
+  }
+
+  // If backend returns 404 (Render has not yet deployed the new R2 endpoints)
+  if (is404Fallback || (initRes && initRes.status === 404)) {
+    console.warn('[Upload] Backend returned 404 for multipart initiate. Falling back to active server upload endpoint.');
+    return uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl: cleanApiUrl, onProgress, abortController });
+  }
+
+  if (!initRes || !initRes.ok) {
+    const err = await (initRes ? initRes.json().catch(() => ({})) : Promise.resolve({}));
+    throw new Error(err.error || `Upload authorization failed (${initRes?.status || 'Network Error'})`);
   }
 
   const initData = await initRes.json();
   const { uploadId, objectKey, provider } = initData;
 
-  // If backend instructed fallback to GridFS streaming
-  if (provider === 'gridfs') {
-    return uploadFallbackStream({ file, title, description, category, folderId, semester, year, tags, apiUrl: cleanApiUrl, onProgress, abortController });
+  // If backend instructed fallback to legacy stream/upload
+  if (provider === 'gridfs' || provider === 'legacy') {
+    return uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl: cleanApiUrl, onProgress, abortController });
   }
 
   const partSize = initData.partSize || DEFAULT_PART_SIZE;
@@ -361,19 +397,88 @@ export async function uploadDirectR2({
 }
 
 /**
- * Fallback Stream (Used if R2 is temporarily deploying or disabled)
+ * Fallback Upload for active server endpoints
+ * Handles direct base64 / json posting to /resources or /pending-resources with full XHR progress
  */
-function uploadFallbackStream({ file, title, description, category, folderId, semester, year, tags, apiUrl, onProgress, abortController }) {
+async function uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl, onProgress, abortController }) {
+  if (file.size > 50 * 1024 * 1024) {
+    throw new Error(
+      `File size is ${formatBytes(file.size)}. The active server build requires files under 50 MB for legacy fallback. To enable direct 200 MB Cloudflare R2 uploads, please trigger 'Manual Deploy' on Render (loop-qnh9).`
+    );
+  }
+
+  const userSession = localStorage.getItem('loop_current_user');
+  let isAdmin = false;
+  let token = null;
+  if (userSession) {
+    try {
+      const parsed = JSON.parse(userSession);
+      isAdmin = parsed.isAdmin || parsed.role === 'Administrator' || parsed.role === 'Admin';
+      token = parsed.token;
+    } catch (e) {}
+  }
+
+  const targetEndpoint = isAdmin ? `${apiUrl}/resources` : `${apiUrl}/pending-resources`;
+
+  // Emit reading status
+  if (onProgress) {
+    onProgress({
+      percent: 5,
+      loadedBytes: 0,
+      totalBytes: file.size,
+      loadedFormatted: '0 B',
+      totalFormatted: formatBytes(file.size),
+      speedFormatted: 'Preparing...',
+      etaFormatted: 'Starting...'
+    });
+  }
+
+  // Read file into Data URL
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file from disk.'));
+    reader.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        const readPct = Math.min(20, Math.round((e.loaded / e.total) * 20));
+        onProgress({
+          percent: readPct,
+          loadedBytes: Math.round(e.loaded * 0.2),
+          totalBytes: file.size,
+          loadedFormatted: formatBytes(e.loaded),
+          totalFormatted: formatBytes(file.size),
+          speedFormatted: 'Reading file...',
+          etaFormatted: 'A few moments...'
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  if (abortController?.signal?.aborted) {
+    throw new Error('Upload cancelled');
+  }
+
+  const payload = {
+    title: title || file.name.replace(/\.[^/.]+$/, ''),
+    description: description || '',
+    category: category || 'General',
+    folderId: folderId || 'system-placement-material',
+    link: dataUrl,
+    originalFileName: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    size: file.size
+  };
+  if (semester) payload.semester = semester;
+  if (year) payload.year = year;
+  if (tags) payload.tags = tags;
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${apiUrl}/resources/upload-stream`);
-
-    const userSession = localStorage.getItem('loop_current_user');
-    if (userSession) {
-      try {
-        const { token } = JSON.parse(userSession);
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      } catch (e) {}
+    xhr.open('POST', targetEndpoint);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     }
 
     if (abortController) {
@@ -390,7 +495,8 @@ function uploadFallbackStream({ file, title, description, category, folderId, se
     if (xhr.upload) {
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
-          const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+          // Map progress smoothly from 20% to 95%
+          const pct = Math.min(95, 20 + Math.round((event.loaded / event.total) * 75));
           const now = Date.now();
           const timeDiff = (now - lastTime) / 1000;
           if (timeDiff >= 0.3) {
@@ -399,17 +505,15 @@ function uploadFallbackStream({ file, title, description, category, folderId, se
             lastLoaded = event.loaded;
             lastTime = now;
           }
-
-          const remainingBytes = Math.max(0, event.total - event.loaded);
-          const remainingSecs = smoothedSpeed > 0 ? Math.round(remainingBytes / smoothedSpeed) : null;
+          const remainingSecs = smoothedSpeed > 0 ? Math.round((event.total - event.loaded) / smoothedSpeed) : null;
 
           if (onProgress) {
             onProgress({
-              percent,
-              loadedBytes: event.loaded,
-              totalBytes: event.total,
-              loadedFormatted: formatBytes(event.loaded),
-              totalFormatted: formatBytes(event.total),
+              percent: pct,
+              loadedBytes: Math.min(file.size, Math.round((event.loaded / event.total) * file.size)),
+              totalBytes: file.size,
+              loadedFormatted: formatBytes(Math.min(file.size, Math.round((event.loaded / event.total) * file.size))),
+              totalFormatted: formatBytes(file.size),
               speedFormatted: formatSpeed(smoothedSpeed),
               etaFormatted: formatEta(remainingSecs),
               remainingSecs
@@ -421,7 +525,17 @@ function uploadFallbackStream({ file, title, description, category, folderId, se
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        if (onProgress) onProgress({ percent: 100, speedFormatted: 'Done', etaFormatted: 'Complete' });
+        if (onProgress) {
+          onProgress({
+            percent: 100,
+            loadedBytes: file.size,
+            totalBytes: file.size,
+            loadedFormatted: formatBytes(file.size),
+            totalFormatted: formatBytes(file.size),
+            speedFormatted: 'Done',
+            etaFormatted: 'Complete'
+          });
+        }
         try {
           resolve(JSON.parse(xhr.responseText));
         } catch (e) {
@@ -440,16 +554,13 @@ function uploadFallbackStream({ file, title, description, category, folderId, se
     xhr.onerror = () => reject(new Error('Network error during upload'));
     xhr.ontimeout = () => reject(new Error('Upload timed out'));
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', title || '');
-    formData.append('description', description || '');
-    formData.append('category', category || 'General');
-    formData.append('folderId', folderId || '');
-    if (semester) formData.append('semester', semester);
-    if (year) formData.append('year', year);
-    if (tags) formData.append('tags', tags);
-
-    xhr.send(formData);
+    xhr.send(JSON.stringify(payload));
   });
+}
+
+/**
+ * Fallback Stream (Delegates to legacy upload or streaming)
+ */
+function uploadFallbackStream(params) {
+  return uploadLegacyFallback(params);
 }
