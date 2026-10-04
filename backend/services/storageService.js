@@ -234,7 +234,7 @@ async function cleanupTempChunks(uploadId) {
  * Assemble final GridFS file from verified temporary chunks in index order
  * Streams directly from temp chunk bucket to final bucket with bounded memory.
  */
-async function assembleFinalGridFSFile({ uploadId, totalChunks, fileName, mimeType, metadata = {} }) {
+async function assembleFinalGridFSFile({ uploadId, totalChunks, expectedFileSize, fileName, mimeType, metadata = {} }) {
   const tempBucket = getTempChunksBucket();
   const finalBucket = getGridFSBucket();
 
@@ -251,6 +251,12 @@ async function assembleFinalGridFSFile({ uploadId, totalChunks, fileName, mimeTy
     }
   }
 
+  // Verify total uploaded bytes matches expected file size
+  const totalFileSize = tempFiles.reduce((sum, c) => sum + (c.length || 0), 0);
+  if (expectedFileSize && totalFileSize !== expectedFileSize) {
+    throw new Error(`Total uploaded bytes (${totalFileSize}) does not match expected file size (${expectedFileSize}).`);
+  }
+
   // 2. Open final upload stream
   const finalUploadStream = finalBucket.openUploadStream(fileName, {
     chunkSizeBytes: FINAL_CHUNK_SIZE_BYTES,
@@ -261,14 +267,26 @@ async function assembleFinalGridFSFile({ uploadId, totalChunks, fileName, mimeTy
     }
   });
 
-  // 3. Sequentially pipe each chunk in exact order 0, 1, 2, ...
+  // 3. Sequentially stream each chunk in exact order 0, 1, 2, ...
   for (let i = 0; i < totalChunks; i++) {
     const chunkFile = chunkMap.get(i);
     await new Promise((resolve, reject) => {
       const downloadStream = tempBucket.openDownloadStream(chunkFile._id);
       downloadStream.on('error', reject);
-      downloadStream.on('end', resolve);
-      downloadStream.pipe(finalUploadStream, { end: false });
+
+      downloadStream.on('data', (dataChunk) => {
+        const canContinue = finalUploadStream.write(dataChunk);
+        if (!canContinue) {
+          downloadStream.pause();
+          finalUploadStream.once('drain', () => {
+            downloadStream.resume();
+          });
+        }
+      });
+
+      downloadStream.on('end', () => {
+        resolve();
+      });
     });
   }
 
@@ -280,9 +298,11 @@ async function assembleFinalGridFSFile({ uploadId, totalChunks, fileName, mimeTy
   });
 
   // 4. Delete temporary chunks now that the file is safely stitched
-  cleanupTempChunks(uploadId).catch(() => {});
-
-  const totalFileSize = tempFiles.reduce((sum, c) => sum + (c.length || 0), 0);
+  try {
+    await cleanupTempChunks(uploadId);
+  } catch (cleanErr) {
+    console.warn('[Assemble Cleanup Temp Chunks] Warning:', cleanErr.message);
+  }
 
   return {
     storageKey: `gridfs:${finalUploadStream.id.toString()}`,

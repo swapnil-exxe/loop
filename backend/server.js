@@ -1582,13 +1582,13 @@ const handleStreamingUpload = (req, res, { isPending = false } = {}) => {
   }
 };
 
-// Admin & Standard Resource Stream Upload Endpoints
-app.post(['/api/resources/upload-stream', '/api/resources/upload'], authenticateToken, (req, res) => {
+// Direct Resource Upload Endpoints (Single-file multipart fallback)
+app.post('/api/resources/upload', authenticateToken, (req, res) => {
   handleStreamingUpload(req, res, { isPending: false });
 });
 
-// Student & Community Resource Submission Stream Upload Endpoints
-app.post(['/api/pending-resources/upload-stream', '/api/pending-resources/upload'], authenticateToken, (req, res) => {
+// Student & Community Resource Submission Upload Endpoints (Single-file multipart fallback)
+app.post('/api/pending-resources/upload', authenticateToken, (req, res) => {
   handleStreamingUpload(req, res, { isPending: true });
 });
 
@@ -1839,6 +1839,10 @@ app.post(['/api/resources/upload/finalize', '/api/pending-resources/upload/final
       if (existingResource) {
         return res.status(200).json({
           success: true,
+          uploadId: session.uploadId,
+          resourceId: existingResource.id,
+          fileId: session.finalGridFsId || existingResource.gridFsFileId,
+          message: 'Upload completed successfully',
           resource: existingResource,
           alreadyFinalized: true
         });
@@ -1849,6 +1853,7 @@ app.post(['/api/resources/upload/finalize', '/api/pending-resources/upload/final
     const assembledFile = await StorageService.assembleFinalGridFSFile({
       uploadId,
       totalChunks: session.totalChunks,
+      expectedFileSize: session.fileSize,
       fileName: session.fileName,
       mimeType: session.mimeType,
       metadata: {
@@ -1921,6 +1926,10 @@ app.post(['/api/resources/upload/finalize', '/api/pending-resources/upload/final
 
     res.status(200).json({
       success: true,
+      uploadId,
+      resourceId,
+      fileId: assembledFile.gridFsFileId,
+      message: 'Upload completed successfully',
       resource: createdRecord
     });
   } catch (err) {

@@ -111,6 +111,15 @@ const getAuthHeaders = () => {
   return { headers, token, isAdmin };
 };
 
+export const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return '/api';
+    }
+  }
+  return 'https://loop-qnh9.onrender.com/api';
+};
+
 /**
  * Execute High-Speed Parallel Chunked Upload into MongoDB GridFS
  */
@@ -123,7 +132,7 @@ export async function uploadResourceStream({
   semester,
   year,
   tags,
-  apiUrl = 'https://loop-qnh9.onrender.com/api',
+  apiUrl = getApiBaseUrl(),
   onProgress,
   abortController
 }) {
@@ -157,20 +166,12 @@ export async function uploadResourceStream({
     });
   } catch (netErr) {
     if (abortController?.signal?.aborted) throw new Error('Upload cancelled');
-    // If backend is unreachable or returning error, try direct legacy fallback
-    console.warn('[Upload] Init request failed, falling back to direct endpoint:', netErr);
-    return uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl: cleanApiUrl, onProgress, abortController });
-  }
-
-  // If server returns 404 (e.g. during deployment window before Render updates), fallback gracefully
-  if (initRes.status === 404) {
-    console.warn('[Upload] /upload/init returned 404. Falling back to direct upload endpoint.');
-    return uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl: cleanApiUrl, onProgress, abortController });
+    throw new Error(`Failed to connect to upload server: ${netErr.message}`);
   }
 
   if (!initRes.ok) {
     const err = await initRes.json().catch(() => ({}));
-    throw new Error(err.error || `Upload authorization failed (${initRes.status})`);
+    throw new Error(err.error || `Upload initialization failed (${initRes.status})`);
   }
 
   const initData = await initRes.json();
@@ -366,6 +367,12 @@ export async function uploadResourceStream({
     ? `${cleanApiUrl}/resources/upload/finalize`
     : `${cleanApiUrl}/pending-resources/upload/finalize`;
 
+  console.log('[UPLOAD FINALIZE]', {
+    method: 'POST',
+    url: finalizeEndpoint,
+    uploadId
+  });
+
   const finalizeRes = await fetch(finalizeEndpoint, {
     method: 'POST',
     headers,
@@ -374,8 +381,12 @@ export async function uploadResourceStream({
   });
 
   if (!finalizeRes.ok) {
-    const err = await finalizeRes.json().catch(() => ({}));
-    throw new Error(err.error || `Finalization failed (${finalizeRes.status})`);
+    let errMessage = `Finalization failed (${finalizeRes.status})`;
+    try {
+      const errJson = await finalizeRes.json();
+      errMessage = errJson.error || errJson.message || errMessage;
+    } catch (e) {}
+    throw new Error(errMessage);
   }
 
   const finalData = await finalizeRes.json();
@@ -397,112 +408,8 @@ export async function uploadResourceStream({
   return createdResource;
 }
 
-/**
- * Fallback Direct Upload for active server endpoints
- * Handles direct multipart posting to /resources/upload-stream with full XHR progress
- */
-async function uploadLegacyFallback({ file, title, description, category, folderId, semester, year, tags, apiUrl, onProgress, abortController }) {
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error(`File size is ${formatBytes(file.size)}. Maximum allowed size is 200 MB.`);
-  }
-
-  const { token, isAdmin } = getAuthHeaders();
-  const targetEndpoint = isAdmin ? `${apiUrl}/resources/upload-stream` : `${apiUrl}/pending-resources/upload-stream`;
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', targetEndpoint);
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-
-    if (abortController) {
-      abortController.signal.addEventListener('abort', () => {
-        xhr.abort();
-        reject(new Error('Upload cancelled'));
-      });
-    }
-
-    let lastLoaded = 0;
-    let lastTime = Date.now();
-    let smoothedSpeed = 0;
-
-    if (xhr.upload) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const pct = Math.min(99, Math.round((event.loaded / event.total) * 100));
-          const now = Date.now();
-          const timeDiff = (now - lastTime) / 1000;
-          if (timeDiff >= 0.3) {
-            const currentSpeed = (event.loaded - lastLoaded) / timeDiff;
-            smoothedSpeed = smoothedSpeed === 0 ? currentSpeed : (0.7 * smoothedSpeed + 0.3 * currentSpeed);
-            lastLoaded = event.loaded;
-            lastTime = now;
-          }
-          const remainingSecs = smoothedSpeed > 0 ? Math.round((event.total - event.loaded) / smoothedSpeed) : null;
-
-          if (onProgress) {
-            onProgress({
-              percent: pct,
-              loadedBytes: event.loaded,
-              totalBytes: event.total,
-              loadedFormatted: formatBytes(event.loaded),
-              totalFormatted: formatBytes(event.total),
-              speedFormatted: formatSpeed(smoothedSpeed),
-              etaFormatted: formatEta(remainingSecs),
-              remainingSecs
-            });
-          }
-        }
-      };
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        if (onProgress) {
-          onProgress({
-            percent: 100,
-            loadedBytes: file.size,
-            totalBytes: file.size,
-            loadedFormatted: formatBytes(file.size),
-            totalFormatted: formatBytes(file.size),
-            speedFormatted: 'Done',
-            etaFormatted: 'Complete'
-          });
-        }
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch (e) {
-          resolve(xhr.responseText);
-        }
-      } else {
-        try {
-          const err = JSON.parse(xhr.responseText);
-          reject(new Error(err.error || `Upload failed with status ${xhr.status}`));
-        } catch (e) {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      }
-    };
-
-    xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out'));
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', (title && title.trim()) || file.name.replace(/\.[^/.]+$/, ''));
-    formData.append('description', description || '');
-    formData.append('category', category || 'General');
-    formData.append('folderId', folderId || 'system-placement-material');
-    if (semester) formData.append('semester', semester);
-    if (year) formData.append('year', year);
-    if (tags) {
-      formData.append('tags', Array.isArray(tags) ? tags.join(', ') : tags);
-    }
-
-    xhr.send(formData);
-  });
-}
-
 // Aliases for compatibility
 export const uploadDirectGridFS = uploadResourceStream;
 export const uploadDirectR2 = uploadResourceStream;
 export default uploadResourceStream;
+

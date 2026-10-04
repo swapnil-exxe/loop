@@ -1,0 +1,12 @@
+{
+  "name": "loop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LOOP Platform Root Package",
+  "scripts": {
+    "start": "node backend/server.js",
+    "build": "npm --prefix backend install && npm --prefix frontend install && npm --prefix frontend run build",
+    "postinstall": "npm --prefix backend install",
+    "test": "npm --prefix backend test"
+  }
+}
