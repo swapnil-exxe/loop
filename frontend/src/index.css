@@ -1,15 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400..700;1,400..700&family=Sora:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
 
 :root {
-  /* Portal Palette */
-  --portal-ground: #0A0C0E;
-  --portal-ground-secondary: #101317;
-  --portal-ink: #EDE7DC;
-  --portal-ink-secondary: #9EA5A8;
-  --portal-muted: #6C7378;
-  --portal-amber: #E8913C;
-  --portal-teal: #2E6B72;
-  --portal-hairline: rgba(237, 231, 220, 0.13);
   /* Light Mode is Default */
   --bg-primary: #ffffff;
   --bg-secondary: #f5f5f7;
