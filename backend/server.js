@@ -462,7 +462,7 @@ app.post('/api/folders', authenticateToken, async (req, res) => {
 
     const folderType = (isAdmin && isSystemFolder) ? 'system' : 'user';
     const isSystem = (isAdmin && isSystemFolder) ? true : false;
-    const folderVisibility = (visibility === 'private') ? 'private' : 'public';
+    const folderVisibility = (isAdmin && visibility === 'public') ? 'public' : 'private';
 
     const cleanSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30);
     const folderId = `${cleanSlug}-${Date.now()}`;
@@ -507,7 +507,12 @@ app.patch('/api/folders/:id', authenticateToken, async (req, res) => {
     const updates = {};
     if (req.body.name && typeof req.body.name === 'string') updates.name = req.body.name.trim();
     if (req.body.description !== undefined) updates.description = req.body.description.trim();
-    if (req.body.visibility && ['public', 'private'].includes(req.body.visibility)) updates.visibility = req.body.visibility;
+    if (req.body.visibility && ['public', 'private'].includes(req.body.visibility)) {
+      if (req.body.visibility === 'public' && !isAdmin) {
+        return res.status(403).json({ error: 'Only Administrators can change folder visibility to Public.' });
+      }
+      updates.visibility = req.body.visibility;
+    }
     if (req.body.allowContributions !== undefined) updates.allowContributions = Boolean(req.body.allowContributions);
 
     const updated = await Folder.findOneAndUpdate({ id }, { $set: updates }, { new: true });

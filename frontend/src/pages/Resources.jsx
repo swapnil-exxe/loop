@@ -4,7 +4,8 @@ import {
   Search, Download, Plus, X, Folder, Lock, Globe, Shield, 
   Trash2, Edit, ChevronRight, ArrowLeft, FileText, Image as ImageIcon, 
   FileSpreadsheet, Eye, UploadCloud, CheckCircle, AlertCircle, 
-  CornerDownRight, MoreVertical, RefreshCw, Layers, Sparkles
+  CornerDownRight, MoreVertical, RefreshCw, Layers, Sparkles,
+  Info, ShieldCheck
 } from 'lucide-react';
 import { 
   getResources, getFolders, addFolder, updateFolder, deleteFolder, 
@@ -100,8 +101,8 @@ export default function Resources() {
   const [folderForm, setFolderForm] = useState({
     name: '',
     description: '',
-    visibility: 'public',
-    allowContributions: true,
+    visibility: 'private',
+    allowContributions: false,
     parentId: null
   });
 
@@ -140,7 +141,7 @@ export default function Resources() {
     }
   }, [userSession]);
 
-  const isAdmin = currentUser?.isAdmin || currentUser?.role === 'Admin';
+  const isAdmin = currentUser?.isAdmin || currentUser?.role === 'Admin' || currentUser?.role === 'Administrator';
   const currentUserEmail = currentUser?.email || '';
 
   // Prevent background scrolling when modals open
@@ -318,8 +319,8 @@ export default function Resources() {
       const newFolder = await addFolder({
         name: folderForm.name.trim(),
         description: folderForm.description.trim(),
-        visibility: folderForm.visibility,
-        allowContributions: folderForm.allowContributions,
+        visibility: isAdmin ? folderForm.visibility : 'private',
+        allowContributions: isAdmin ? folderForm.allowContributions : false,
         parentId: folderForm.parentId || currentFolderId || null,
         isSystemFolder: isAdmin && folderForm.isSystemFolder
       });
@@ -329,8 +330,8 @@ export default function Resources() {
       setFolderForm({
         name: '',
         description: '',
-        visibility: 'public',
-        allowContributions: true,
+        visibility: isAdmin ? 'public' : 'private',
+        allowContributions: isAdmin,
         parentId: null
       });
     } catch (err) {
@@ -1560,54 +1561,130 @@ export default function Resources() {
               </div>
 
               {/* Visibility Options */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label className="input-label">Visibility</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div
-                    onClick={() => setFolderForm({ ...folderForm, visibility: 'private', allowContributions: false })}
-                    style={{
-                      border: folderForm.visibility === 'private' ? '2px solid #ff9f0a' : '1px solid var(--border-color)',
-                      borderRadius: '12px',
-                      padding: '0.85rem',
-                      cursor: 'pointer',
-                      backgroundColor: folderForm.visibility === 'private' ? 'rgba(255, 159, 10, 0.08)' : 'transparent',
-                      textAlign: 'center'
-                    }}
-                  >
-                    <Lock size={18} color="#ff9f0a" style={{ marginBottom: '0.25rem' }} />
-                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Private</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Only you & admin</div>
-                  </div>
-
-                  <div
-                    onClick={() => setFolderForm({ ...folderForm, visibility: 'public', allowContributions: true })}
-                    style={{
-                      border: folderForm.visibility === 'public' ? '2px solid #30d158' : '1px solid var(--border-color)',
-                      borderRadius: '12px',
-                      padding: '0.85rem',
-                      cursor: 'pointer',
-                      backgroundColor: folderForm.visibility === 'public' ? 'rgba(48, 209, 88, 0.08)' : 'transparent',
-                      textAlign: 'center'
-                    }}
-                  >
-                    <Globe size={18} color="#30d158" style={{ marginBottom: '0.25rem' }} />
-                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Public</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Visible to college</div>
-                  </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="input-label" style={{ margin: 0 }}>Visibility</label>
+                  {isAdmin ? (
+                    <span style={{ fontSize: '0.72rem', color: '#30d158', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <ShieldCheck size={13} /> Admin Privileged
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '0.72rem', color: '#ff9f0a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Lock size={12} /> Student Access
+                    </span>
+                  )}
                 </div>
-              </div>
 
-              {/* Allow Contributions checkbox for public folders */}
-              {folderForm.visibility === 'public' && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                  <input
-                    type="checkbox"
-                    checked={folderForm.allowContributions}
-                    onChange={(e) => setFolderForm({ ...folderForm, allowContributions: e.target.checked })}
-                  />
-                  <span>Allow other students to contribute files to this folder</span>
-                </label>
-              )}
+                {isAdmin ? (
+                  // Admin View: Can toggle between Private and Public
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                      <div
+                        onClick={() => setFolderForm({ ...folderForm, visibility: 'private', allowContributions: false })}
+                        style={{
+                          border: folderForm.visibility === 'private' ? '2px solid #ff9f0a' : '1px solid var(--border-color)',
+                          borderRadius: '12px',
+                          padding: '0.85rem',
+                          cursor: 'pointer',
+                          backgroundColor: folderForm.visibility === 'private' ? 'rgba(255, 159, 10, 0.08)' : 'transparent',
+                          textAlign: 'center',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <Lock size={18} color="#ff9f0a" style={{ marginBottom: '0.25rem' }} />
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Private</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Only you & admin</div>
+                      </div>
+
+                      <div
+                        onClick={() => setFolderForm({ ...folderForm, visibility: 'public', allowContributions: true })}
+                        style={{
+                          border: folderForm.visibility === 'public' ? '2px solid #30d158' : '1px solid var(--border-color)',
+                          borderRadius: '12px',
+                          padding: '0.85rem',
+                          cursor: 'pointer',
+                          backgroundColor: folderForm.visibility === 'public' ? 'rgba(48, 209, 88, 0.08)' : 'transparent',
+                          textAlign: 'center',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <Globe size={18} color="#30d158" style={{ marginBottom: '0.25rem' }} />
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Public</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Visible to college</div>
+                      </div>
+                    </div>
+
+                    {/* Allow Contributions checkbox for admin public folders */}
+                    {folderForm.visibility === 'public' && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)', marginTop: '0.25rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={folderForm.allowContributions}
+                          onChange={(e) => setFolderForm({ ...folderForm, allowContributions: e.target.checked })}
+                        />
+                        <span>Allow other students to contribute files to this folder</span>
+                      </label>
+                    )}
+                  </>
+                ) : (
+                  // Regular User View: Public option removed, Private card with explanation
+                  <>
+                    <div
+                      style={{
+                        border: '2px solid #ff9f0a',
+                        borderRadius: '12px',
+                        padding: '0.9rem 1rem',
+                        backgroundColor: 'rgba(255, 159, 10, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.85rem'
+                      }}
+                    >
+                      <div style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(255, 159, 10, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Lock size={19} color="#ff9f0a" />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>Private Folder</span>
+                          <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255, 159, 10, 0.2)', color: '#ff9f0a', fontWeight: 600 }}>Default</span>
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          Protected folder visible only to you and administrators
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Explanatory callout for non-admin students */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.6rem',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--border-color)',
+                      fontSize: '0.78rem',
+                      color: 'var(--text-secondary)',
+                      lineHeight: '1.45'
+                    }}>
+                      <Info size={16} color="#ff9f0a" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <div>
+                        <strong style={{ color: 'var(--text-primary)' }}>Admin Feature Notice: </strong>
+                        Creating <strong>Public</strong> folders (visible to the entire college) is an administrator-only feature. Student folders are saved as Private for secure personal notes and study material.
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
                 <button
@@ -1675,15 +1752,33 @@ export default function Resources() {
               {!editingFolder.isSystemFolder && (
                 <div className="input-group" style={{ margin: 0 }}>
                   <label className="input-label">Visibility</label>
-                  <select
-                    className="input-field"
-                    value={editingFolder.visibility}
-                    onChange={(e) => setEditingFolder({ ...editingFolder, visibility: e.target.value })}
-                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
-                  </select>
+                  {isAdmin ? (
+                    <select
+                      className="input-field"
+                      value={editingFolder.visibility}
+                      onChange={(e) => setEditingFolder({ ...editingFolder, visibility: e.target.value })}
+                      style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                    >
+                      <option value="public">Public (Visible to college)</option>
+                      <option value="private">Private (Only you & admin)</option>
+                    </select>
+                  ) : (
+                    <div style={{
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--border-color)',
+                      fontSize: '0.8rem',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#ff9f0a', fontWeight: 600 }}>
+                        <Lock size={14} /> Private Folder
+                      </div>
+                      <div style={{ fontSize: '0.72rem', marginTop: '3px' }}>
+                        Changing folder visibility to Public is restricted to Administrators only.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
