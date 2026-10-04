@@ -1710,10 +1710,11 @@ app.get(['/api/resources/:id/file', '/api/pending-resources/:id/file'], authenti
       }
     }
 
-    // 3. Fallback: if storageKey is raw ObjectId string without prefix
-    if (resource.storageKey && resource.storageKey.length === 24) {
+    // 3. Fallback: if gridFsFileId exists or storageKey is raw ObjectId string without prefix
+    if (resource.gridFsFileId || (resource.storageKey && resource.storageKey.length === 24)) {
+      const gfsKey = resource.gridFsFileId ? `gridfs:${resource.gridFsFileId}` : `gridfs:${resource.storageKey}`;
       return await StorageService.streamFromGridFS(
-        `gridfs:${resource.storageKey}`,
+        gfsKey,
         req,
         res,
         resource.originalFileName || resource.title,

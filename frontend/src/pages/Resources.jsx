@@ -651,7 +651,7 @@ export default function Resources() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/preview/${res.id}`, {
+                              navigate(`/preview/${res.id}${res.folderId ? `?folderId=${res.folderId}` : ''}`, {
                                 state: {
                                   file: res,
                                   files: searchResults,
@@ -1215,7 +1215,7 @@ export default function Resources() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/preview/${res.id}?folderId=${activeFolderId}`, {
+                                  navigate(`/preview/${res.id}?folderId=${res.folderId || currentFolderId || ''}`, {
                                     state: {
                                       file: res,
                                       files: currentFolderResources,
