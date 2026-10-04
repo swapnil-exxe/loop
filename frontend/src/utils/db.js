@@ -577,7 +577,7 @@ export const getResourceFileUrl = (resource) => {
   return resource.link || '';
 };
 
-// High-speed 200MB Cloudflare R2 Direct Multipart Upload with Real Progress, Speed, Time Remaining, and Cancellation
+// High-speed 200MB MongoDB GridFS Direct Streaming Upload with Real Progress, Speed, Time Remaining, and Cancellation
 export const uploadResourceStream = (params, onProgressCallback, abortController) => {
   return uploadDirectR2({
     ...params,

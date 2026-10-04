@@ -124,7 +124,7 @@ export default function FileUploadModal({
               Upload Resource
             </h3>
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary, #8e8e93)' }}>
-              Direct Cloudflare R2 Upload • Up to 200 MB
+              Direct MongoDB GridFS Stream • Up to 200 MB
             </p>
           </div>
           <button

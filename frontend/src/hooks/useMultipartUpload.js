@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
-import { uploadDirectR2, validateFile } from '../utils/upload';
+import { uploadResourceStream, validateFile } from '../utils/upload';
 
 /**
- * Custom React hook for Cloudflare R2 Multipart Uploads
+ * Custom React hook for MongoDB GridFS Stream Uploads
  *
  * States managed:
  * 'idle' | 'initializing' | 'uploading' | 'completing' | 'success' | 'error' | 'cancelled'
@@ -56,7 +56,7 @@ export function useMultipartUpload() {
 
       setStatus('uploading');
 
-      const uploadedResource = await uploadDirectR2({
+      const uploadedResource = await uploadResourceStream({
         file,
         title,
         description,

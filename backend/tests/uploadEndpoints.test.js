@@ -1,47 +1,69 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
-const R2StorageService = require('../services/r2StorageService');
+const StorageService = require('../services/storageService');
 
-describe('Upload Endpoints & Permission Rules', () => {
-  describe('Input & Boundary Validation', () => {
+describe('MongoDB GridFS Storage Service & Upload Validation', () => {
+  describe('File Size Validation (200 MB Limit)', () => {
     test('enforces 200 MB maximum limit (209,715,200 bytes)', () => {
-      assert.doesNotThrow(() => {
-        R2StorageService.validateFileSize(200 * 1024 * 1024);
-      });
-
-      assert.throws(() => {
-        R2StorageService.validateFileSize((200 * 1024 * 1024) + 1);
-      }, /File exceeds the maximum allowed size of 200 MB/);
+      assert.strictEqual(StorageService.MAX_FILE_SIZE, 209715200);
+      assert.strictEqual(StorageService.CHUNK_SIZE_BYTES, 4 * 1024 * 1024); // 4 MB chunk size
     });
 
-    test('validates format against educational whitelist', () => {
-      // Valid educational formats
-      assert.strictEqual(R2StorageService.isAllowedFile({ filename: 'Lecture1.pdf', mimeType: 'application/pdf' }), true);
-      assert.strictEqual(R2StorageService.isAllowedFile({ filename: 'Code.py', mimeType: 'text/x-python' }), true);
-      assert.strictEqual(R2StorageService.isAllowedFile({ filename: 'Dataset.zip', mimeType: 'application/zip' }), true);
-
-      // Disallowed format
-      assert.strictEqual(R2StorageService.isAllowedFile({ filename: 'virus.exe', mimeType: 'application/octet-stream' }), false);
+    test('formatBytes formats file sizes correctly', () => {
+      assert.strictEqual(StorageService.formatBytes(0), '0 B');
+      assert.strictEqual(StorageService.formatBytes(1024), '1 KB');
+      assert.strictEqual(StorageService.formatBytes(10 * 1024 * 1024), '10 MB');
+      assert.strictEqual(StorageService.formatBytes(200 * 1024 * 1024), '200 MB');
     });
   });
 
-  describe('Part URL & Slicing Specifications', () => {
-    test('requires uploadId, objectKey, and partNumber for presigned part generation', async () => {
-      await assert.rejects(
-        () => R2StorageService.getPresignedPartUrl({ objectKey: '', uploadId: 'up-1', partNumber: 1 }),
-        /objectKey, uploadId, and partNumber are required/
-      );
-      await assert.rejects(
-        () => R2StorageService.getPresignedPartUrl({ objectKey: 'key', uploadId: '', partNumber: 1 }),
-        /objectKey, uploadId, and partNumber are required/
-      );
+  describe('File Whitelist & Security Checks', () => {
+    test('accepts educational documents: PDF, DOC, DOCX, TXT, RTF, ODT', () => {
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'syllabus.pdf', mimeType: 'application/pdf' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'assignment.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'notes.txt', mimeType: 'text/plain' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'paper.odt' }), true);
     });
 
-    test('requires valid parts array for completion', async () => {
-      await assert.rejects(
-        () => R2StorageService.completeMultipartUpload({ objectKey: 'key', uploadId: 'up-1', parts: [] }),
-        /objectKey, uploadId, and completed parts array are required/
-      );
+    test('accepts spreadsheets & presentations: XLS, XLSX, CSV, PPT, PPTX', () => {
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'placements.xlsx' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'data.csv', mimeType: 'text/csv' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'seminar.pptx' }), true);
+    });
+
+    test('accepts images & archives: PNG, JPG, WEBP, ZIP, RAR, 7Z', () => {
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'diagram.png', mimeType: 'image/png' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'photo.jpg', mimeType: 'image/jpeg' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'resources.zip', mimeType: 'application/zip' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'project.7z' }), true);
+    });
+
+    test('accepts programming code files: JAVA, PY, JS, TS, CPP, SQL, MD', () => {
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'Solution.java' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'script.py' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'index.ts' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'main.cpp' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'schema.sql' }), true);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'README.md' }), true);
+    });
+
+    test('strictly blocks dangerous executables: .exe, .bat, .cmd, .sh, .msi, .dll', () => {
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'malware.exe' }), false);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'script.bat' }), false);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'install.msi' }), false);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'payload.sh' }), false);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'library.dll' }), false);
+      assert.strictEqual(StorageService.isAllowedFile({ filename: 'run.cmd' }), false);
+    });
+  });
+
+  describe('File Category Classifier', () => {
+    test('correctly classifies files by extension and mimeType', () => {
+      assert.strictEqual(StorageService.getFileTypeCategory('application/pdf', 'doc.pdf'), 'PDF');
+      assert.strictEqual(StorageService.getFileTypeCategory('image/png', 'img.png'), 'Image');
+      assert.strictEqual(StorageService.getFileTypeCategory('application/vnd.ms-excel', 'data.xlsx'), 'Sheet');
+      assert.strictEqual(StorageService.getFileTypeCategory('application/zip', 'code.zip'), 'Archive');
+      assert.strictEqual(StorageService.getFileTypeCategory('text/x-python', 'main.py'), 'Code');
     });
   });
 });

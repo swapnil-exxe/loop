@@ -128,7 +128,7 @@ export default function UploadProgress({
 
         {isDone && (
           <span style={{ color: '#34c759', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <CheckCircle size={14} /> Upload complete! Saved to Cloudflare R2
+            <CheckCircle size={14} /> Upload complete! Saved to Storage
           </span>
         )}
 

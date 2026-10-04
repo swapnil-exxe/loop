@@ -1659,7 +1659,7 @@ export default function AdminDashboard() {
                                   borderRadius: '4px',
                                   fontWeight: 600
                                 }}>
-                                  Storage: {res.storageProvider?.toUpperCase() || 'R2'}
+                                  Storage: {res.storageProvider?.toUpperCase() || 'GRIDFS'}
                                 </span>
                               </div>
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>

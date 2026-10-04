@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { uploadDirectR2 } from '../utils/upload';
+import { uploadResourceStream } from '../utils/upload';
 
 const UploadContext = createContext(null);
 
@@ -35,7 +35,7 @@ export function UploadProvider({ children }) {
     setIsDockMinimized(false); // Pop up dock when new upload starts
 
     try {
-      const result = await uploadDirectR2({
+      const result = await uploadResourceStream({
         file,
         title,
         description,
