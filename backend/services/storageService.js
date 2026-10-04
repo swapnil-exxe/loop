@@ -6,8 +6,13 @@ const path = require('path');
 // 200 MB maximum upload limit (209,715,200 bytes)
 const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
-// 4 MB GridFS chunk size (optimal throughput & low MongoDB metadata overhead)
-const CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+// Configurable chunk size and concurrency
+const GRIDFS_CHUNK_SIZE_MB = Math.max(1, Math.min(32, parseInt(process.env.GRIDFS_CHUNK_SIZE_MB || '8', 10)));
+const CHUNK_SIZE_BYTES = GRIDFS_CHUNK_SIZE_MB * 1024 * 1024; // Default: 8 MB
+const GRIDFS_UPLOAD_CONCURRENCY = Math.max(2, Math.min(12, parseInt(process.env.GRIDFS_UPLOAD_CONCURRENCY || '6', 10))); // Default: 6
+
+// Final storage GridFS chunk size (4 MB)
+const FINAL_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 
 // Supported file formats whitelist
 const SUPPORTED_EXTENSIONS = new Set([
@@ -104,7 +109,7 @@ function formatBytes(bytes, decimals = 1) {
 }
 
 /**
- * Get or initialize GridFSBucket instance with 4 MB chunks
+ * Get or initialize main GridFSBucket instance ('loop_resources')
  */
 let gridFsBucket = null;
 function getGridFSBucket() {
@@ -114,22 +119,190 @@ function getGridFSBucket() {
     }
     gridFsBucket = new GridFSBucket(mongoose.connection.db, {
       bucketName: 'loop_resources',
-      chunkSizeBytes: CHUNK_SIZE_BYTES
+      chunkSizeBytes: FINAL_CHUNK_SIZE_BYTES
     });
   }
   return gridFsBucket;
 }
 
 /**
- * Stream incoming readable stream directly into MongoDB GridFS
- * Memory-efficient: never buffers the entire file in RAM.
+ * Get or initialize temporary chunks GridFSBucket ('loop_temp_chunks')
+ */
+let tempChunksBucket = null;
+function getTempChunksBucket() {
+  if (!tempChunksBucket) {
+    if (!mongoose.connection || !mongoose.connection.db) {
+      throw new Error('MongoDB connection is not established.');
+    }
+    tempChunksBucket = new GridFSBucket(mongoose.connection.db, {
+      bucketName: 'loop_temp_chunks',
+      chunkSizeBytes: 2 * 1024 * 1024
+    });
+  }
+  return tempChunksBucket;
+}
+
+/**
+ * Save an individual temporary chunk
+ * Idempotent: if chunk already exists with expected size, returns existing info.
+ */
+async function saveTempChunk({ uploadId, chunkIndex, chunkStream, expectedSize }) {
+  const bucket = getTempChunksBucket();
+  const chunkFileName = `${uploadId}_chunk_${chunkIndex}`;
+
+  // Check if chunk already exists (idempotency protection)
+  const existingFiles = await bucket.find({
+    filename: chunkFileName,
+    'metadata.uploadId': uploadId,
+    'metadata.chunkIndex': chunkIndex
+  }).toArray();
+
+  if (existingFiles.length > 0) {
+    const existing = existingFiles[0];
+    if (expectedSize === undefined || existing.length === expectedSize) {
+      // Drain input stream so socket doesn't hang
+      chunkStream.resume();
+      return {
+        chunkIndex,
+        size: existing.length,
+        duplicate: true
+      };
+    }
+    // Size mismatch: delete corrupt chunk before rewriting
+    for (const file of existingFiles) {
+      await bucket.delete(file._id).catch(() => {});
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = bucket.openUploadStream(chunkFileName, {
+      metadata: {
+        uploadId,
+        chunkIndex,
+        createdAt: new Date()
+      }
+    });
+
+    chunkStream.pipe(uploadStream)
+      .on('error', (err) => {
+        bucket.delete(uploadStream.id).catch(() => {});
+        reject(err);
+      })
+      .on('finish', (savedFile) => {
+        resolve({
+          chunkIndex,
+          size: uploadStream.length || savedFile?.length || 0,
+          duplicate: false
+        });
+      });
+  });
+}
+
+/**
+ * Query uploaded chunk indexes for an uploadId (used for resumability)
+ */
+async function getUploadedChunkIndexes(uploadId) {
+  const bucket = getTempChunksBucket();
+  const files = await bucket.find({ 'metadata.uploadId': uploadId }).toArray();
+  const uploadedChunks = files.map(f => f.metadata.chunkIndex).sort((a, b) => a - b);
+  const totalUploadedBytes = files.reduce((sum, f) => sum + (f.length || 0), 0);
+  return {
+    uploadedChunks,
+    count: files.length,
+    totalUploadedBytes
+  };
+}
+
+/**
+ * Clean up all temporary chunks for an uploadId
+ */
+async function cleanupTempChunks(uploadId) {
+  try {
+    const bucket = getTempChunksBucket();
+    const files = await bucket.find({ 'metadata.uploadId': uploadId }).toArray();
+    for (const file of files) {
+      await bucket.delete(file._id).catch(() => {});
+    }
+    return files.length;
+  } catch (err) {
+    console.warn('[Cleanup Temp Chunks] Warning:', err.message);
+    return 0;
+  }
+}
+
+/**
+ * Assemble final GridFS file from verified temporary chunks in index order
+ * Streams directly from temp chunk bucket to final bucket with bounded memory.
+ */
+async function assembleFinalGridFSFile({ uploadId, totalChunks, fileName, mimeType, metadata = {} }) {
+  const tempBucket = getTempChunksBucket();
+  const finalBucket = getGridFSBucket();
+
+  // 1. Verify all expected chunks exist
+  const tempFiles = await tempBucket.find({ 'metadata.uploadId': uploadId }).toArray();
+  const chunkMap = new Map();
+  for (const file of tempFiles) {
+    chunkMap.set(file.metadata.chunkIndex, file);
+  }
+
+  for (let i = 0; i < totalChunks; i++) {
+    if (!chunkMap.has(i)) {
+      throw new Error(`Missing chunk index ${i} of ${totalChunks}. Upload is incomplete.`);
+    }
+  }
+
+  // 2. Open final upload stream
+  const finalUploadStream = finalBucket.openUploadStream(fileName, {
+    chunkSizeBytes: FINAL_CHUNK_SIZE_BYTES,
+    contentType: mimeType || 'application/octet-stream',
+    metadata: {
+      ...metadata,
+      uploadedAt: new Date()
+    }
+  });
+
+  // 3. Sequentially pipe each chunk in exact order 0, 1, 2, ...
+  for (let i = 0; i < totalChunks; i++) {
+    const chunkFile = chunkMap.get(i);
+    await new Promise((resolve, reject) => {
+      const downloadStream = tempBucket.openDownloadStream(chunkFile._id);
+      downloadStream.on('error', reject);
+      downloadStream.on('end', resolve);
+      downloadStream.pipe(finalUploadStream, { end: false });
+    });
+  }
+
+  // Finalize the final upload stream
+  await new Promise((resolve, reject) => {
+    finalUploadStream.on('error', reject);
+    finalUploadStream.on('finish', resolve);
+    finalUploadStream.end();
+  });
+
+  // 4. Delete temporary chunks now that the file is safely stitched
+  cleanupTempChunks(uploadId).catch(() => {});
+
+  const totalFileSize = tempFiles.reduce((sum, c) => sum + (c.length || 0), 0);
+
+  return {
+    storageKey: `gridfs:${finalUploadStream.id.toString()}`,
+    gridFsFileId: finalUploadStream.id,
+    fileId: finalUploadStream.id,
+    fileName,
+    size: totalFileSize,
+    contentType: mimeType
+  };
+}
+
+/**
+ * Single-stream upload fallback (used if client does direct stream)
  */
 function uploadToGridFS(readableStream, filename, mimeType, metadata = {}) {
   return new Promise((resolve, reject) => {
     try {
       const bucket = getGridFSBucket();
       const uploadStream = bucket.openUploadStream(filename, {
-        chunkSizeBytes: CHUNK_SIZE_BYTES,
+        chunkSizeBytes: FINAL_CHUNK_SIZE_BYTES,
         contentType: mimeType || 'application/octet-stream',
         metadata: {
           ...metadata,
@@ -182,7 +355,6 @@ async function streamFromGridFS(storageKey, req, res, originalFileName, mimeType
   const contentType = mimeType || file.contentType || 'application/octet-stream';
   const filename = originalFileName || file.filename || 'download';
 
-  // Construct ETag and Last-Modified headers
   const uploadTime = file.uploadDate ? new Date(file.uploadDate).getTime() : 0;
   const etag = `"${file._id.toString()}-${fileSize}-${uploadTime}"`;
   const lastModified = file.uploadDate ? new Date(file.uploadDate).toUTCString() : new Date().toUTCString();
@@ -193,19 +365,16 @@ async function streamFromGridFS(storageKey, req, res, originalFileName, mimeType
   res.setHeader('Last-Modified', lastModified);
   res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
 
-  // Cache-Control headers
   if (isPrivate) {
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
   } else {
     res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
   }
 
-  // Handle Conditional GET (304 Not Modified)
   if (req.headers['if-none-match'] === etag) {
     return res.status(304).end();
   }
 
-  // Handle HTTP Range Requests (206 Partial Content)
   const range = req.headers.range;
   if (range && range.startsWith('bytes=')) {
     const parts = range.replace(/bytes=/, '').split('-');
@@ -234,7 +403,6 @@ async function streamFromGridFS(storageKey, req, res, originalFileName, mimeType
 
     downloadStream.pipe(res);
   } else {
-    // Full content delivery (200 OK)
     res.setHeader('Content-Length', fileSize);
     const downloadStream = bucket.openDownloadStream(objectId);
 
@@ -250,18 +418,41 @@ async function streamFromGridFS(storageKey, req, res, originalFileName, mimeType
 /**
  * Delete file from GridFS storage (or legacy local uploads if applicable)
  */
-async function deleteFile(storageKey, storageProvider) {
+async function deleteFile(storageKeyOrObj, storageProvider) {
   try {
-    if (storageKey && storageKey.startsWith('gridfs:')) {
+    let key = storageKeyOrObj;
+    if (typeof storageKeyOrObj === 'object' && storageKeyOrObj !== null) {
+      key = storageKeyOrObj.storageKey || storageKeyOrObj.fileUrl || storageKeyOrObj.fileId || (storageKeyOrObj._id ? storageKeyOrObj._id.toString() : '');
+    }
+
+    if (!key || typeof key !== 'string') return false;
+
+    if (key.startsWith('gridfs:')) {
       const bucket = getGridFSBucket();
-      const rawId = storageKey.replace(/^gridfs:/, '');
-      await bucket.delete(new ObjectId(rawId));
+      const rawId = key.replace(/^gridfs:/, '');
+      if (ObjectId.isValid(rawId)) {
+        await bucket.delete(new ObjectId(rawId));
+        return true;
+      }
+    }
+
+    if (key.includes('/file/')) {
+      const bucket = getGridFSBucket();
+      const rawId = key.split('/file/')[1]?.split('?')[0];
+      if (rawId && ObjectId.isValid(rawId)) {
+        await bucket.delete(new ObjectId(rawId));
+        return true;
+      }
+    }
+
+    if (ObjectId.isValid(key)) {
+      const bucket = getGridFSBucket();
+      await bucket.delete(new ObjectId(key));
       return true;
     }
 
-    // Legacy local disk file cleanup
-    if (storageKey && storageKey.startsWith('/uploads/')) {
-      const localPath = path.join(__dirname, '..', storageKey);
+    if (key.startsWith('/uploads/')) {
+      const localPath = path.join(__dirname, '..', key);
       if (fs.existsSync(localPath)) {
         fs.unlinkSync(localPath);
         return true;
@@ -277,13 +468,21 @@ async function deleteFile(storageKey, storageProvider) {
 
 module.exports = {
   MAX_FILE_SIZE,
+  GRIDFS_CHUNK_SIZE_MB,
   CHUNK_SIZE_BYTES,
+  GRIDFS_UPLOAD_CONCURRENCY,
+  FINAL_CHUNK_SIZE_BYTES,
   SUPPORTED_EXTENSIONS,
   BLOCKED_EXTENSIONS,
   isAllowedFile,
   getFileTypeCategory,
   formatBytes,
   getGridFSBucket,
+  getTempChunksBucket,
+  saveTempChunk,
+  getUploadedChunkIndexes,
+  cleanupTempChunks,
+  assembleFinalGridFSFile,
   uploadToGridFS,
   streamFromGridFS,
   deleteFile

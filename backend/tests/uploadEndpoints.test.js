@@ -6,7 +6,10 @@ describe('MongoDB GridFS Storage Service & Upload Validation', () => {
   describe('File Size Validation (200 MB Limit)', () => {
     test('enforces 200 MB maximum limit (209,715,200 bytes)', () => {
       assert.strictEqual(StorageService.MAX_FILE_SIZE, 209715200);
-      assert.strictEqual(StorageService.CHUNK_SIZE_BYTES, 4 * 1024 * 1024); // 4 MB chunk size
+      assert.strictEqual(StorageService.CHUNK_SIZE_BYTES, StorageService.GRIDFS_CHUNK_SIZE_MB * 1024 * 1024);
+      assert.strictEqual(StorageService.FINAL_CHUNK_SIZE_BYTES, 4 * 1024 * 1024);
+      assert.strictEqual(StorageService.GRIDFS_CHUNK_SIZE_MB, 8);
+      assert.strictEqual(StorageService.GRIDFS_UPLOAD_CONCURRENCY, 6);
     });
 
     test('formatBytes formats file sizes correctly', () => {

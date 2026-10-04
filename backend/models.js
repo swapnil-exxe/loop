@@ -202,6 +202,31 @@ FolderSchema.index({ ownerId: 1, visibility: 1, folderType: 1 });
 FolderSchema.index({ parentId: 1 });
 FolderSchema.index({ createdAt: -1 });
 
+// GridFS Parallel Chunk Upload Session Schema
+const UploadSessionSchema = new mongoose.Schema({
+  uploadId: { type: String, required: true, unique: true, index: true },
+  fileName: { type: String, required: true },
+  fileSize: { type: Number, required: true },
+  mimeType: { type: String, default: 'application/octet-stream' },
+  chunkSize: { type: Number, required: true },
+  totalChunks: { type: Number, required: true },
+  title: { type: String, default: '' },
+  description: { type: String, default: '' },
+  category: { type: String, default: 'General' },
+  folderId: { type: String, default: 'system-placement-material' },
+  semester: { type: String, default: '' },
+  year: { type: String, default: '' },
+  tags: [String],
+  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  uploadedBy: { type: String, default: 'Anonymous' },
+  uploadedByEmail: { type: String, default: '' },
+  isPending: { type: Boolean, default: false },
+  isFinalized: { type: Boolean, default: false, index: true },
+  finalResourceId: { type: String, default: null },
+  finalGridFsId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  expiresAt: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), index: { expires: 0 } }
+}, { timestamps: true });
+
 module.exports = {
   User: mongoose.model('User', UserSchema),
   Story: mongoose.model('Story', StorySchema),
@@ -209,5 +234,6 @@ module.exports = {
   Resource: mongoose.model('Resource', ResourceSchema),
   PendingResource: mongoose.model('PendingResource', PendingResourceSchema),
   Achievement: mongoose.model('Achievement', AchievementSchema),
-  Folder: mongoose.model('Folder', FolderSchema)
+  Folder: mongoose.model('Folder', FolderSchema),
+  UploadSession: mongoose.model('UploadSession', UploadSessionSchema)
 };

@@ -10,7 +10,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
 const busboy = require('busboy');
-const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource } = require('./models');
+const crypto = require('crypto');
+const { User, Story, Resource, Achievement, Folder, PendingStory, PendingResource, UploadSession } = require('./models');
 const StorageService = require('./services/storageService');
 const { ensureSystemFolders } = require('./scripts/initSystemFolders');
 
@@ -1589,6 +1590,356 @@ app.post(['/api/resources/upload-stream', '/api/resources/upload'], authenticate
 // Student & Community Resource Submission Stream Upload Endpoints
 app.post(['/api/pending-resources/upload-stream', '/api/pending-resources/upload'], authenticateToken, (req, res) => {
   handleStreamingUpload(req, res, { isPending: true });
+});
+
+// =========================================================================
+// MONGODB GRIDFS PARALLEL CHUNKED UPLOAD ARCHITECTURE (Up to 200 MB)
+// =========================================================================
+
+// 1. Initialize Chunked Upload
+app.post(['/api/resources/upload/init', '/api/pending-resources/upload/init'], authenticateToken, async (req, res) => {
+  try {
+    const { fileName, fileSize, mimeType, folderId, title, description, category, semester, year, tags } = req.body;
+
+    if (!fileName || !fileSize) {
+      return res.status(400).json({ error: 'fileName and fileSize are required.' });
+    }
+
+    const numSize = Number(fileSize);
+    if (isNaN(numSize) || numSize <= 0) {
+      return res.status(400).json({ error: 'Invalid file size.' });
+    }
+
+    if (numSize > StorageService.MAX_FILE_SIZE) {
+      return res.status(400).json({ error: 'File exceeds the maximum allowed size of 200 MB.' });
+    }
+
+    if (!StorageService.isAllowedFile({ filename: fileName, mimeType })) {
+      return res.status(400).json({
+        error: 'Unsupported file type. Please upload an educational document (PDF, DOCX, TXT), spreadsheet, presentation, image, archive (ZIP), or code file.'
+      });
+    }
+
+    const resolvedFolderId = folderId || 'system-placement-material';
+    const folder = await Folder.findOne({ id: resolvedFolderId });
+    if (!folder) {
+      return res.status(404).json({ error: 'Target folder not found.' });
+    }
+
+    const isAdmin = req.user && req.user.role === 'Admin';
+    const isOwner = folder && (folder.ownerEmail === req.user.email || (folder.ownerId && String(folder.ownerId) === String(req.user.id)));
+
+    if (folder.visibility === 'private' && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'You cannot upload to another user private folder.' });
+    }
+    if (folder.folderType === 'user' && !folder.allowContributions && !isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Community contributions are disabled for this folder.' });
+    }
+
+    const isPending = req.path.includes('/pending-resources/') || (!isAdmin && folder.visibility === 'public');
+    const chunkSize = StorageService.CHUNK_SIZE_BYTES; // Configurable: 8 MB default
+    const totalChunks = Math.max(1, Math.ceil(numSize / chunkSize));
+    const uploadId = `gridfs-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+
+    await UploadSession.create({
+      uploadId,
+      fileName,
+      fileSize: numSize,
+      mimeType: mimeType || 'application/octet-stream',
+      chunkSize,
+      totalChunks,
+      title: title || fileName.replace(/\.[^/.]+$/, ''),
+      description: description || '',
+      category: category || 'General',
+      folderId: resolvedFolderId,
+      semester: semester || '',
+      year: year || '',
+      tags: Array.isArray(tags) ? tags : (tags ? tags.split(',').map(t => t.trim()) : []),
+      ownerId: req.user.id || null,
+      uploadedBy: req.user.name || req.user.email.split('@')[0],
+      uploadedByEmail: req.user.email,
+      isPending
+    });
+
+    res.status(200).json({
+      uploadId,
+      chunkSize,
+      totalChunks,
+      concurrency: StorageService.GRIDFS_UPLOAD_CONCURRENCY
+    });
+  } catch (err) {
+    console.error('Upload init error:', err);
+    res.status(500).json({ error: err.message || 'Failed to initialize upload session.' });
+  }
+});
+
+// 2. Upload Chunk in Parallel (PUT /chunk)
+app.put(['/api/resources/upload/chunk', '/api/pending-resources/upload/chunk'], authenticateToken, async (req, res) => {
+  try {
+    const uploadId = req.headers['x-upload-id'] || req.query.uploadId;
+    const chunkIndex = parseInt(req.headers['x-chunk-index'] ?? req.query.chunkIndex, 10);
+    const expectedSize = req.headers['x-chunk-size'] ? parseInt(req.headers['x-chunk-size'], 10) : undefined;
+
+    if (!uploadId || isNaN(chunkIndex)) {
+      return res.status(400).json({ error: 'x-upload-id and x-chunk-index headers are required.' });
+    }
+
+    const session = await UploadSession.findOne({ uploadId });
+    if (!session) {
+      return res.status(404).json({ error: 'Upload session not found or expired.' });
+    }
+
+    if (session.isFinalized) {
+      return res.status(400).json({ error: 'Upload session is already finalized.' });
+    }
+
+    if (chunkIndex < 0 || chunkIndex >= session.totalChunks) {
+      return res.status(400).json({ error: `Invalid chunk index ${chunkIndex}. Expected 0 to ${session.totalChunks - 1}.` });
+    }
+
+    const result = await StorageService.saveTempChunk({
+      uploadId,
+      chunkIndex,
+      chunkStream: req,
+      expectedSize
+    });
+
+    res.status(200).json({
+      success: true,
+      chunkIndex: result.chunkIndex,
+      size: result.size,
+      duplicate: result.duplicate
+    });
+  } catch (err) {
+    console.error('Chunk upload error:', err);
+    res.status(500).json({ error: err.message || 'Failed to store upload chunk.' });
+  }
+});
+
+// Alias for PUT chunk using POST (supports both raw binary and multipart/form-data)
+app.post(['/api/resources/upload/chunk', '/api/pending-resources/upload/chunk'], authenticateToken, async (req, res) => {
+  if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+    try {
+      const bb = busboy({ headers: req.headers, highWaterMark: 4 * 1024 * 1024 });
+      let uploadId = req.headers['x-upload-id'] || req.query.uploadId;
+      let chunkIndex = req.headers['x-chunk-index'] ? parseInt(req.headers['x-chunk-index'], 10) : undefined;
+      let chunkPromise = null;
+
+      bb.on('field', (name, val) => {
+        if (name === 'uploadId') uploadId = val;
+        if (name === 'chunkIndex') chunkIndex = parseInt(val, 10);
+      });
+
+      bb.on('file', (name, fileStream) => {
+        if (!uploadId || chunkIndex === undefined || isNaN(chunkIndex)) {
+          fileStream.resume();
+          return;
+        }
+        chunkPromise = StorageService.saveTempChunk({
+          uploadId,
+          chunkIndex,
+          chunkStream: fileStream
+        });
+      });
+
+      bb.on('finish', async () => {
+        if (!chunkPromise) {
+          return res.status(400).json({ error: 'No chunk file received or missing uploadId/chunkIndex.' });
+        }
+        try {
+          const result = await chunkPromise;
+          res.status(200).json({ success: true, chunkIndex: result.chunkIndex, size: result.size });
+        } catch (err) {
+          res.status(500).json({ error: err.message });
+        }
+      });
+
+      req.pipe(bb);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  } else {
+    const uploadId = req.headers['x-upload-id'] || req.query.uploadId;
+    const chunkIndex = parseInt(req.headers['x-chunk-index'] ?? req.query.chunkIndex, 10);
+    const expectedSize = req.headers['x-chunk-size'] ? parseInt(req.headers['x-chunk-size'], 10) : undefined;
+
+    if (!uploadId || isNaN(chunkIndex)) {
+      return res.status(400).json({ error: 'x-upload-id and x-chunk-index headers are required.' });
+    }
+
+    try {
+      const session = await UploadSession.findOne({ uploadId });
+      if (!session) return res.status(404).json({ error: 'Upload session not found.' });
+
+      const result = await StorageService.saveTempChunk({
+        uploadId,
+        chunkIndex,
+        chunkStream: req,
+        expectedSize
+      });
+      res.status(200).json({ success: true, chunkIndex: result.chunkIndex, size: result.size });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
+// 3. Query Upload State / Resumability
+app.get(['/api/resources/upload/:uploadId', '/api/pending-resources/upload/:uploadId'], authenticateToken, async (req, res) => {
+  try {
+    const { uploadId } = req.params;
+    const session = await UploadSession.findOne({ uploadId });
+    if (!session) {
+      return res.status(404).json({ error: 'Upload session not found.' });
+    }
+
+    if (session.isFinalized) {
+      const Model = session.isPending ? PendingResource : Resource;
+      const resource = await Model.findOne({ id: session.finalResourceId });
+      return res.status(200).json({
+        uploadId,
+        isFinalized: true,
+        resource
+      });
+    }
+
+    const { uploadedChunks, totalUploadedBytes } = await StorageService.getUploadedChunkIndexes(uploadId);
+    res.status(200).json({
+      uploadId,
+      isFinalized: false,
+      totalChunks: session.totalChunks,
+      chunkSize: session.chunkSize,
+      uploadedChunks,
+      totalUploadedBytes,
+      fileName: session.fileName,
+      fileSize: session.fileSize
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Finalize Chunked Upload & Assemble Final GridFS File (Idempotent)
+app.post(['/api/resources/upload/finalize', '/api/pending-resources/upload/finalize'], authenticateToken, async (req, res) => {
+  try {
+    const { uploadId } = req.body;
+    if (!uploadId) {
+      return res.status(400).json({ error: 'uploadId is required.' });
+    }
+
+    const session = await UploadSession.findOne({ uploadId });
+    if (!session) {
+      return res.status(404).json({ error: 'Upload session not found.' });
+    }
+
+    // Idempotency: if already finalized, return existing record immediately
+    if (session.isFinalized && session.finalResourceId) {
+      const Model = session.isPending ? PendingResource : Resource;
+      const existingResource = await Model.findOne({ id: session.finalResourceId });
+      if (existingResource) {
+        return res.status(200).json({
+          success: true,
+          resource: existingResource,
+          alreadyFinalized: true
+        });
+      }
+    }
+
+    // Assemble final GridFS file in exact chunk index order
+    const assembledFile = await StorageService.assembleFinalGridFSFile({
+      uploadId,
+      totalChunks: session.totalChunks,
+      fileName: session.fileName,
+      mimeType: session.mimeType,
+      metadata: {
+        uploadedBy: session.uploadedBy,
+        uploadedByEmail: session.uploadedByEmail
+      }
+    });
+
+    const resourceId = String(Date.now());
+    const detectedType = StorageService.getFileTypeCategory(session.mimeType, session.fileName);
+    const resourceUrl = `/api/resources/${resourceId}/file`;
+
+    let createdRecord;
+    if (session.isPending) {
+      createdRecord = await PendingResource.create({
+        id: resourceId,
+        title: session.title || session.fileName.replace(/\.[^/.]+$/, ''),
+        description: session.description || '',
+        category: session.category || 'General',
+        type: detectedType,
+        originalFileName: session.fileName,
+        mimeType: session.mimeType,
+        size: assembledFile.size || session.fileSize,
+        fileSizeFormatted: StorageService.formatBytes(assembledFile.size || session.fileSize),
+        storageProvider: 'gridfs',
+        storageKey: assembledFile.storageKey,
+        gridFsFileId: assembledFile.gridFsFileId,
+        url: resourceUrl,
+        folderId: session.folderId,
+        ownerId: session.ownerId,
+        uploadedBy: session.uploadedBy,
+        uploadedByEmail: session.uploadedByEmail,
+        date: new Date().toISOString().split('T')[0],
+        status: 'pending',
+        semester: session.semester,
+        year: session.year
+      });
+    } else {
+      createdRecord = await Resource.create({
+        id: resourceId,
+        title: session.title || session.fileName.replace(/\.[^/.]+$/, ''),
+        description: session.description || '',
+        category: session.category || 'General',
+        type: detectedType,
+        originalFileName: session.fileName,
+        mimeType: session.mimeType,
+        size: assembledFile.size || session.fileSize,
+        fileSizeFormatted: StorageService.formatBytes(assembledFile.size || session.fileSize),
+        storageProvider: 'gridfs',
+        storageKey: assembledFile.storageKey,
+        gridFsFileId: assembledFile.gridFsFileId,
+        url: resourceUrl,
+        folderId: session.folderId,
+        ownerId: session.ownerId,
+        uploadedBy: session.uploadedBy,
+        uploadedByEmail: session.uploadedByEmail,
+        date: new Date().toISOString().split('T')[0],
+        status: 'approved',
+        semester: session.semester,
+        year: session.year,
+        tags: session.tags || []
+      });
+    }
+
+    // Update session as finalized
+    session.isFinalized = true;
+    session.finalResourceId = resourceId;
+    session.finalGridFsId = assembledFile.gridFsFileId;
+    await session.save();
+
+    res.status(200).json({
+      success: true,
+      resource: createdRecord
+    });
+  } catch (err) {
+    console.error('Finalize error:', err);
+    res.status(500).json({ error: err.message || 'Failed to finalize upload.' });
+  }
+});
+
+// 5. Cancel / Abort Upload Session (Cleans up temporary chunks and metadata)
+app.delete(['/api/resources/upload/:uploadId', '/api/pending-resources/upload/:uploadId'], authenticateToken, async (req, res) => {
+  try {
+    const { uploadId } = req.params;
+    await StorageService.cleanupTempChunks(uploadId);
+    await UploadSession.deleteOne({ uploadId });
+    res.status(200).json({ success: true, message: 'Upload cancelled and temporary chunks cleaned up.' });
+  } catch (err) {
+    console.error('Cancel upload error:', err);
+    res.status(500).json({ error: err.message || 'Failed to cleanup upload session.' });
+  }
 });
 
 // Edit Resource Metadata (Rename, Move folder, Description, Tags)
