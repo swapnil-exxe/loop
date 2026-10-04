@@ -145,7 +145,7 @@ export default function Resources() {
 
   // Prevent background scrolling when modals open
   useEffect(() => {
-    if (isUploadModalOpen || isFolderModalOpen || editingResource || editingFolder || deleteConfirm || viewerFile) {
+    if (isUploadModalOpen || isFolderModalOpen || editingResource || editingFolder || deleteConfirm) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -153,7 +153,7 @@ export default function Resources() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isUploadModalOpen, isFolderModalOpen, editingResource, editingFolder, deleteConfirm, viewerFile]);
+  }, [isUploadModalOpen, isFolderModalOpen, editingResource, editingFolder, deleteConfirm]);
 
   // Current folder object
   const currentFolder = useMemo(() => {

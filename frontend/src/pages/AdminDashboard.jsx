@@ -797,7 +797,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (editingItem || previewingPendingStory || previewingPendingResource || viewerFile) {
+    if (editingItem || previewingPendingStory || previewingPendingResource) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -805,7 +805,7 @@ export default function AdminDashboard() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [editingItem, previewingPendingStory, previewingPendingResource, viewerFile]);
+  }, [editingItem, previewingPendingStory, previewingPendingResource]);
 
   const handleApproveStory = async (id) => {
     const previousPending = [...pendingStories];

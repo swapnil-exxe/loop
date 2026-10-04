@@ -99,30 +99,7 @@ export default function StoryDetail() {
     }
   };
 
-  useEffect(() => {
-    let blobUrl = null;
-    const fileUrl = resolveUrl(viewerFile?.previewUrl || viewerFile?.url);
-    if (fileUrl) {
-      if (fileUrl.startsWith('data:')) {
-        const blob = dataURItoBlob(fileUrl);
-        if (blob) {
-          blobUrl = URL.createObjectURL(blob);
-          setIframeUrl(blobUrl);
-        } else {
-          setIframeUrl(fileUrl);
-        }
-      } else {
-        setIframeUrl(fileUrl);
-      }
-    } else {
-      setIframeUrl(null);
-    }
-    return () => {
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
-    };
-  }, [viewerFile]);
+
 
   useEffect(() => {
     setLoading(true);
