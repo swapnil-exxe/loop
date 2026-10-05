@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Shield, Menu, X, User as UserIcon, GraduationCap, BookOpen, Calendar, ChevronDown } from 'lucide-react';
-import { requestProfileEdit } from '../utils/db';
+import { LogOut, Shield, Menu, X, User as UserIcon, BookOpen, Calendar, ChevronDown, Lock } from 'lucide-react';
+import { requestProfileEdit, updateUser } from '../utils/db';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -32,10 +32,11 @@ export default function Navbar() {
   // Profile modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [name, setName] = useState('');
-  const [role, setRole] = useState('Student');
   const [branch, setBranch] = useState('CSE');
   const [cseSpecialization, setCseSpecialization] = useState('CSE');
-  const [currentYear, setCurrentYear] = useState('First Year');
+  const [passoutYear, setPassoutYear] = useState('2026');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,10 +48,25 @@ export default function Navbar() {
       const isCse = ['CSE', 'CSE AI', 'CSE DS'].includes(activeBranch);
       
       setName(user.hasPendingEdit ? user.pendingName : (user.name || ''));
-      setRole(user.hasPendingEdit ? user.pendingRole : (user.role || 'Student'));
       setBranch(isCse ? 'CSE' : (activeBranch || 'CSE'));
       setCseSpecialization(isCse ? activeBranch : 'CSE');
-      setCurrentYear(user.hasPendingEdit ? user.pendingCurrentYear : (user.currentYear || 'First Year'));
+      
+      // Default to user's passoutYear or calculate from currentYear if present
+      const rawYear = user.hasPendingEdit ? user.pendingCurrentYear : (user.passoutYear || user.currentYear || '2026');
+      let defaultPassoutYear = '2026';
+      if (rawYear && String(rawYear).match(/\d{4}/)) {
+        defaultPassoutYear = String(rawYear);
+      } else if (rawYear === 'First Year') defaultPassoutYear = '2028';
+      else if (rawYear === 'Second Year') defaultPassoutYear = '2027';
+      else if (rawYear === 'Third Year') defaultPassoutYear = '2026';
+      else if (rawYear === 'Fourth Year') defaultPassoutYear = '2025';
+      else if (rawYear === 'Alumnus / Graduate') defaultPassoutYear = '2024';
+      
+      setPassoutYear(defaultPassoutYear);
+      setNewPassword('');
+      setConfirmPassword('');
+      setError('');
+      setSuccess('');
     }
   }, [user, showProfileModal]);
 
@@ -76,25 +92,57 @@ export default function Navbar() {
     setSuccess('');
 
     if (!name.trim()) {
-      setError('Name is required');
+      setError('Full Name is required');
+      return;
+    }
+
+    if (newPassword && newPassword.length < 6) {
+      setError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (newPassword && newPassword !== confirmPassword) {
+      setError('Passwords do not match. Please re-enter.');
       return;
     }
 
     setLoading(true);
     try {
+      const selectedBranch = branch === 'CSE' ? cseSpecialization : branch;
+      
+      // 1. If password was entered, update password directly via PUT /api/users/:email
+      if (newPassword) {
+        await updateUser(user.email, { password: newPassword });
+      }
+
+      // 2. Submit profile details (Name, Branch, Passout Year)
       const updatedUser = await requestProfileEdit(user.email, {
         name: name.trim(),
-        role,
-        branch: branch === 'CSE' ? cseSpecialization : branch,
-        currentYear
+        role: user.role || 'Student',
+        branch: selectedBranch,
+        currentYear: passoutYear
       });
 
       // Update local storage session
-      localStorage.setItem('loop_current_user', JSON.stringify(updatedUser));
-      setUser(updatedUser);
-      setSuccess('Your profile edit request has been submitted to the administrator for approval.');
+      const newSession = {
+        ...user,
+        ...updatedUser,
+        name: name.trim(),
+        branch: selectedBranch,
+        currentYear: passoutYear,
+        passoutYear: passoutYear
+      };
+      localStorage.setItem('loop_current_user', JSON.stringify(newSession));
+      setUser(newSession);
+
+      setSuccess(newPassword 
+        ? 'Password updated & profile edit request sent to administrator for review!' 
+        : 'Your profile changes have been submitted for administrator review.'
+      );
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (err) {
-      setError(err.message || 'Failed to submit edit request.');
+      setError(err.message || 'Failed to update profile.');
     } finally {
       setLoading(false);
     }
@@ -441,78 +489,145 @@ export default function Navbar() {
 
       {/* Profile Modal */}
       {showProfileModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '450px',
-            padding: '2.5rem 2rem',
-            borderRadius: '24px',
-            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.4)',
-            position: 'relative'
-          }}>
+        <div 
+          onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1.5rem'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="animate-fade-in"
+            style={{
+              width: '100%',
+              maxWidth: '680px',
+              borderRadius: '28px',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 30px 80px rgba(0, 0, 0, 0.28), 0 4px 20px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              position: 'relative',
+              padding: '2.5rem 2.5rem 2.25rem 2.5rem'
+            }}
+          >
+            {/* Close Button - Apple Style Circle Button */}
             <button 
+              type="button"
               onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
               style={{
                 position: 'absolute',
-                top: '1.25rem',
-                right: '1.25rem',
-                background: 'none',
-                border: 'none',
+                top: '1.5rem',
+                right: '1.5rem',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                cursor: 'pointer',
                 color: 'var(--text-secondary)',
-                cursor: 'pointer'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 50,
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--text-primary)';
+                e.currentTarget.style.color = 'var(--bg-surface)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="Close"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
 
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {/* Header Banner - Matching Share Your Journey */}
+            <div style={{ marginBottom: '2rem' }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.3rem 0.75rem',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(212, 255, 50, 0.22)',
+                border: '1px solid rgba(212, 255, 50, 0.45)',
+                color: 'var(--text-primary)',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                marginBottom: '0.75rem'
+              }}>
+                Account & Profile Settings
+              </div>
+              <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 0.4rem 0', color: 'var(--text-primary)' }}>
                 User Profile
               </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                {user.email}
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span>{user.email}</span>
+                <span style={{ opacity: 0.4 }}>•</span>
+                <span style={{ 
+                  display: 'inline-block',
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)'
+                }}>
+                  {user.role || 'Student'}
+                </span>
               </p>
             </div>
 
             {user.hasPendingEdit && (
               <div style={{
-                backgroundColor: 'rgba(255, 149, 0, 0.1)',
-                border: '1px solid rgba(255, 149, 0, 0.2)',
+                backgroundColor: 'rgba(255, 149, 0, 0.12)',
+                border: '1px solid rgba(255, 149, 0, 0.3)',
                 color: '#ff9500',
-                borderRadius: '12px',
-                padding: '0.75rem 1rem',
-                fontSize: '0.8rem',
-                marginBottom: '1.25rem',
-                textAlign: 'center',
-                fontWeight: 500
+                borderRadius: '16px',
+                padding: '0.85rem 1.15rem',
+                fontSize: '0.82rem',
+                marginBottom: '1.5rem',
+                textAlign: 'left',
+                fontWeight: 500,
+                lineHeight: 1.45
               }}>
-                Your profile edit request is pending administrator approval.
+                ⚠️ <strong>Pending Request:</strong> Your previous profile edit request is currently under review by the administrator.
               </div>
             )}
 
             {error && (
               <div style={{
-                backgroundColor: 'rgba(255, 69, 58, 0.1)',
-                border: '1px solid rgba(255, 69, 58, 0.2)',
+                backgroundColor: 'rgba(255, 69, 58, 0.12)',
+                border: '1px solid rgba(255, 69, 58, 0.3)',
                 color: '#ff453a',
-                borderRadius: '8px',
-                padding: '0.75rem 1rem',
-                fontSize: '0.85rem',
-                marginBottom: '1.25rem',
-                textAlign: 'left'
+                borderRadius: '16px',
+                padding: '0.85rem 1.15rem',
+                fontSize: '0.82rem',
+                marginBottom: '1.5rem',
+                textAlign: 'left',
+                fontWeight: 500
               }}>
                 {error}
               </div>
@@ -520,135 +635,52 @@ export default function Navbar() {
 
             {success && (
               <div style={{
-                backgroundColor: 'rgba(52, 199, 89, 0.1)',
-                border: '1px solid rgba(52, 199, 89, 0.2)',
+                backgroundColor: 'rgba(52, 199, 89, 0.12)',
+                border: '1px solid rgba(52, 199, 89, 0.3)',
                 color: '#34c759',
-                borderRadius: '8px',
-                padding: '0.75rem 1rem',
-                fontSize: '0.85rem',
-                marginBottom: '1.25rem',
+                borderRadius: '16px',
+                padding: '0.85rem 1.15rem',
+                fontSize: '0.82rem',
+                marginBottom: '1.5rem',
                 textAlign: 'center',
-                fontWeight: 500
+                fontWeight: 600
               }}>
-                {success}
+                ✓ {success}
               </div>
             )}
 
-            <form onSubmit={handleProfileSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* Name field */}
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Full Name</label>
-                <div style={{ position: 'relative' }}>
-                  <UserIcon size={16} style={{
-                    position: 'absolute',
-                    left: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none'
-                  }} />
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    style={{ paddingLeft: '2.75rem' }}
-                    disabled={loading || user.hasPendingEdit}
-                    placeholder="Enter your name"
-                  />
+            <form onSubmit={handleProfileSubmit}>
+              {/* Card 1: Academic & Personal Details */}
+              <div style={{
+                padding: '1.5rem 1.75rem',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid var(--border-color)',
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--text-primary)',
+                    color: 'var(--bg-surface)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 800
+                  }}>1</div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
+                    Academic & Personal Details
+                  </h3>
                 </div>
-              </div>
 
-              {/* Role select */}
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Role</label>
-                <div style={{ position: 'relative' }}>
-                  <GraduationCap size={16} style={{
-                    position: 'absolute',
-                    left: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none'
-                  }} />
-                  <select
-                    className="input-field"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    style={{ 
-                      paddingLeft: '2.75rem',
-                      paddingRight: '2.5rem',
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
-                    }}
-                    disabled={loading || user.hasPendingEdit}
-                  >
-                    <option value="Student">Student</option>
-                    <option value="Senior / Contributor">Senior / Contributor</option>
-                    <option value="Alumni / Contributor">Alumni / Contributor</option>
-                  </select>
-                  <ChevronDown size={16} style={{
-                    position: 'absolute',
-                    right: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none'
-                  }} />
-                </div>
-              </div>
-
-              {/* Branch select */}
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Branch</label>
-                <div style={{ position: 'relative' }}>
-                  <BookOpen size={16} style={{
-                    position: 'absolute',
-                    left: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none'
-                  }} />
-                  <select
-                    className="input-field"
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
-                    style={{ 
-                      paddingLeft: '2.75rem',
-                      paddingRight: '2.5rem',
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
-                    }}
-                    disabled={loading || user.hasPendingEdit}
-                  >
-                    <option value="CSE">CSE</option>
-                    <option value="CE">CE</option>
-                    <option value="EXTC">EXTC</option>
-                  </select>
-                  <ChevronDown size={16} style={{
-                    position: 'absolute',
-                    right: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none'
-                  }} />
-                </div>
-              </div>
-
-              {/* Specialization (if CSE) */}
-              {branch === 'CSE' && (
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">Specialization</label>
+                {/* Name */}
+                <div className="input-group" style={{ marginBottom: '1.25rem' }}>
+                  <label className="input-label">Full Name *</label>
                   <div style={{ position: 'relative' }}>
-                    <BookOpen size={16} style={{
+                    <UserIcon size={16} style={{
                       position: 'absolute',
                       left: '1rem',
                       top: '50%',
@@ -656,101 +688,259 @@ export default function Navbar() {
                       color: 'var(--text-secondary)',
                       pointerEvents: 'none'
                     }} />
-                    <select
+                    <input
+                      type="text"
                       className="input-field"
-                      value={cseSpecialization}
-                      onChange={(e) => setCseSpecialization(e.target.value)}
-                      style={{ 
-                        paddingLeft: '2.75rem',
-                        paddingRight: '2.5rem',
-                        appearance: 'none',
-                        WebkitAppearance: 'none',
-                        backgroundColor: 'var(--bg-secondary)',
-                        color: 'var(--text-primary)',
-                        cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
-                      }}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      style={{ paddingLeft: '2.75rem' }}
                       disabled={loading || user.hasPendingEdit}
-                    >
-                      <option value="CSE">CSE</option>
-                      <option value="CSE AI">CSE AI</option>
-                      <option value="CSE DS">CSE DS</option>
-                    </select>
-                    <ChevronDown size={16} style={{
-                      position: 'absolute',
-                      right: '1rem',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: 'var(--text-secondary)',
-                      pointerEvents: 'none'
-                    }} />
+                      placeholder="e.g. John Doe"
+                      required
+                    />
                   </div>
                 </div>
-              )}
 
-              {/* Current Year select */}
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Current Year</label>
-                <div style={{ position: 'relative' }}>
-                  <Calendar size={16} style={{
-                    position: 'absolute',
-                    left: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none'
-                  }} />
-                  <select
-                    className="input-field"
-                    value={currentYear}
-                    onChange={(e) => setCurrentYear(e.target.value)}
-                    style={{ 
-                      paddingLeft: '2.75rem',
-                      paddingRight: '2.5rem',
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
-                    }}
-                    disabled={loading || user.hasPendingEdit}
-                  >
-                    <option value="First Year">First Year</option>
-                    <option value="Second Year">Second Year</option>
-                    <option value="Third Year">Third Year</option>
-                    <option value="Fourth Year">Fourth Year</option>
-                    <option value="Alumnus / Graduate">Alumnus / Graduate</option>
-                  </select>
-                  <ChevronDown size={16} style={{
-                    position: 'absolute',
-                    right: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none'
-                  }} />
+                {/* Branch, Specialization, Passout Year Grid */}
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: branch === 'CSE' ? 'repeat(auto-fit, minmax(160px, 1fr))' : 'repeat(auto-fit, minmax(200px, 1fr))', 
+                  gap: '1rem' 
+                }}>
+                  {/* Branch select */}
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Branch *</label>
+                    <div style={{ position: 'relative' }}>
+                      <BookOpen size={16} style={{
+                        position: 'absolute',
+                        left: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none'
+                      }} />
+                      <select
+                        className="input-field"
+                        value={branch}
+                        onChange={(e) => setBranch(e.target.value)}
+                        style={{ 
+                          paddingLeft: '2.75rem',
+                          paddingRight: '2.5rem',
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text-primary)',
+                          cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
+                        }}
+                        disabled={loading || user.hasPendingEdit}
+                      >
+                        <option value="CSE">CSE</option>
+                        <option value="CE">CE</option>
+                        <option value="EXTC">EXTC</option>
+                      </select>
+                      <ChevronDown size={16} style={{
+                        position: 'absolute',
+                        right: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none'
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* Sub-Category (if CSE) */}
+                  {branch === 'CSE' && (
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Sub-Category *</label>
+                      <div style={{ position: 'relative' }}>
+                        <select
+                          className="input-field"
+                          value={cseSpecialization}
+                          onChange={(e) => setCseSpecialization(e.target.value)}
+                          style={{ 
+                            paddingRight: '2.5rem',
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                            backgroundColor: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
+                          }}
+                          disabled={loading || user.hasPendingEdit}
+                        >
+                          <option value="CSE">CSE</option>
+                          <option value="CSE AI">AI</option>
+                          <option value="CSE DS">DS</option>
+                        </select>
+                        <ChevronDown size={16} style={{
+                          position: 'absolute',
+                          right: '1rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: 'var(--text-secondary)',
+                          pointerEvents: 'none'
+                        }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Passout Year input */}
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Which year are you / Passout Year *</label>
+                    <div style={{ position: 'relative' }}>
+                      <Calendar size={16} style={{
+                        position: 'absolute',
+                        left: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none'
+                      }} />
+                      <input 
+                        type="number"
+                        className="input-field"
+                        placeholder="2026"
+                        value={passoutYear}
+                        onChange={(e) => setPassoutYear(e.target.value)}
+                        style={{ paddingLeft: '2.75rem' }}
+                        disabled={loading || user.hasPendingEdit}
+                        required
+                        min="2000"
+                        max="2035"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {!user.hasPendingEdit && (
+              {/* Card 2: Security & Password Change */}
+              <div style={{
+                padding: '1.5rem 1.75rem',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid var(--border-color)',
+                marginBottom: '1.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--text-primary)',
+                    color: 'var(--bg-surface)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 800
+                  }}>2</div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
+                    Security & Password
+                  </h3>
+                </div>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0 0 1.25rem 0' }}>
+                  Leave blank if you do not want to change your current password.
+                </p>
+
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
+                  gap: '1rem' 
+                }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">New Password</label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={16} style={{
+                        position: 'absolute',
+                        left: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none'
+                      }} />
+                      <input 
+                        type="password"
+                        className="input-field"
+                        placeholder="New password (min 6 chars)"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        style={{ paddingLeft: '2.75rem' }}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Confirm New Password</label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={16} style={{
+                        position: 'absolute',
+                        left: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none'
+                      }} />
+                      <input 
+                        type="password"
+                        className="input-field"
+                        placeholder="Re-enter new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        style={{ paddingLeft: '2.75rem' }}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '0.9rem',
+                    borderRadius: '14px',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 600,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Cancel
+                </button>
+
                 <button
                   type="submit"
                   className="btn btn-primary"
                   style={{
-                    marginTop: '0.75rem',
-                    padding: '0.8rem',
-                    borderRadius: '12px',
-                    width: '100%',
+                    flex: 2,
+                    padding: '0.9rem',
+                    borderRadius: '14px',
                     border: 'none',
                     backgroundColor: 'var(--accent-color)',
                     color: 'var(--accent-inverse)',
-                    fontWeight: '600',
-                    cursor: 'pointer'
+                    fontWeight: 700,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
+                    transition: 'all 0.2s'
                   }}
                   disabled={loading}
                 >
-                  {loading ? 'Submitting...' : 'Request Profile Edit'}
+                  {loading ? 'Saving...' : 'Save & Update Profile'}
                 </button>
-              )}
+              </div>
             </form>
           </div>
         </div>
