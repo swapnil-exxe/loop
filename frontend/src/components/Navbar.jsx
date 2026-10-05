@@ -382,7 +382,7 @@ export default function Navbar() {
 
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.5rem' : '0.65rem' }}>
-                {/* Profile Button */}
+                {/* Profile Button with First Name */}
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(true)}
@@ -390,7 +390,7 @@ export default function Navbar() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.35rem',
+                    gap: '0.4rem',
                     padding: isScrolled ? '0.32rem 0.75rem' : '0.42rem 0.85rem',
                     borderRadius: '20px',
                     fontSize: isScrolled ? '0.78rem' : '0.84rem',
@@ -401,7 +401,9 @@ export default function Navbar() {
                   title="View & Edit Profile"
                 >
                   <UserIcon size={isScrolled ? 12 : 13} />
-                  <span>Profile</span>
+                  <span>
+                    {user?.name?.trim() ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+                  </span>
                 </button>
 
                 {/* Exit / Logout button */}
@@ -479,7 +481,7 @@ export default function Navbar() {
                     className="btn btn-secondary" 
                     style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderRadius: '14px' }}
                   >
-                    <UserIcon size={14} /> Profile
+                    <UserIcon size={14} /> {user?.name?.trim() ? user.name.trim().split(/\s+/)[0] : 'Profile'}
                   </button>
                   <span 
                     className="badge" 
