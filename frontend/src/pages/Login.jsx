@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { ArrowRight, Lock, Mail, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, UserPlus, LogIn, Eye, EyeOff, ShieldCheck, Sparkles, Check } from 'lucide-react';
 import { loginUser, requestRegistration } from '../utils/db';
 
 export default function Login() {
@@ -14,12 +14,134 @@ export default function Login() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Helper to resolve where the user should go after successful authentication
+  // Dual Video Architecture for Butter-Smooth Transitions
+  // IDLE: idle-butterfly.mp4 (4.0s seamless loop of character watching butterfly)
+  // ACTIVE: character-login.mp4 (1.5-4.5s Email | 4.5-7.5s Password | 7.5-10.0s Login)
+  const [characterState, setCharacterState] = useState('IDLE');
+  const idleVideoRef = useRef(null);
+  const actionVideoRef = useRef(null);
+  const stateRef = useRef('IDLE');
+
+  // Trigger video transitions smoothly
+  const triggerCharacterState = useCallback((newState) => {
+    if (stateRef.current === newState) return;
+    
+    stateRef.current = newState;
+    setCharacterState(newState);
+
+    const idleVideo = idleVideoRef.current;
+    const actionVideo = actionVideoRef.current;
+
+    try {
+      if (newState === 'IDLE') {
+        if (idleVideo) {
+          idleVideo.play().catch(() => {});
+        }
+      } else {
+        if (actionVideo) {
+          if (newState === 'EMAIL_ACTIVE') {
+            actionVideo.currentTime = 1.5;
+          } else if (newState === 'PASSWORD_ACTIVE') {
+            actionVideo.currentTime = 4.5;
+          } else if (newState === 'LOGIN_SUBMITTED') {
+            actionVideo.currentTime = 7.5;
+          }
+          actionVideo.play().catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("Media transition error:", e);
+    }
+  }, []);
+
+  // Frame-accurate 60fps loop controller for both video sources
+  useEffect(() => {
+    let animId = null;
+
+    const checkSegmentLoop = () => {
+      const current = stateRef.current;
+      const idleVideo = idleVideoRef.current;
+      const actionVideo = actionVideoRef.current;
+
+      if (current === 'IDLE') {
+        if (idleVideo && !idleVideo.paused) {
+          if (idleVideo.currentTime >= 3.9) {
+            idleVideo.currentTime = 0.05;
+            idleVideo.play().catch(() => {});
+          }
+        }
+      } else {
+        if (actionVideo && !actionVideo.paused) {
+          const t = actionVideo.currentTime;
+
+          if (current === 'EMAIL_ACTIVE') {
+            // 1.5-4.5s: Email typing video loop
+            if (t >= 4.45) {
+              actionVideo.currentTime = 1.6;
+              actionVideo.play().catch(() => {});
+            }
+          } else if (current === 'PASSWORD_ACTIVE') {
+            // 4.5-7.5s: Password looking-away video loop
+            if (t >= 7.45) {
+              actionVideo.currentTime = 4.8;
+              actionVideo.play().catch(() => {});
+            }
+          } else if (current === 'LOGIN_SUBMITTED') {
+            // 7.5-10.0s: Login reaction nod video loop
+            if (t >= 9.9) {
+              actionVideo.currentTime = 7.8;
+              actionVideo.play().catch(() => {});
+            }
+          }
+        }
+      }
+
+      animId = requestAnimationFrame(checkSegmentLoop);
+    };
+
+    animId = requestAnimationFrame(checkSegmentLoop);
+
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  // Input Focus & Blur Handlers
+  const handleEmailFocus = () => {
+    if (stateRef.current !== 'LOGIN_SUBMITTED') {
+      triggerCharacterState('EMAIL_ACTIVE');
+    }
+  };
+
+  const handlePasswordFocus = () => {
+    if (stateRef.current !== 'LOGIN_SUBMITTED') {
+      triggerCharacterState('PASSWORD_ACTIVE');
+    }
+  };
+
+  const handleInputBlur = (e) => {
+    // If focus moved to another input inside our form, don't reset to idle
+    const nextTarget = e.relatedTarget;
+    if (
+      nextTarget &&
+      (nextTarget.id === 'email-input' || nextTarget.id === 'password-input')
+    ) {
+      return;
+    }
+
+    // Return to IDLE if blurred outside
+    if (!loading && stateRef.current !== 'LOGIN_SUBMITTED') {
+      triggerCharacterState('IDLE');
+    }
+  };
+
+  // Helper to resolve redirect destination
   const getRedirectUrl = () => {
     let target = null;
     const fromState = location.state?.from;
@@ -53,7 +175,6 @@ export default function Login() {
   };
 
   useEffect(() => {
-    // Persist target in sessionStorage so mode switches and reloads preserve the destination
     const fromState = location.state?.from;
     if (fromState) {
       const path = typeof fromState === 'string' ? fromState : fromState.pathname + (fromState.search || '') + (fromState.hash || '');
@@ -93,24 +214,27 @@ export default function Login() {
     setError('');
     setSuccessMsg('');
 
-    // Validate email
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
       setError('Email is required');
+      triggerCharacterState('IDLE');
       return;
     }
 
     if (!trimmedEmail.endsWith('@spit.ac.in')) {
       setError('Please use your official SPIT email address (@spit.ac.in)');
+      triggerCharacterState('IDLE');
       return;
     }
 
     if (!password) {
       setError('Password is required');
+      triggerCharacterState('IDLE');
       return;
     }
 
     setLoading(true);
+    triggerCharacterState('LOGIN_SUBMITTED');
 
     try {
       if (isRegisterMode) {
@@ -119,22 +243,23 @@ export default function Login() {
         setEmail('');
         setPassword('');
         setIsRegisterMode(false);
+        triggerCharacterState('IDLE');
       } else {
         const userData = await loginUser(trimmedEmail, password);
-        
-        // Save user session
         localStorage.setItem('loop_current_user', JSON.stringify(userData));
         
-        // Redirect to original destination or onboarding
-        const targetUrl = getRedirectUrl();
-        if (userData.onboarded || userData.isAdmin) {
-          navigate(targetUrl, { replace: true });
-        } else {
-          navigate('/onboarding', { replace: true, state: { redirectAfter: targetUrl } });
-        }
+        setTimeout(() => {
+          const targetUrl = getRedirectUrl();
+          if (userData.onboarded || userData.isAdmin) {
+            navigate(targetUrl, { replace: true });
+          } else {
+            navigate('/onboarding', { replace: true, state: { redirectAfter: targetUrl } });
+          }
+        }, 500);
       }
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
+      triggerCharacterState('IDLE');
     } finally {
       setLoading(false);
     }
@@ -146,330 +271,526 @@ export default function Login() {
     setError('');
     setSuccessMsg('');
     setLoading(true);
+    triggerCharacterState('LOGIN_SUBMITTED');
 
     try {
       const userData = await loginUser(demoEmail, demoPassword);
       localStorage.setItem('loop_current_user', JSON.stringify(userData));
-      const targetUrl = getRedirectUrl();
-      if (userData.onboarded || userData.isAdmin) {
-        navigate(targetUrl, { replace: true });
-      } else {
-        navigate('/onboarding', { replace: true, state: { redirectAfter: targetUrl } });
-      }
+      setTimeout(() => {
+        const targetUrl = getRedirectUrl();
+        if (userData.onboarded || userData.isAdmin) {
+          navigate(targetUrl, { replace: true });
+        } else {
+          navigate('/onboarding', { replace: true, state: { redirectAfter: targetUrl } });
+        }
+      }, 500);
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
+      triggerCharacterState('IDLE');
     } finally {
       setLoading(false);
     }
   };
 
+  // Status Badge Indicator
+  const getStatusBadge = () => {
+    switch (characterState) {
+      case 'EMAIL_ACTIVE':
+        return {
+          icon: <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0071E3', boxShadow: '0 0 8px #0071E3' }} />,
+          label: 'Watching Email Input',
+          color: '#0071E3'
+        };
+      case 'PASSWORD_ACTIVE':
+        return {
+          icon: <ShieldCheck size={12} strokeWidth={2.4} style={{ color: '#34C759' }} />,
+          label: 'Privacy Mode • Looking Away 🙈',
+          color: '#34C759'
+        };
+      case 'LOGIN_SUBMITTED':
+        return {
+          icon: <Sparkles size={12} strokeWidth={2.4} style={{ color: '#AF52DE' }} />,
+          label: 'Authenticating...',
+          color: '#AF52DE'
+        };
+      case 'IDLE':
+      default:
+        return {
+          icon: <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#8E8E93' }} />,
+          label: 'Senior Guide • Ready',
+          color: 'var(--text-secondary)'
+        };
+    }
+  };
+
+  const statusBadge = getStatusBadge();
+
   return (
-    <div style={{
+    <div className="login-split-page" style={{
+      width: '100vw',
       minHeight: '100vh',
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'var(--bg-primary)',
-      padding: '1.5rem',
+      backgroundColor: 'var(--bg-surface)',
       position: 'relative',
-      overflow: 'hidden'
+      overflowX: 'hidden'
     }}>
-      {/* Background Decorative Blur */}
-      <div style={{
-        position: 'absolute',
-        top: '20%',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '400px',
-        height: '400px',
-        background: 'radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0) 70%)',
-        pointerEvents: 'none',
-        zIndex: 0
-      }} />
-
-      {/* Login Card */}
-      <div className="glass-panel" style={{
-        width: '100%',
-        maxWidth: '400px',
-        padding: '2.5rem 2rem',
-        borderRadius: '24px',
-        boxShadow: '0 30px 60px rgba(0, 0, 0, 0.4)',
-        zIndex: 1,
-        position: 'relative'
+      {/* LEFT HALF (50%): FULL-BLEED VIDEO HERO PANEL (NO BOX) */}
+      <div className="login-media-half" style={{
+        width: '50%',
+        flex: '0 0 50%',
+        height: '100vh',
+        position: 'sticky',
+        top: 0,
+        backgroundColor: '#FFFFFF',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between'
       }}>
+        {/* Full-Bleed Stacked Dual-Video Elements with Seamless Transition */}
+        {/* 1. Idle Butterfly Video (Natural loop while idle) */}
+        <video
+          ref={idleVideoRef}
+          src="/idle-butterfly.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center top',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            opacity: characterState === 'IDLE' ? 1 : 0,
+            transition: 'opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+            display: 'block',
+            zIndex: characterState === 'IDLE' ? 1 : 0
+          }}
+        />
+
+        {/* 2. Active Interaction Video (Email typing, Password privacy, Login reaction) */}
+        <video
+          ref={actionVideoRef}
+          src="/character-login.mp4"
+          muted
+          playsInline
+          preload="auto"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center top',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            opacity: characterState !== 'IDLE' ? 1 : 0,
+            transition: 'opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+            display: 'block',
+            zIndex: characterState !== 'IDLE' ? 1 : 0
+          }}
+        />
+
+        {/* Top Header Overlay on Video */}
         <div style={{
-          textAlign: 'center',
-          marginBottom: '2.5rem'
+          position: 'relative',
+          zIndex: 2,
+          padding: '2.5rem 3rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          pointerEvents: 'none'
         }}>
-          <h1 style={{
-            fontSize: '2rem',
-            fontWeight: '800',
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            marginBottom: '0.5rem',
-            fontFamily: 'var(--font-display)'
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.4rem 0.85rem',
+            borderRadius: '9999px',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(16px)',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+            border: '1px solid rgba(0,0,0,0.06)'
           }}>
-            Loop
-          </h1>
+            <span style={{
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: '#1d1d1f'
+            }}>
+              Senior Network
+            </span>
+          </div>
+
+          {/* Live Privacy & Focus Indicator */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.4rem 0.85rem',
+            borderRadius: '9999px',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(16px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+            fontSize: '0.76rem',
+            fontWeight: 600,
+            color: statusBadge.color,
+            border: '1px solid rgba(0,0,0,0.06)'
+          }}>
+            {statusBadge.icon}
+            <span>{statusBadge.label}</span>
+          </div>
+        </div>
+
+        {/* Bottom Quote Overlay on Video, matching the reference image */}
+        <div className="login-quote-overlay" style={{
+          position: 'relative',
+          zIndex: 2,
+          padding: '4rem 3rem 3rem',
+          background: 'linear-gradient(to top, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.82) 60%, rgba(255,255,255,0) 100%)',
+          pointerEvents: 'none'
+        }}>
+          <h2 style={{
+            fontSize: '2.4rem',
+            fontWeight: 800,
+            letterSpacing: '-0.035em',
+            color: '#111111',
+            lineHeight: 1.15,
+            marginBottom: '0.55rem',
+            fontFamily: 'var(--font-sans)'
+          }}>
+            Get Everything You Want
+          </h2>
           <p style={{
-            color: 'var(--text-secondary)',
-            fontSize: '0.9rem',
-            fontWeight: 400
+            fontSize: '0.94rem',
+            color: '#555555',
+            lineHeight: 1.55,
+            maxWidth: '430px'
           }}>
-            {isRegisterMode ? 'Request access to senior network' : 'Continue to the SPIT Senior Network'}
+            Real interview journeys, departmental resources, and peer guidance from SPIT seniors.
           </p>
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {error && (
-            <div style={{
-              backgroundColor: 'rgba(255, 69, 58, 0.1)',
-              border: '1px solid rgba(255, 69, 58, 0.2)',
-              color: '#ff453a',
-              borderRadius: '8px',
-              padding: '0.75rem 1rem',
-              fontSize: '0.85rem',
-              textAlign: 'left'
-            }}>
-              {error}
-              {!isRegisterMode && error.includes('User not found') && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsRegisterMode(true);
-                      setError('');
-                      setSuccessMsg('');
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent-color)',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      padding: 0,
-                      textDecoration: 'underline',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    Click here to request account access
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {successMsg && (
-            <div style={{
-              backgroundColor: 'rgba(48, 209, 88, 0.1)',
-              border: '1px solid rgba(48, 209, 88, 0.2)',
-              color: '#30d158',
-              borderRadius: '8px',
-              padding: '0.75rem 1rem',
-              fontSize: '0.85rem',
-              textAlign: 'left'
-            }}>
-              {successMsg}
-            </div>
-          )}
-
-          <div className="input-group" style={{ marginBottom: 0 }}>
-            <label className="input-label" htmlFor="email-input">SPIT Email</label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={16} style={{
-                position: 'absolute',
-                left: '1rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-secondary)',
-                pointerEvents: 'none'
-              }} />
-              <input
-                id="email-input"
-                type="email"
-                className="input-field"
-                placeholder="username@spit.ac.in"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ paddingLeft: '2.75rem' }}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div className="input-group" style={{ marginBottom: 0 }}>
-            <label className="input-label" htmlFor="password-input">Password</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={16} style={{
-                position: 'absolute',
-                left: '1rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-secondary)',
-                pointerEvents: 'none'
-              }} />
-              <input
-                id="password-input"
-                type={showPassword ? "text" : "password"}
-                className="input-field"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ paddingLeft: '2.75rem', paddingRight: '2.75rem' }}
-                disabled={loading}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '1rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-secondary)',
-                  padding: 0,
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-                tabIndex="-1"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary"
-            style={{
-              marginTop: '0.5rem',
-              padding: '0.9rem',
-              borderRadius: '12px',
-              width: '100%',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: '0.5rem',
-              border: 'none',
-              backgroundColor: 'var(--accent-color)',
-              color: 'var(--accent-inverse)',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-            disabled={loading}
-          >
-            {loading ? (isRegisterMode ? 'Submitting Request...' : 'Authenticating...') : (
-              <>
-                <span>{isRegisterMode ? 'Request Access' : 'Sign In'}</span>
-                {isRegisterMode ? <UserPlus size={16} /> : <LogIn size={16} />}
-              </>
-            )}
-          </button>
-        </form>
-
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.25rem', fontSize: '0.9rem' }}>
-          {isRegisterMode ? (
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegisterMode(false);
-                setError('');
-                setSuccessMsg('');
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--accent-color)',
-                cursor: 'pointer',
-                fontWeight: '500',
-                padding: 0,
-                textDecoration: 'underline'
-              }}
-            >
-              Back to Sign In
-            </button>
-          ) : (
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Don't have access?{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegisterMode(true);
-                  setError('');
-                  setSuccessMsg('');
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--accent-color)',
-                  cursor: 'pointer',
-                  fontWeight: '500',
-                  padding: 0,
-                  textDecoration: 'underline'
-                }}
-              >
-                Request account access
-              </button>
-            </p>
-          )}
-        </div>
-
-        {/* Quick Demo Credentials */}
-        {!isRegisterMode && (
+      {/* RIGHT HALF (50%): FULL LOGIN FORM & AUTHENTICATION LOGIC */}
+      <div className="login-form-half" style={{
+        width: '50%',
+        flex: '0 0 50%',
+        minHeight: '100vh',
+        height: '100vh',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '3rem 4rem',
+        backgroundColor: 'var(--bg-surface)',
+        borderLeft: '1px solid var(--border-color)',
+        boxSizing: 'border-box'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '430px',
+          display: 'flex',
+          flexDirection: 'column',
+          margin: 'auto 0'
+        }}>
+          {/* Top Logo and Branding */}
           <div style={{
-            marginTop: '1.5rem',
-            paddingTop: '1.25rem',
-            borderTop: '1px border-subtle var(--border-color)',
-            textAlign: 'center'
+            display: 'flex',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            gap: '0.45rem',
+            marginBottom: '2.5rem'
           }}>
-            <p style={{
-              fontSize: '0.75rem',
+            <img 
+              src="/favicon.png" 
+              alt="LOOP Logo" 
+              style={{ 
+                height: '24px', 
+                width: 'auto', 
+                filter: 'var(--logo-filter)',
+                marginRight: '0.2rem'
+              }} 
+            />
+            <span style={{
+              fontSize: '1.25rem',
+              fontWeight: 800,
+              letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'var(--text-secondary)',
-              marginBottom: '0.75rem',
-              fontWeight: 600
+              fontFamily: 'var(--font-display)'
             }}>
-              ⚡ 1-Click Demo Login
+              Loop
+            </span>
+            <span style={{
+              fontSize: '0.55rem',
+              letterSpacing: '0.04em',
+              padding: '1px 5px',
+              border: '1px solid var(--text-primary)',
+              borderRadius: '4px',
+              fontWeight: '700'
+            }}>SPIT</span>
+          </div>
+
+          {/* Heading */}
+          <div style={{ marginBottom: '2rem' }}>
+            <h1 style={{
+              fontSize: '2.1rem',
+              fontWeight: 800,
+              letterSpacing: '-0.03em',
+              marginBottom: '0.4rem',
+              color: 'var(--text-primary)',
+              lineHeight: 1.15
+            }}>
+              {isRegisterMode ? 'Request Account' : 'Welcome Back'}
+            </h1>
+            <p style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.92rem',
+              fontWeight: 400,
+              lineHeight: 1.45
+            }}>
+              {isRegisterMode ? 'Submit your SPIT credentials to request verified access' : 'Enter your email and password to access your account'}
             </p>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {error && (
+              <div style={{
+                backgroundColor: 'rgba(255, 69, 58, 0.1)',
+                border: '1px solid rgba(255, 69, 58, 0.2)',
+                color: '#ff453a',
+                borderRadius: '12px',
+                padding: '0.8rem 1rem',
+                fontSize: '0.85rem',
+                textAlign: 'left'
+              }}>
+                {error}
+                {!isRegisterMode && error.includes('User not found') && (
+                  <div style={{ marginTop: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRegisterMode(true);
+                        setError('');
+                        setSuccessMsg('');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-color)',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        padding: 0,
+                        textDecoration: 'underline',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Click here to request account access
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {successMsg && (
+              <div style={{
+                backgroundColor: 'rgba(48, 209, 88, 0.1)',
+                border: '1px solid rgba(48, 209, 88, 0.2)',
+                color: '#30d158',
+                borderRadius: '12px',
+                padding: '0.8rem 1rem',
+                fontSize: '0.85rem',
+                textAlign: 'left'
+              }}>
+                {successMsg}
+              </div>
+            )}
+
+            {/* Email Field */}
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" htmlFor="email-input" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                Email
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="email-input"
+                  type="email"
+                  className="input-field"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={handleEmailFocus}
+                  onBlur={handleInputBlur}
+                  style={{
+                    height: '48px',
+                    borderRadius: '12px',
+                    fontSize: '0.92rem',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    paddingLeft: '1.1rem'
+                  }}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" htmlFor="password-input" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                Password
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="password-input"
+                  type={showPassword ? "text" : "password"}
+                  className="input-field"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={handlePasswordFocus}
+                  onBlur={handleInputBlur}
+                  style={{
+                    height: '48px',
+                    borderRadius: '12px',
+                    fontSize: '0.92rem',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    paddingLeft: '1.1rem',
+                    paddingRight: '2.75rem'
+                  }}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  tabIndex="-1"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Remember me & Notice Row */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '0.82rem',
+              color: 'var(--text-secondary)'
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', userSelect: 'none' }}>
+                <input 
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ cursor: 'pointer', accentColor: 'var(--accent-color)' }}
+                />
+                <span>Remember me</span>
+              </label>
+
+              <span style={{ fontSize: '0.78rem', color: '#34C759', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                <ShieldCheck size={12} strokeWidth={2.4} /> Privacy Protected
+              </span>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{
+                marginTop: '0.35rem',
+                height: '48px',
+                borderRadius: '12px',
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: 'none',
+                backgroundColor: 'var(--accent-color)',
+                color: 'var(--accent-inverse)',
+                fontWeight: '600',
+                fontSize: '0.94rem',
+                cursor: loading ? 'wait' : 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)'
+              }}
+              disabled={loading}
+            >
+              {loading ? (isRegisterMode ? 'Submitting Request...' : 'Authenticating...') : (
+                <>
+                  <span>{isRegisterMode ? 'Request Access' : 'Sign In'}</span>
+                  {isRegisterMode ? <UserPlus size={16} /> : <LogIn size={16} />}
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* 1-Click Demo Logins */}
+          {!isRegisterMode && (
+            <div style={{
+              marginTop: '1.25rem',
+              display: 'flex',
+              gap: '0.65rem'
+            }}>
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => handleQuickLogin('student@spit.ac.in', 'student123')}
                 style={{
                   flex: 1,
-                  padding: '0.65rem 0.5rem',
-                  fontSize: '0.8rem',
+                  height: '42px',
                   borderRadius: '10px',
                   border: '1px solid var(--border-color)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  backgroundColor: 'var(--bg-tertiary)',
                   color: 'var(--text-primary)',
-                  cursor: loading ? 'wait' : 'pointer',
+                  fontSize: '0.82rem',
                   fontWeight: 600,
-                  transition: 'all 0.2s ease',
+                  cursor: loading ? 'wait' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '0.35rem'
+                  gap: '0.35rem',
+                  transition: 'all 0.18s ease'
                 }}
                 onMouseEnter={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
-                    e.currentTarget.style.borderColor = 'var(--accent-color)';
+                    e.currentTarget.style.borderColor = 'var(--text-primary)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'var(--border-color)';
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }
                 }}
               >
-                <span>🎓</span> {loading ? 'Logging in...' : 'Student'}
+                <span>🎓</span> {loading ? '...' : 'Student Demo'}
               </button>
               <button
                 type="button"
@@ -477,43 +798,123 @@ export default function Login() {
                 onClick={() => handleQuickLogin('admin@spit.ac.in', 'admin123')}
                 style={{
                   flex: 1,
-                  padding: '0.65rem 0.5rem',
-                  fontSize: '0.8rem',
+                  height: '42px',
                   borderRadius: '10px',
                   border: '1px solid var(--border-color)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  backgroundColor: 'var(--bg-tertiary)',
                   color: 'var(--text-primary)',
-                  cursor: loading ? 'wait' : 'pointer',
+                  fontSize: '0.82rem',
                   fontWeight: 600,
-                  transition: 'all 0.2s ease',
+                  cursor: loading ? 'wait' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '0.35rem'
+                  gap: '0.35rem',
+                  transition: 'all 0.18s ease'
                 }}
                 onMouseEnter={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
-                    e.currentTarget.style.borderColor = 'var(--accent-color)';
+                    e.currentTarget.style.borderColor = 'var(--text-primary)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'var(--border-color)';
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }
                 }}
               >
-                <span>🛡️</span> {loading ? 'Logging in...' : 'Admin'}
+                <span>🛡️</span> {loading ? '...' : 'Admin Demo'}
               </button>
             </div>
+          )}
+
+          {/* Toggle Register / Login */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.75rem', fontSize: '0.88rem' }}>
+            {isRegisterMode ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRegisterMode(false);
+                  setError('');
+                  setSuccessMsg('');
+                  triggerCharacterState('IDLE');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-color)',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  padding: 0,
+                  textDecoration: 'underline'
+                }}
+              >
+                Back to Sign In
+              </button>
+            ) : (
+              <p style={{ color: 'var(--text-secondary)' }}>
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegisterMode(true);
+                    setError('');
+                    setSuccessMsg('');
+                    triggerCharacterState('IDLE');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent-color)',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    padding: 0,
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Sign Up
+                </button>
+              </p>
+            )}
           </div>
-        )}
 
-
-
-
+        </div>
       </div>
+
+      {/* Responsive Styles */}
+      <style>{`
+        @media (max-width: 960px) {
+          .login-split-page {
+            flex-direction: column !important;
+            overflow-y: auto !important;
+          }
+          .login-media-half {
+            width: 100% !important;
+            flex: none !important;
+            height: 320px !important;
+            position: relative !important;
+            top: 0 !important;
+          }
+          .login-media-half video {
+            object-position: center 12% !important;
+          }
+          .login-quote-overlay {
+            display: none !important;
+          }
+          .login-form-half {
+            width: 100% !important;
+            flex: none !important;
+            height: auto !important;
+            min-height: auto !important;
+            padding: 2.5rem 1.5rem !important;
+            border-left: none !important;
+            border-top: 1px solid var(--border-color) !important;
+            overflow-y: visible !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
