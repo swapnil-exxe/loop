@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Landing from './pages/Landing';
@@ -11,6 +12,8 @@ import AchievementDetail from './pages/AchievementDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import Onboarding from './pages/Onboarding';
 import FilePreviewPage from './pages/FilePreviewPage';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfUse from './pages/TermsOfUse';
 import { UploadProvider } from './context/UploadContext';
 import UploadDock from './components/UploadDock';
 
@@ -47,6 +50,11 @@ function AppLayout() {
   const isAuthPage = location.pathname === '/login' || location.pathname === '/onboarding';
   const isPreviewPage = location.pathname.startsWith('/preview');
 
+  // Scroll to top on route change
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
+
   return (
     <div style={{
       display: 'flex',
@@ -61,6 +69,10 @@ function AppLayout() {
         <Routes>
           {/* Public Login Route */}
           <Route path="/login" element={<Login />} />
+
+          {/* Dedicated Public Legal & Documentation Routes */}
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfUse />} />
 
           {/* Onboarding Route (requires login but not completed onboarding) */}
           <Route path="/onboarding" element={
@@ -145,10 +157,60 @@ function AppLayout() {
               <p>Designed for educational mentoring and professional peer guidance.</p>
             </div>
             
-            <div style={{ display: 'flex', gap: '1.5rem' }}>
-              <a href="#" className="btn-text">Privacy Policy</a>
-              <a href="#" className="btn-text">Terms of Use</a>
-              <a href="#" className="btn-text">SPIT Portal</a>
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Link 
+                to="/privacy-policy" 
+                className="btn-text"
+                style={{ 
+                  color: location.pathname === '/privacy-policy' ? 'var(--text-primary)' : 'inherit', 
+                  textDecoration: 'none', 
+                  fontWeight: location.pathname === '/privacy-policy' ? 600 : 500,
+                  transition: 'color 0.2s ease' 
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={e => {
+                  if (location.pathname !== '/privacy-policy') e.currentTarget.style.color = 'inherit';
+                }}
+              >
+                Privacy Policy
+              </Link>
+              <Link 
+                to="/terms" 
+                className="btn-text"
+                style={{ 
+                  color: location.pathname === '/terms' ? 'var(--text-primary)' : 'inherit', 
+                  textDecoration: 'none', 
+                  fontWeight: location.pathname === '/terms' ? 600 : 500,
+                  transition: 'color 0.2s ease' 
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={e => {
+                  if (location.pathname !== '/terms') e.currentTarget.style.color = 'inherit';
+                }}
+              >
+                Terms of Use
+              </Link>
+              <a 
+                href="https://www.spit.ac.in/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="btn-text"
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '0.35rem', 
+                  color: 'inherit', 
+                  textDecoration: 'none', 
+                  fontWeight: 500,
+                  transition: 'color 0.2s ease' 
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'inherit'}
+                title="Open official Sardar Patel Institute of Technology website in a new tab"
+              >
+                <span>SPIT Portal</span>
+                <ExternalLink size={13} strokeWidth={2.2} />
+              </a>
             </div>
           </div>
           <div className="container" style={{ marginTop: '2rem', fontSize: '0.75rem', opacity: 0.6 }}>
