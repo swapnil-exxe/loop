@@ -11,6 +11,23 @@ export default function Navbar() {
     return currentUser ? JSON.parse(currentUser) : null;
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Detect scroll position with hysteresis to smoothly trigger liquid glass pill mode
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > 35) {
+        setIsScrolled(true);
+      } else if (currentScrollY < 15) {
+        setIsScrolled(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Profile modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -91,194 +108,234 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="liquid-glass-nav glass-panel" style={{
-      position: 'sticky',
-      top: 0,
-      zIndex: 100,
-      borderBottom: '1px solid var(--border-color)',
-      padding: '1.1rem 0',
-      transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-    }}>
-      <div className="container navbar-grid" style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr auto 1fr',
-        alignItems: 'center',
-        width: '100%'
-      }}>
-        
-        {/* COLUMN 1: LEFT NAV LINKS (Desktop only) */}
-        <div className="nav-col-left" style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '2rem',
-          fontFamily: 'var(--font-sans)',
-          fontSize: '0.9rem',
-          fontWeight: 600,
-          letterSpacing: '0.03em'
-        }}>
-          <Link to="/stories" style={{
-            color: isActive('/stories') ? 'var(--text-primary)' : 'var(--text-secondary)',
-            position: 'relative',
-            transition: 'color 0.2s ease'
-          }}>
-            Stories
-            {isActive('/stories') && <span style={{ position: 'absolute', bottom: '-21px', left: 0, right: 0, height: '2.5px', backgroundColor: 'var(--text-primary)' }} />}
-          </Link>
-          
-          <Link to="/resources" style={{
-            color: isActive('/resources') ? 'var(--text-primary)' : 'var(--text-secondary)',
-            position: 'relative',
-            transition: 'color 0.2s ease'
-          }}>
-            Resources
-            {isActive('/resources') && <span style={{ position: 'absolute', bottom: '-21px', left: 0, right: 0, height: '2.5px', backgroundColor: 'var(--text-primary)' }} />}
-          </Link>
-        </div>
-
-        {/* COLUMN 2: CENTER LOGO */}
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <Link to="/home" style={{
-            fontSize: '1.65rem',
-            fontWeight: 800,
-            fontFamily: 'var(--font-sans)',
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
+    <header
+      className="navbar-header-sticky"
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        padding: isScrolled ? '12px 1rem 0 1rem' : '0',
+        transition: 'padding 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
+      }}
+    >
+      <nav
+        className={`liquid-glass-nav ${isScrolled ? 'scrolled-liquid-pill' : 'glass-panel'}`}
+        style={{
+          pointerEvents: 'auto',
+          width: '100%',
+          maxWidth: isScrolled ? '860px' : '100%',
+          borderRadius: isScrolled ? '9999px' : '0px',
+          borderTop: isScrolled ? '1px solid var(--liquid-pill-border)' : 'none',
+          borderLeft: isScrolled ? '1px solid var(--liquid-pill-border)' : 'none',
+          borderRight: isScrolled ? '1px solid var(--liquid-pill-border)' : 'none',
+          borderBottom: isScrolled ? '1px solid var(--liquid-pill-border)' : '1px solid var(--border-color)',
+          padding: isScrolled ? '0.52rem 1.4rem' : '1.1rem 0',
+          boxShadow: isScrolled ? 'var(--liquid-pill-shadow)' : 'none',
+          backgroundColor: isScrolled ? 'var(--liquid-pill-bg)' : 'var(--glass-bg)',
+          backdropFilter: isScrolled ? 'blur(30px) saturate(190%) contrast(105%)' : 'blur(24px)',
+          WebkitBackdropFilter: isScrolled ? 'blur(30px) saturate(190%) contrast(105%)' : 'blur(24px)',
+          transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+          position: 'relative'
+        }}
+      >
+        <div
+          className="navbar-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: isScrolled ? '100%' : '1200px',
+            margin: '0 auto',
+            padding: isScrolled ? '0 0.5rem' : '0 2rem',
+            transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+        >
+          {/* COLUMN 1: LEFT NAV LINKS (Desktop only) */}
+          <div className="nav-col-left" style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
-            marginRight: '-0.2em' // Offset letter-spacing offset
+            gap: isScrolled ? '1.5rem' : '2rem',
+            fontFamily: 'var(--font-sans)',
+            fontSize: isScrolled ? '0.85rem' : '0.9rem',
+            fontWeight: 600,
+            letterSpacing: '0.03em',
+            transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
-            <img 
-              src="/favicon.png" 
-              alt="LOOP Logo" 
-              style={{ 
-                height: '26px', 
-                width: 'auto', 
-                filter: 'var(--logo-filter)',
-                marginRight: '0.2rem'
-              }} 
-            />
-            Loop
-            <span style={{
-              fontSize: '0.55rem',
-              letterSpacing: '0.02em',
-              padding: '1px 5px',
-              border: '1px solid var(--text-primary)',
-              borderRadius: '4px',
-              fontWeight: '700'
-            }}>SPIT</span>
-          </Link>
-        </div>
+            <Link to="/stories" style={{
+              color: isActive('/stories') ? 'var(--text-primary)' : 'var(--text-secondary)',
+              position: 'relative',
+              transition: 'color 0.2s ease'
+            }}>
+              Stories
+              {isActive('/stories') && <span style={{ position: 'absolute', bottom: isScrolled ? '-9px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
+            </Link>
+            
+            <Link to="/resources" style={{
+              color: isActive('/resources') ? 'var(--text-primary)' : 'var(--text-secondary)',
+              position: 'relative',
+              transition: 'color 0.2s ease'
+            }}>
+              Resources
+              {isActive('/resources') && <span style={{ position: 'absolute', bottom: isScrolled ? '-9px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
+            </Link>
+          </div>
 
-        {/* COLUMN 3: RIGHT NAV ACTIONS (Desktop only) */}
-        <div className="nav-col-right" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '1.5rem',
-          fontFamily: 'var(--font-sans)',
-          fontSize: '0.9rem',
-          fontWeight: 600
-        }}>
-          <Link to="/achievements" style={{
-            color: isActive('/achievements') ? 'var(--text-primary)' : 'var(--text-secondary)',
-            position: 'relative',
-            transition: 'color 0.2s ease'
-          }}>
-            Achievements
-            {isActive('/achievements') && <span style={{ position: 'absolute', bottom: '-21px', left: 0, right: 0, height: '2.5px', backgroundColor: 'var(--text-primary)' }} />}
-          </Link>
-
-          {user?.isAdmin && (
-            <Link to="/admin" style={{
-              color: isActive('/admin') ? 'var(--text-primary)' : 'var(--text-secondary)',
+          {/* COLUMN 2: CENTER LOGO */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <Link to="/home" style={{
+              fontSize: isScrolled ? '1.35rem' : '1.65rem',
+              fontWeight: 800,
+              fontFamily: 'var(--font-sans)',
+              letterSpacing: '0.2em',
+              textTransform: 'uppercase',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.35rem',
-              padding: '4px 10px',
-              border: '1px dashed var(--border-color)',
-              borderRadius: '8px',
-              fontSize: '0.85rem'
+              gap: isScrolled ? '0.3rem' : '0.4rem',
+              marginRight: '-0.2em',
+              transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
             }}>
-              <Shield size={13} />
-              Admin
+              <img 
+                src="/favicon.png" 
+                alt="LOOP Logo" 
+                style={{ 
+                  height: isScrolled ? '22px' : '26px', 
+                  width: 'auto', 
+                  filter: 'var(--logo-filter)',
+                  marginRight: '0.2rem',
+                  transition: 'height 0.35s ease'
+                }} 
+              />
+              Loop
+              <span style={{
+                fontSize: isScrolled ? '0.5rem' : '0.55rem',
+                letterSpacing: '0.02em',
+                padding: '1px 5px',
+                border: '1px solid var(--text-primary)',
+                borderRadius: '4px',
+                fontWeight: '700',
+                transition: 'all 0.35s ease'
+              }}>SPIT</span>
             </Link>
-          )}
+          </div>
 
-          <div style={{
+          {/* COLUMN 3: RIGHT NAV ACTIONS (Desktop only) */}
+          <div className="nav-col-right" style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.75rem',
-            borderLeft: '1px solid var(--border-color)',
-            paddingLeft: '1.25rem'
+            justifyContent: 'flex-end',
+            gap: isScrolled ? '1.1rem' : '1.5rem',
+            fontFamily: 'var(--font-sans)',
+            fontSize: isScrolled ? '0.85rem' : '0.9rem',
+            fontWeight: 600,
+            transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
+            <Link to="/achievements" style={{
+              color: isActive('/achievements') ? 'var(--text-primary)' : 'var(--text-secondary)',
+              position: 'relative',
+              transition: 'color 0.2s ease'
+            }}>
+              Achievements
+              {isActive('/achievements') && <span style={{ position: 'absolute', bottom: isScrolled ? '-9px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
+            </Link>
 
-
-            {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span 
-                  onClick={() => setShowProfileModal(true)}
-                  className="badge" 
-                  style={{ 
-                    textTransform: 'none', 
-                    fontSize: '0.85rem', 
-                    padding: '0.25rem 0.75rem', 
-                    cursor: 'pointer',
-                    backgroundColor: 'var(--bg-tertiary)',
-                    color: 'var(--text-primary)',
-                    borderRadius: '20px',
-                    transition: 'all 0.2s ease',
-                    fontWeight: 500
-                  }}
-                  title="Click to view/edit profile"
-                >
-                  {user.name || user.email.split('@')[0]}
-                </span>
-                <button 
-                  onClick={handleLogout} 
-                  className="btn btn-secondary" 
-                  style={{ padding: '0.45rem 0.85rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem' }}
-                >
-                  <LogOut size={12} />
-                  <span>Exit</span>
-                </button>
-              </div>
-            ) : (
-              <Link to="/login" className="btn btn-primary" style={{ padding: '0.45rem 1.1rem', borderRadius: '20px', fontSize: '0.8rem' }}>
-                Login
+            {user?.isAdmin && (
+              <Link to="/admin" style={{
+                color: isActive('/admin') ? 'var(--text-primary)' : 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: isScrolled ? '3px 8px' : '4px 10px',
+                border: '1px dashed var(--border-color)',
+                borderRadius: '8px',
+                fontSize: isScrolled ? '0.8rem' : '0.85rem',
+                transition: 'all 0.35s ease'
+              }}>
+                <Shield size={isScrolled ? 12 : 13} />
+                Admin
               </Link>
             )}
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: isScrolled ? '0.6rem' : '0.75rem',
+              borderLeft: '1px solid var(--border-color)',
+              paddingLeft: isScrolled ? '1rem' : '1.25rem',
+              transition: 'all 0.35s ease'
+            }}>
+              {user ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.5rem' : '0.75rem' }}>
+                  <span 
+                    onClick={() => setShowProfileModal(true)}
+                    className="badge" 
+                    style={{ 
+                      textTransform: 'none', 
+                      fontSize: isScrolled ? '0.8rem' : '0.85rem', 
+                      padding: isScrolled ? '0.2rem 0.65rem' : '0.25rem 0.75rem', 
+                      cursor: 'pointer',
+                      backgroundColor: 'var(--bg-tertiary)',
+                      color: 'var(--text-primary)',
+                      borderRadius: '20px',
+                      transition: 'all 0.2s ease',
+                      fontWeight: 500
+                    }}
+                    title="Click to view/edit profile"
+                  >
+                    {user.name || user.email.split('@')[0]}
+                  </span>
+                  <button 
+                    onClick={handleLogout} 
+                    className="btn btn-secondary" 
+                    style={{ padding: isScrolled ? '0.35rem 0.75rem' : '0.45rem 0.85rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}
+                  >
+                    <LogOut size={11} />
+                    <span>Exit</span>
+                  </button>
+                </div>
+              ) : (
+                <Link to="/login" className="btn btn-primary" style={{ padding: isScrolled ? '0.35rem 0.9rem' : '0.45rem 1.1rem', borderRadius: '20px', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}>
+                  Login
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* MOBILE MENU TOGGLE (Mobile only) */}
+          <div className="mobile-nav-toggle" style={{ display: 'none' }}>
+            <button 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="btn btn-secondary" 
+              style={{ padding: '0.5rem', borderRadius: '50%', border: 'none' }}
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
         </div>
 
-        {/* MOBILE MENU TOGGLE (Mobile only) */}
-        <div className="mobile-nav-toggle" style={{ display: 'none' }}>
-          <button 
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="btn btn-secondary" 
-            style={{ padding: '0.5rem', borderRadius: '50%', border: 'none' }}
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-      </div>
-
-      {/* MOBILE MENU DROPDOWN */}
-      {mobileMenuOpen && (
-        <div className="glass-panel animate-fade-in" style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          borderBottom: '1px solid var(--border-color)',
-          padding: '1.5rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.25rem',
-          backdropFilter: 'var(--glass-blur)',
-          maxHeight: 'calc(100vh - 80px)',
-          overflowY: 'auto'
-        }}>
+        {/* MOBILE MENU DROPDOWN */}
+        {mobileMenuOpen && (
+          <div className="glass-panel animate-fade-in" style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            right: 0,
+            border: '1px solid var(--border-color)',
+            borderRadius: isScrolled ? '24px' : '0 0 16px 16px',
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+            backdropFilter: 'var(--glass-blur)',
+            maxHeight: 'calc(100vh - 80px)',
+            overflowY: 'auto',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+            pointerEvents: 'auto'
+          }}>
           <Link to="/stories" onClick={() => setMobileMenuOpen(false)} style={{ fontSize: '1.1rem', fontWeight: 600 }}>
             Stories
           </Link>
@@ -308,6 +365,7 @@ export default function Navbar() {
           </div>
         </div>
       )}
+      </nav>
 
       {/* Profile Modal */}
       {showProfileModal && (
@@ -641,6 +699,6 @@ export default function Navbar() {
           }
         }
       `}</style>
-    </nav>
+    </header>
   );
 }

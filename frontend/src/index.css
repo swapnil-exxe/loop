@@ -26,6 +26,11 @@
   --glass-border: rgba(0, 0, 0, 0.06);
   --glass-blur: blur(20px);
   --logo-filter: invert(1);
+
+  /* Apple Liquid Glass Floating Pill */
+  --liquid-pill-bg: rgba(255, 255, 255, 0.76);
+  --liquid-pill-border: rgba(255, 255, 255, 0.7);
+  --liquid-pill-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06), inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03);
   
   --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: 'Plus Jakarta Sans', 'Inter', sans-serif;
@@ -54,6 +59,11 @@
   --glass-surface: rgba(18, 19, 22, 0.78);
   --glass-border: rgba(255, 255, 255, 0.08);
   --logo-filter: none;
+
+  /* Apple Liquid Glass Floating Pill Dark Mode */
+  --liquid-pill-bg: rgba(18, 19, 22, 0.78);
+  --liquid-pill-border: rgba(255, 255, 255, 0.16);
+  --liquid-pill-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 * {
@@ -146,8 +156,19 @@ button, input, textarea, select {
   background: var(--glass-bg);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid var(--glass-border);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-bottom: 1px solid var(--border-color);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Apple Liquid Glass Floating Pill Navbar */
+.scrolled-liquid-pill {
+  background: var(--liquid-pill-bg) !important;
+  backdrop-filter: blur(30px) saturate(190%) contrast(105%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(190%) contrast(105%) !important;
+  border: 1px solid var(--liquid-pill-border) !important;
+  box-shadow: var(--liquid-pill-shadow) !important;
+  border-radius: 9999px !important;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 /* Premium Rounded Bento Card */
