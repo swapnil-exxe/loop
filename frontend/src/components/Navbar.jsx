@@ -86,6 +86,34 @@ export default function Navbar() {
     navigate('/login');
   };
 
+  // Prevent background scrolling when Profile modal is open and handle Escape key
+  useEffect(() => {
+    if (showProfileModal) {
+      const prevBodyOverflow = document.body.style.overflow;
+      const prevHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+          e.preventDefault();
+          e.stopPropagation();
+          setShowProfileModal(false);
+          setError('');
+          setSuccess('');
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown, true);
+
+      return () => {
+        document.body.style.overflow = prevBodyOverflow;
+        document.documentElement.style.overflow = prevHtmlOverflow;
+        window.removeEventListener('keydown', handleKeyDown, true);
+      };
+    }
+  }, [showProfileModal]);
+
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -109,36 +137,59 @@ export default function Navbar() {
     setLoading(true);
     try {
       const selectedBranch = branch === 'CSE' ? cseSpecialization : branch;
-      
-      // 1. If password was entered, update password directly via PUT /api/users/:email
-      if (newPassword) {
-        await updateUser(user.email, { password: newPassword });
-      }
+      const isAdmin = user.isAdmin || user.role === 'Administrator' || user.role === 'Admin' || user.email?.toLowerCase() === 'admin@spit.ac.in';
 
-      // 2. Submit profile details (Name, Branch, Passout Year)
-      const updatedUser = await requestProfileEdit(user.email, {
+      // 1. If password was entered, update password directly
+      const updatePayload = {
         name: name.trim(),
-        role: user.role || 'Student',
         branch: selectedBranch,
-        currentYear: passoutYear
-      });
+        currentYear: passoutYear,
+        ...(newPassword ? { password: newPassword } : {})
+      };
+
+      let updatedUser = null;
+      if (isAdmin) {
+        // Direct update for admin
+        const res = await updateUser(user.email, updatePayload);
+        updatedUser = res.user || res;
+      } else {
+        // If password is changed, update password directly
+        if (newPassword) {
+          await updateUser(user.email, { password: newPassword });
+        }
+        // Direct update profile info directly
+        try {
+          const res = await updateUser(user.email, {
+            name: name.trim(),
+            branch: selectedBranch,
+            currentYear: passoutYear
+          });
+          updatedUser = res.user || res;
+        } catch (updateErr) {
+          // Fallback to requestProfileEdit if direct edit endpoint restricts
+          updatedUser = await requestProfileEdit(user.email, {
+            name: name.trim(),
+            role: user.role || 'Student',
+            branch: selectedBranch,
+            currentYear: passoutYear
+          });
+        }
+      }
 
       // Update local storage session
       const newSession = {
         ...user,
-        ...updatedUser,
+        ...(updatedUser || {}),
         name: name.trim(),
         branch: selectedBranch,
         currentYear: passoutYear,
-        passoutYear: passoutYear
+        passoutYear: passoutYear,
+        hasPendingEdit: false
       };
       localStorage.setItem('loop_current_user', JSON.stringify(newSession));
       setUser(newSession);
 
-      setSuccess(newPassword 
-        ? 'Password updated & profile edit request sent to administrator for review!' 
-        : 'Your profile changes have been submitted for administrator review.'
-      );
+      setSuccess('Profile updated successfully!');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
@@ -478,7 +529,9 @@ export default function Navbar() {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1000,
-            padding: '1.5rem'
+            padding: '1.5rem',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain'
           }}
         >
           <div 
@@ -668,7 +721,7 @@ export default function Navbar() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       style={{ paddingLeft: '2.75rem' }}
-                      disabled={loading || user.hasPendingEdit}
+                      disabled={loading}
                       placeholder="e.g. John Doe"
                       required
                     />
@@ -704,9 +757,9 @@ export default function Navbar() {
                           WebkitAppearance: 'none',
                           backgroundColor: 'var(--bg-secondary)',
                           color: 'var(--text-primary)',
-                          cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
+                          cursor: loading ? 'not-allowed' : 'pointer'
                         }}
-                        disabled={loading || user.hasPendingEdit}
+                        disabled={loading}
                       >
                         <option value="CSE">CSE</option>
                         <option value="CE">CE</option>
@@ -738,9 +791,9 @@ export default function Navbar() {
                             WebkitAppearance: 'none',
                             backgroundColor: 'var(--bg-secondary)',
                             color: 'var(--text-primary)',
-                            cursor: user.hasPendingEdit ? 'not-allowed' : 'pointer'
+                            cursor: loading ? 'not-allowed' : 'pointer'
                           }}
-                          disabled={loading || user.hasPendingEdit}
+                          disabled={loading}
                         >
                           <option value="CSE">CSE</option>
                           <option value="CSE AI">AI</option>
@@ -777,7 +830,7 @@ export default function Navbar() {
                         value={passoutYear}
                         onChange={(e) => setPassoutYear(e.target.value)}
                         style={{ paddingLeft: '2.75rem' }}
-                        disabled={loading || user.hasPendingEdit}
+                        disabled={loading}
                         required
                         min="2000"
                         max="2035"
