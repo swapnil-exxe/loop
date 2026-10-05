@@ -451,23 +451,25 @@ export default function Resources() {
             <Lock size={15} /> ＋ New Private Folder
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setFolderForm({
-                name: '',
-                description: '',
-                visibility: 'public',
-                allowContributions: true,
-                parentId: currentFolderId || null
-              });
-              setIsFolderModalOpen(true);
-            }}
-            className="btn btn-secondary"
-            style={{ borderRadius: '12px', padding: '0.65rem 1.1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Globe size={15} /> ＋ New Public Folder
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setFolderForm({
+                  name: '',
+                  description: '',
+                  visibility: 'public',
+                  allowContributions: true,
+                  parentId: currentFolderId || null
+                });
+                setIsFolderModalOpen(true);
+              }}
+              className="btn btn-secondary"
+              style={{ borderRadius: '12px', padding: '0.65rem 1.1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Globe size={15} /> ＋ New Public Folder
+            </button>
+          )}
 
           <button
             type="button"
