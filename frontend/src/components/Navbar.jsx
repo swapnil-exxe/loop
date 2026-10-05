@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, Shield, Menu, X, User as UserIcon, BookOpen, Calendar, ChevronDown, Lock } from 'lucide-react';
 import { requestProfileEdit, updateUser } from '../utils/db';
@@ -104,12 +105,15 @@ export default function Navbar() {
         }
       };
 
+      // Listen on capture and bubble phases
       window.addEventListener('keydown', handleKeyDown, true);
+      document.addEventListener('keydown', handleKeyDown, true);
 
       return () => {
         document.body.style.overflow = prevBodyOverflow;
         document.documentElement.style.overflow = prevHtmlOverflow;
         window.removeEventListener('keydown', handleKeyDown, true);
+        document.removeEventListener('keydown', handleKeyDown, true);
       };
     }
   }, [showProfileModal]);
@@ -515,7 +519,7 @@ export default function Navbar() {
       </nav>
 
       {/* Profile Modal */}
-      {showProfileModal && (
+      {showProfileModal && typeof document !== 'undefined' && createPortal(
         <div 
           onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
           style={{
@@ -530,7 +534,7 @@ export default function Navbar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: '1.5rem',
             overflow: 'hidden',
             overscrollBehavior: 'contain'
@@ -553,40 +557,47 @@ export default function Navbar() {
               padding: '2.5rem 2.5rem 2.25rem 2.5rem'
             }}
           >
-            {/* Close Button - Apple Style Circle Button */}
+            {/* Close Button - Apple Style Circle Button (Cross) */}
             <button 
               type="button"
-              onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowProfileModal(false);
+                setError('');
+                setSuccess('');
+              }}
               style={{
                 position: 'absolute',
                 top: '1.5rem',
                 right: '1.5rem',
-                width: '36px',
-                height: '36px',
+                width: '38px',
+                height: '38px',
                 borderRadius: '50%',
                 backgroundColor: 'var(--bg-tertiary)',
                 border: '1px solid var(--border-color)',
                 cursor: 'pointer',
-                color: 'var(--text-secondary)',
+                color: 'var(--text-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                zIndex: 50,
+                zIndex: 100,
                 transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--text-primary)';
                 e.currentTarget.style.color = 'var(--bg-surface)';
-                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.transform = 'scale(1.08)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.color = 'var(--text-primary)';
                 e.currentTarget.style.transform = 'scale(1)';
               }}
-              title="Close"
+              aria-label="Close Profile"
+              title="Close (Esc)"
             >
-              <X size={18} />
+              <X size={20} strokeWidth={2.2} />
             </button>
 
             {/* Header Banner - Matching Share Your Journey */}
@@ -972,7 +983,8 @@ export default function Navbar() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Inline styles for responsive grid */}
