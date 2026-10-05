@@ -77,7 +77,7 @@ const parseSliders = (posStr) => {
   };
 };
 
-function Achievement3DCard({ item, navigate }) {
+function Achievement3DCard({ item, index, navigate }) {
   const cardRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
@@ -89,7 +89,7 @@ function Achievement3DCard({ item, navigate }) {
           setIsVisible(true);
         }
       },
-      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
     );
 
     if (cardRef.current) {
@@ -105,8 +105,8 @@ function Achievement3DCard({ item, navigate }) {
     const y = e.clientY - rect.top;
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
-    const rotateX = ((y - centerY) / centerY) * -4;
-    const rotateY = ((x - centerX) / centerX) * 4;
+    const rotateX = ((y - centerY) / centerY) * -4.5;
+    const rotateY = ((x - centerX) / centerX) * 4.5;
     setTilt({ x: rotateX, y: rotateY, active: true });
   };
 
@@ -116,12 +116,12 @@ function Achievement3DCard({ item, navigate }) {
 
   const transformStyle = isVisible
     ? tilt.active
-      ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-6px) scale(1.012)`
+      ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-6px) scale(1.015)`
       : 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0) scale(1)'
     : 'perspective(1000px) rotateX(12deg) translateY(45px) scale(0.96)';
 
   return (
-    <article
+    <article 
       ref={cardRef}
       onClick={() => navigate(`/achievements/${item.id}`)}
       onMouseMove={handleMouseMove}
@@ -577,8 +577,13 @@ export default function Achievements() {
           flexDirection: 'column',
           gap: '2.5rem'
         }}>
-          {sortedAndFilteredAchievements.map((item) => (
-            <Achievement3DCard key={item.id} item={item} navigate={navigate} />
+          {sortedAndFilteredAchievements.map((item, index) => (
+            <Achievement3DCard 
+              key={item.id} 
+              item={item} 
+              index={index} 
+              navigate={navigate} 
+            />
           ))}
         </div>
       ) : (

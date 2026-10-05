@@ -15,7 +15,14 @@ import {
 import { useCachedData } from '../hooks/useCachedData';
 import { useUpload } from '../context/UploadContext';
 
-function ResourceFolder3DCard({ folder, isPrivate, resCount, onClick, onEdit, onDelete }) {
+function ResourceFolder3DCard({
+  folder,
+  resCount,
+  isSystem = false,
+  onOpenFolder,
+  onEditFolder,
+  onDeleteFolder
+}) {
   const cardRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
@@ -56,12 +63,12 @@ function ResourceFolder3DCard({ folder, isPrivate, resCount, onClick, onEdit, on
     ? tilt.active
       ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-6px) scale(1.02)`
       : 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0) scale(1)'
-    : 'perspective(1000px) rotateX(12deg) translateY(45px) scale(0.96)';
+    : 'perspective(1000px) rotateX(12deg) translateY(40px) scale(0.96)';
 
   return (
     <div
       ref={cardRef}
-      onClick={onClick}
+      onClick={() => onOpenFolder(folder.id)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className="bento-card glass-panel"
@@ -69,10 +76,12 @@ function ResourceFolder3DCard({ folder, isPrivate, resCount, onClick, onEdit, on
         padding: '1.75rem',
         borderRadius: '22px',
         cursor: 'pointer',
-        border: '1px solid var(--border-color)',
+        border: tilt.active
+          ? `1px solid ${isSystem ? 'var(--text-primary)' : '#ff9f0a'}`
+          : '1px solid var(--border-color)',
         backgroundColor: 'var(--bg-surface)',
         boxShadow: tilt.active
-          ? '0 24px 50px -10px rgba(0, 0, 0, 0.25), 0 0 1px 1px rgba(255, 255, 255, 0.15) inset'
+          ? '0 24px 50px -10px rgba(0, 0, 0, 0.22), 0 0 1px 1px rgba(255, 255, 255, 0.15) inset'
           : 'var(--card-shadow)',
         transform: transformStyle,
         opacity: isVisible ? 1 : 0,
@@ -91,53 +100,64 @@ function ResourceFolder3DCard({ folder, isPrivate, resCount, onClick, onEdit, on
       <div>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
           <div style={{
-            backgroundColor: isPrivate ? 'rgba(255, 159, 10, 0.12)' : 'rgba(212, 255, 50, 0.22)',
-            border: isPrivate ? '1px solid rgba(255, 159, 10, 0.3)' : '1px solid rgba(212, 255, 50, 0.45)',
+            backgroundColor: isSystem ? 'rgba(212, 255, 50, 0.22)' : 'rgba(255, 159, 10, 0.12)',
+            border: isSystem ? '1px solid rgba(212, 255, 50, 0.45)' : 'none',
             borderRadius: '12px',
             padding: '0.55rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            {isPrivate ? <Lock size={20} color="#ff9f0a" /> : <Folder size={20} color="var(--text-primary)" />}
+            {isSystem ? <Folder size={20} color="var(--text-primary)" /> : <Lock size={20} color="#ff9f0a" />}
           </div>
           <span style={{
-            backgroundColor: isPrivate ? 'rgba(255, 159, 10, 0.15)' : 'rgba(212, 255, 50, 0.25)',
-            border: isPrivate ? '1px solid rgba(255, 159, 10, 0.3)' : '1px solid rgba(212, 255, 50, 0.45)',
-            color: isPrivate ? '#ff9f0a' : 'var(--text-primary)',
+            backgroundColor: isSystem ? 'rgba(212, 255, 50, 0.25)' : 'rgba(255, 159, 10, 0.15)',
+            border: isSystem ? '1px solid rgba(212, 255, 50, 0.45)' : 'none',
+            color: isSystem ? 'var(--text-primary)' : '#ff9f0a',
             fontSize: '0.68rem',
             fontWeight: 800,
             padding: '0.2rem 0.55rem',
             borderRadius: '10px',
             letterSpacing: '0.04em'
           }}>
-            {isPrivate ? 'PRIVATE' : 'OFFICIAL'}
+            {isSystem ? 'OFFICIAL' : 'PRIVATE'}
           </span>
         </div>
         <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: '0 0 0.4rem 0', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
           {folder.name}
         </h3>
         <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
-          {folder.description || (isPrivate ? 'Personal private resource folder.' : 'Academic course modules and semester question banks.')}
+          {folder.description || (isSystem ? 'Academic course modules and semester question banks.' : 'Personal private resource folder.')}
         </p>
       </div>
 
       <div style={{ marginTop: '1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-          <span>{isPrivate ? 'Personal Vault' : 'Curated Academic Vault'}</span>
+          <span>{isSystem ? 'Curated Academic Vault' : 'Personal Vault'}</span>
           <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{resCount} {resCount === 1 ? 'file' : 'files'}</span>
         </div>
         <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem' }}>
-          <div style={{ height: '100%', width: resCount > 0 ? '100%' : (isPrivate ? '15%' : '20%'), backgroundColor: isPrivate ? '#ff9f0a' : 'var(--text-primary)', borderRadius: '999px' }} />
+          <div style={{
+            height: '100%',
+            width: resCount > 0 ? '100%' : (isSystem ? '20%' : '15%'),
+            backgroundColor: isSystem ? 'var(--text-primary)' : '#ff9f0a',
+            borderRadius: '999px'
+          }} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{isPrivate ? 'Visible only to you' : 'Verified SPIT Material'}</span>
-          {isPrivate ? (
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+            {isSystem ? 'Verified SPIT Material' : 'Visible only to you'}
+          </span>
+          {isSystem ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.78rem' }}>
+              Explore <ChevronRight size={13} />
+            </span>
+          ) : (
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                onClick={onEdit}
+                onClick={() => onEditFolder(folder)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
                 title="Rename Folder"
               >
@@ -145,20 +165,88 @@ function ResourceFolder3DCard({ folder, isPrivate, resCount, onClick, onEdit, on
               </button>
               <button
                 type="button"
-                onClick={onDelete}
+                onClick={() => onDeleteFolder({ type: 'folder', item: folder })}
                 style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
                 title="Delete Folder"
               >
                 <Trash2 size={14} />
               </button>
             </div>
-          ) : (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.78rem' }}>
-              Explore <ChevronRight size={13} />
-            </span>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Subfolder3DCard({ subf, resCount, onOpenFolder }) {
+  const cardRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setIsVisible(true);
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -20px 0px' }
+    );
+    if (cardRef.current) observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const handleMouseMove = (e) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    setTilt({ x: ((y - centerY) / centerY) * -4, y: ((x - centerX) / centerX) * 4, active: true });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0, active: false });
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      onClick={() => onOpenFolder(subf.id)}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="glass-panel"
+      style={{
+        padding: '1.25rem',
+        borderRadius: '16px',
+        cursor: 'pointer',
+        border: tilt.active ? '1px solid var(--accent-color)' : '1px solid var(--border-color)',
+        boxShadow: tilt.active ? '0 16px 32px -8px rgba(0,0,0,0.2)' : 'none',
+        transform: isVisible
+          ? tilt.active
+            ? `perspective(800px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-4px) scale(1.02)`
+            : 'perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0) scale(1)'
+          : 'perspective(800px) rotateX(10deg) translateY(30px) scale(0.97)',
+        opacity: isVisible ? 1 : 0,
+        transition: tilt.active
+          ? 'transform 0.12s ease-out, box-shadow 0.2s ease, border-color 0.2s ease'
+          : 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        transformStyle: 'preserve-3d'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
+        <Folder size={20} color="var(--accent-color)" />
+        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{subf.name}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            {resCount} items
+          </div>
+        </div>
+      </div>
+      <ChevronRight size={16} color="var(--text-secondary)" />
     </div>
   );
 }
@@ -853,18 +941,17 @@ export default function Resources() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.25rem' }}>
-                {systemFolders.map(folder => {
-                  const resCount = getResourceCountForFolder(folder.id);
-                  return (
-                    <ResourceFolder3DCard
-                      key={folder.id}
-                      folder={folder}
-                      isPrivate={false}
-                      resCount={resCount}
-                      onClick={() => setCurrentFolderId(folder.id)}
-                    />
-                  );
-                })}
+                {systemFolders.map(folder => (
+                  <ResourceFolder3DCard
+                    key={folder.id}
+                    folder={folder}
+                    resCount={getResourceCountForFolder(folder.id)}
+                    isSystem={true}
+                    onOpenFolder={setCurrentFolderId}
+                    onEditFolder={setEditingFolder}
+                    onDeleteFolder={setDeleteConfirm}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -925,20 +1012,17 @@ export default function Resources() {
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.25rem' }}>
-                  {myPrivateFolders.map(folder => {
-                    const resCount = getResourceCountForFolder(folder.id);
-                    return (
-                      <ResourceFolder3DCard
-                        key={folder.id}
-                        folder={folder}
-                        isPrivate={true}
-                        resCount={resCount}
-                        onClick={() => setCurrentFolderId(folder.id)}
-                        onEdit={() => setEditingFolder(folder)}
-                        onDelete={() => setDeleteConfirm({ type: 'folder', item: folder })}
-                      />
-                    );
-                  })}
+                  {myPrivateFolders.map(folder => (
+                    <ResourceFolder3DCard
+                      key={folder.id}
+                      folder={folder}
+                      resCount={getResourceCountForFolder(folder.id)}
+                      isSystem={false}
+                      onOpenFolder={setCurrentFolderId}
+                      onEditFolder={setEditingFolder}
+                      onDeleteFolder={setDeleteConfirm}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -1018,40 +1102,12 @@ export default function Resources() {
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
                 {currentSubfolders.map(subf => (
-                  <div
+                  <Subfolder3DCard
                     key={subf.id}
-                    onClick={() => setCurrentFolderId(subf.id)}
-                    className="glass-panel"
-                    style={{
-                      padding: '1.25rem',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      border: '1px solid var(--border-color)',
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.borderColor = 'var(--accent-color)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.borderColor = 'var(--border-color)';
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
-                      <Folder size={20} color="var(--accent-color)" />
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{subf.name}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          {getResourceCountForFolder(subf.id)} items
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight size={16} color="var(--text-secondary)" />
-                  </div>
+                    subf={subf}
+                    resCount={getResourceCountForFolder(subf.id)}
+                    onOpenFolder={setCurrentFolderId}
+                  />
                 ))}
               </div>
             </div>
