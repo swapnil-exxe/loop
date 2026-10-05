@@ -709,46 +709,6 @@ export const localMockFolders = [
     isSystemFolder: false
   },
 
-  // 3. Root Public Community Folders
-  {
-    id: 'pub-folder-1',
-    name: 'Competitive Programming & Codeforces 2026',
-    description: 'Curated CP problem lists, contest debriefs, and advanced graph algorithms.',
-    ownerId: 'aditya',
-    ownerEmail: 'aditya.sharma@spit.ac.in',
-    ownerName: 'Aditya Sharma',
-    folderType: 'user',
-    visibility: 'public',
-    allowContributions: true,
-    parentId: null,
-    isSystemFolder: false
-  },
-  {
-    id: 'pub-folder-2',
-    name: 'Off-Campus Tech Drives & Referral Hub',
-    description: 'Community sourced referral templates, interview round experiences, and active job links.',
-    ownerId: 'rohan',
-    ownerEmail: 'rohan.mehta@spit.ac.in',
-    ownerName: 'Rohan Mehta',
-    folderType: 'user',
-    visibility: 'public',
-    allowContributions: true,
-    parentId: null,
-    isSystemFolder: false
-  },
-  {
-    id: 'pub-folder-3',
-    name: 'Android & Cloud Engineering Vault',
-    description: 'Production Android APK companions, Gradle configs, and AWS terraform scripts.',
-    ownerId: 'simran',
-    ownerEmail: 'simran.kaur@spit.ac.in',
-    ownerName: 'Simran Kaur',
-    folderType: 'user',
-    visibility: 'public',
-    allowContributions: true,
-    parentId: null,
-    isSystemFolder: false
-  },
 
   // 4. Subfolders
   { id: 'cse-1st-year', name: '1st Year', parentId: 'system-cse-ce', folderType: 'system', visibility: 'public' },

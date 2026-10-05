@@ -2089,15 +2089,14 @@ export default function AdminDashboard() {
                   e.preventDefault();
                   const name = e.target.folderName.value.trim();
                   const parentId = e.target.folderParent.value;
-                  const fType = e.target.folderType.value;
                   if (!name) return;
                   
                   const newFolder = {
                     id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
                     name,
                     parentId: parentId === 'none' ? null : parentId,
-                    folderType: fType,
-                    isSystemFolder: fType === 'system',
+                    folderType: 'system',
+                    isSystemFolder: true,
                     visibility: 'public'
                   };
                   
@@ -2141,19 +2140,6 @@ export default function AdminDashboard() {
                     {folders.map(f => (
                       <option key={f.id} value={f.id}>{getFolderName(f.id)}</option>
                     ))}
-                  </select>
-                </div>
-
-                <div className="input-group" style={{ marginBottom: '1.25rem' }}>
-                  <label className="input-label" style={{ fontSize: '0.8rem' }}>Folder Category Type</label>
-                  <select 
-                    name="folderType" 
-                    className="input-field"
-                    defaultValue="system"
-                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="system">🏛 Academic System Folder (Core)</option>
-                    <option value="user">🌐 Community Public Folder</option>
                   </select>
                 </div>
 
