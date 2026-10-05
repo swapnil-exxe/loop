@@ -734,7 +734,7 @@ export default function Stories() {
         </div>
       </div>
 
-      {/* Upload Story Modal */}
+      {/* Upload Story Modal - Apple OS Liquid Glass Redesign */}
       {isModalOpen && (
         <div style={{
           position: 'fixed',
@@ -742,789 +742,1013 @@ export default function Stories() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          backdropFilter: 'blur(30px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(30px) saturate(190%)',
           zIndex: 1000,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '1.5rem',
+          padding: '2rem 1.5rem',
           overflowY: 'auto'
         }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '650px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            position: 'relative',
-            padding: '2.5rem 2rem'
-          }}>
-            {/* Close Button */}
+          <div 
+            className="animate-fade-in" 
+            style={{
+              width: '100%',
+              maxWidth: '820px',
+              borderRadius: '28px',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 30px 80px rgba(0, 0, 0, 0.22), 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              position: 'relative',
+              padding: '3rem 3rem 2.5rem 3rem'
+            }}
+          >
+            {/* Close Button - Apple Style Circle Button */}
             <button 
               onClick={() => setIsModalOpen(false)}
               style={{
                 position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                background: 'transparent',
-                border: 'none',
+                top: '1.75rem',
+                right: '1.75rem',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
                 cursor: 'pointer',
-                color: 'var(--text-primary)'
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--text-primary)';
+                e.currentTarget.style.color = 'var(--bg-surface)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="Close"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
 
             {uploadSuccess ? (
               <div style={{
                 textAlign: 'center',
-                padding: '3rem 1rem',
+                padding: '4rem 1.5rem',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '1rem'
+                gap: '1.25rem'
               }}>
-                <CheckCircle size={64} style={{ color: '#30d158' }} />
-                <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Submission Sent!</h2>
-                <p style={{ color: 'var(--text-secondary)', maxWidth: '400px' }}>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(48, 209, 88, 0.14)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <CheckCircle size={48} style={{ color: '#30d158' }} />
+                </div>
+                <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>Submission Sent!</h2>
+                <p style={{ color: 'var(--text-secondary)', maxWidth: '440px', lineHeight: 1.6, fontSize: '0.95rem' }}>
                   Thank you for contributing. Your placement journey has been sent to the SPIT administrators for approval.
                 </p>
               </div>
             ) : (
               <form onSubmit={handleFormSubmit}>
-                <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.25rem', fontFamily: 'var(--font-display)' }}>
-                  Share Your Story
-                </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '2rem' }}>
-                  Help juniors prepare by sharing your interview prep, milestones, and materials.
-                </p>
+                {/* Header Banner */}
+                <div style={{ marginBottom: '2.5rem' }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.3rem 0.75rem',
+                    borderRadius: '20px',
+                    backgroundColor: 'rgba(212, 255, 50, 0.22)',
+                    border: '1px solid rgba(212, 255, 50, 0.45)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    marginBottom: '0.75rem'
+                  }}>
+                    Senior Archive Contribution
+                  </div>
+                  <h2 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
+                    Share Your Story
+                  </h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: 0, lineHeight: 1.5 }}>
+                    Help juniors prepare by sharing your interview prep, milestones, and materials.
+                  </p>
+                </div>
 
                 {/* Form Fields - Step 1: Personal Details */}
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
-                  1. Profile Details
-                </h3>
-
-                <div className="input-group">
-                  <label className="input-label">Full Name *</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    placeholder="e.g. John Doe"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className={formData.branch === 'CSE' ? 'form-grid-3col' : 'form-grid-2col'}>
-                  <div className="input-group">
-                    <label className="input-label">Branch *</label>
-                    <select 
-                      className="input-field"
-                      value={formData.branch}
-                      onChange={(e) => {
-                        const nextBranch = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          branch: nextBranch, 
-                          subBranch: nextBranch === 'CSE' ? 'CSE' : '' 
-                        });
-                      }}
-                      style={{ backgroundColor: 'var(--bg-secondary)' }}
-                    >
-                      <option value="CSE">CSE</option>
-                      <option value="CE">CE</option>
-                      <option value="EXTC">EXTC</option>
-                    </select>
+                <div style={{
+                  padding: '1.75rem',
+                  borderRadius: '20px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-color)',
+                  marginBottom: '2rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--text-primary)',
+                      color: 'var(--bg-surface)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 800
+                    }}>1</div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>
+                      Profile Details
+                    </h3>
                   </div>
 
-                  {formData.branch === 'CSE' && (
-                    <div className="input-group">
-                      <label className="input-label">Sub-Category *</label>
-                      <select
+                  <div className="input-group">
+                    <label className="input-label">Full Name *</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. John Doe"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className={formData.branch === 'CSE' ? 'form-grid-3col' : 'form-grid-2col'} style={{ marginBottom: '1.25rem' }}>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Branch *</label>
+                      <select 
                         className="input-field"
-                        value={formData.subBranch || 'CSE'}
-                        onChange={(e) => setFormData({ ...formData, subBranch: e.target.value })}
-                        style={{ backgroundColor: 'var(--bg-secondary)' }}
+                        value={formData.branch}
+                        onChange={(e) => {
+                          const nextBranch = e.target.value;
+                          setFormData({ 
+                            ...formData, 
+                            branch: nextBranch, 
+                            subBranch: nextBranch === 'CSE' ? 'CSE' : '' 
+                          });
+                        }}
                       >
                         <option value="CSE">CSE</option>
-                        <option value="AI">AI</option>
-                        <option value="DS">DS</option>
+                        <option value="CE">CE</option>
+                        <option value="EXTC">EXTC</option>
                       </select>
                     </div>
-                  )}
 
-                  <div className="input-group">
-                    <label className="input-label">Passout Year *</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      placeholder="2026"
-                      value={formData.passoutYear}
-                      onChange={(e) => setFormData({ ...formData, passoutYear: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
+                    {formData.branch === 'CSE' && (
+                      <div className="input-group" style={{ marginBottom: 0 }}>
+                        <label className="input-label">Sub-Category *</label>
+                        <select
+                          className="input-field"
+                          value={formData.subBranch || 'CSE'}
+                          onChange={(e) => setFormData({ ...formData, subBranch: e.target.value })}
+                        >
+                          <option value="CSE">CSE</option>
+                          <option value="AI">AI</option>
+                          <option value="DS">DS</option>
+                        </select>
+                      </div>
+                    )}
 
-                <div className="form-grid-4col">
-                  <div className="input-group">
-                    <label className="input-label">Company *</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="e.g. Microsoft"
-                      value={formData.company}
-                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Role *</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="e.g. Software Engineer"
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      required
-                    />
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Passout Year *</label>
+                      <input 
+                        type="number" 
+                        className="input-field" 
+                        placeholder="2026"
+                        value={formData.passoutYear}
+                        onChange={(e) => setFormData({ ...formData, passoutYear: e.target.value })}
+                        required
+                      />
+                    </div>
                   </div>
 
-                  <div className="input-group">
-                    <label className="input-label">Semester Placed *</label>
-                    <select 
-                      className="input-field"
-                      value={formData.semester}
-                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                    >
-                      {['1','2','3','4','5','6','7','8'].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                    gap: '1rem'
+                  }}>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Company *</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. Microsoft"
+                        value={formData.company}
+                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                        required
+                      />
+                    </div>
 
-                  <div className="input-group">
-                    <label className="input-label">CGPA</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="e.g. 9.4"
-                      value={formData.cgpa}
-                      onChange={(e) => setFormData({ ...formData, cgpa: e.target.value })}
-                    />
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Role *</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. Software Engineer"
+                        value={formData.role}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Semester Placed *</label>
+                      <select 
+                        className="input-field"
+                        value={formData.semester}
+                        onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                      >
+                        {['1','2','3','4','5','6','7','8'].map(n => <option key={n} value={n}>Semester {n}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">CGPA</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. 9.4"
+                        value={formData.cgpa}
+                        onChange={(e) => setFormData({ ...formData, cgpa: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Step 2: The Journey */}
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: '2rem 0 1.25rem 0' }}>
-                  2. Your Journey (Year by Year)
-                </h3>
-
-                <div className="input-group">
-                  <label className="input-label">First Year Journey</label>
-                  <textarea 
-                    className="input-field" 
-                    rows={3} 
-                    placeholder="Exploration, core subjects, clubs joined..."
-                    value={formData.journey.firstYear}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      journey: { ...formData.journey, firstYear: e.target.value }
-                    })}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Second Year Journey</label>
-                  <textarea 
-                    className="input-field" 
-                    rows={3} 
-                    placeholder="DSA start, tech stack selection, core projects..."
-                    value={formData.journey.secondYear}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      journey: { ...formData.journey, secondYear: e.target.value }
-                    })}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Third Year Journey</label>
-                  <textarea 
-                    className="input-field" 
-                    rows={3} 
-                    placeholder="Internship prep, online tests, cracking placement drives..."
-                    value={formData.journey.thirdYear}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      journey: { ...formData.journey, thirdYear: e.target.value }
-                    })}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Fourth Year Journey</label>
-                  <textarea 
-                    className="input-field" 
-                    rows={3} 
-                    placeholder="PPO conversion, capstone project, final plans..."
-                    value={formData.journey.fourthYear}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      journey: { ...formData.journey, fourthYear: e.target.value }
-                    })}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Preparation & Strategy</label>
-                  <textarea 
-                    className="input-field" 
-                    rows={3} 
-                    placeholder="DSA sheets, systems subjects revised, resume tips..."
-                    value={formData.journey.prep}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      journey: { ...formData.journey, prep: e.target.value }
-                    })}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">How You Secured the Placement</label>
-                  <textarea 
-                    className="input-field" 
-                    rows={3} 
-                    placeholder="Rounds details, interview questions asked, advice..."
-                    value={formData.journey.howSecured}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      journey: { ...formData.journey, howSecured: e.target.value }
-                    })}
-                  />
-                </div>
-
-                {/* Custom Prompts Builder (Add More Columns/Sections) */}
-                <div style={{ marginTop: '2rem' }}>
-                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' }}>
-                    Custom Sections & Prompts
-                  </h4>
-                  {customSections.map((sec, index) => (
-                    <div key={index} style={{
-                      padding: '1.25rem',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '16px',
-                      backgroundColor: 'var(--bg-primary)',
-                      marginBottom: '1.25rem',
-                      position: 'relative'
-                    }}>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCustomSection(index)}
-                        style={{
-                          position: 'absolute',
-                          top: '1rem',
-                          right: '1rem',
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-secondary)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <X size={16} />
-                      </button>
-                      
-                      <div className="input-group" style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
-                        <label className="input-label">Section Headline *</label>
-                        <input
-                          type="text"
-                          className="input-field"
-                          placeholder="e.g. Hackathons & Competitions, Key Open Source Contributions..."
-                          value={sec.title}
-                          onChange={(e) => handleUpdateCustomSection(index, 'title', e.target.value)}
-                          required
-                        />
-                      </div>
-                      
-                      <div className="input-group" style={{ marginBottom: 0 }}>
-                        <label className="input-label">Section Details *</label>
-                        <textarea
-                          className="input-field"
-                          rows={3}
-                          placeholder="Write the details / strategy for this custom prompt..."
-                          value={sec.content}
-                          onChange={(e) => handleUpdateCustomSection(index, 'content', e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={handleAddCustomSection}
-                    className="btn btn-secondary"
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      borderRadius: '12px',
-                      border: '1px dashed var(--border-color)',
+                <div style={{
+                  padding: '1.75rem',
+                  borderRadius: '20px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-color)',
+                  marginBottom: '2rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--text-primary)',
+                      color: 'var(--bg-surface)',
                       display: 'flex',
-                      justifyContent: 'center',
                       alignItems: 'center',
-                      gap: '0.5rem',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    <Plus size={16} />
-                    <span>Add Custom Prompts / Sections</span>
-                  </button>
+                      justifyContent: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 800
+                    }}>2</div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>
+                      Your Journey (Year by Year)
+                    </h3>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">First Year Journey</label>
+                      <textarea 
+                        className="input-field" 
+                        rows={4} 
+                        placeholder="Exploration, core subjects, clubs joined, mindset..."
+                        value={formData.journey.firstYear}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          journey: { ...formData.journey, firstYear: e.target.value }
+                        })}
+                        style={{ resize: 'vertical', lineHeight: 1.6 }}
+                      />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Second Year Journey</label>
+                      <textarea 
+                        className="input-field" 
+                        rows={4} 
+                        placeholder="DSA start, tech stack selection, core projects, hackathons..."
+                        value={formData.journey.secondYear}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          journey: { ...formData.journey, secondYear: e.target.value }
+                        })}
+                        style={{ resize: 'vertical', lineHeight: 1.6 }}
+                      />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Third Year Journey</label>
+                      <textarea 
+                        className="input-field" 
+                        rows={4} 
+                        placeholder="Internship prep, online tests, cracking placement drives, interviews..."
+                        value={formData.journey.thirdYear}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          journey: { ...formData.journey, thirdYear: e.target.value }
+                        })}
+                        style={{ resize: 'vertical', lineHeight: 1.6 }}
+                      />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Fourth Year Journey</label>
+                      <textarea 
+                        className="input-field" 
+                        rows={4} 
+                        placeholder="PPO conversion, capstone project, final plans, tips for juniors..."
+                        value={formData.journey.fourthYear}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          journey: { ...formData.journey, fourthYear: e.target.value }
+                        })}
+                        style={{ resize: 'vertical', lineHeight: 1.6 }}
+                      />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Preparation & Strategy</label>
+                      <textarea 
+                        className="input-field" 
+                        rows={4} 
+                        placeholder="DSA sheets, systems subjects revised, resume tips, interview prep..."
+                        value={formData.journey.prep}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          journey: { ...formData.journey, prep: e.target.value }
+                        })}
+                        style={{ resize: 'vertical', lineHeight: 1.6 }}
+                      />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">How You Secured the Placement</label>
+                      <textarea 
+                        className="input-field" 
+                        rows={4} 
+                        placeholder="Rounds details, interview questions asked, advice..."
+                        value={formData.journey.howSecured}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          journey: { ...formData.journey, howSecured: e.target.value }
+                        })}
+                        style={{ resize: 'vertical', lineHeight: 1.6 }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Custom Prompts Builder (Add More Columns/Sections) */}
+                  <div style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px dashed var(--border-color)' }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1rem' }}>
+                      Custom Sections & Prompts
+                    </h4>
+                    {customSections.map((sec, index) => (
+                      <div key={index} style={{
+                        padding: '1.25rem',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '16px',
+                        backgroundColor: 'var(--bg-primary)',
+                        marginBottom: '1rem',
+                        position: 'relative'
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCustomSection(index)}
+                          style={{
+                            position: 'absolute',
+                            top: '0.75rem',
+                            right: '0.75rem',
+                            background: 'rgba(255, 59, 48, 0.1)',
+                            border: 'none',
+                            color: '#ff3b30',
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title="Remove Section"
+                        >
+                          <X size={14} />
+                        </button>
+                        
+                        <div className="input-group" style={{ marginBottom: '0.75rem', paddingRight: '2rem' }}>
+                          <label className="input-label">Section Headline *</label>
+                          <input
+                            type="text"
+                            className="input-field"
+                            placeholder="e.g. Hackathons & Competitions, Key Open Source Contributions..."
+                            value={sec.title}
+                            onChange={(e) => handleUpdateCustomSection(index, 'title', e.target.value)}
+                            required
+                          />
+                        </div>
+                        
+                        <div className="input-group" style={{ marginBottom: 0 }}>
+                          <label className="input-label">Section Details *</label>
+                          <textarea
+                            className="input-field"
+                            rows={3}
+                            placeholder="Write the details / strategy for this custom prompt..."
+                            value={sec.content}
+                            onChange={(e) => handleUpdateCustomSection(index, 'content', e.target.value)}
+                            required
+                            style={{ resize: 'vertical', lineHeight: 1.6 }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={handleAddCustomSection}
+                      className="btn btn-secondary"
+                      style={{
+                        width: '100%',
+                        padding: '0.85rem',
+                        borderRadius: '14px',
+                        border: '1px dashed var(--border-color)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        backgroundColor: 'transparent'
+                      }}
+                    >
+                      <Plus size={16} />
+                      <span>Add Custom Prompts / Sections</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Step 3: Resources and Uploads */}
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: '2rem 0 1.25rem 0' }}>
-                  3. Resources & Materials Used
-                </h3>
-
-                {/* Resources Input */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <label className="input-label">Add Resource Used</label>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="Resource Name (e.g. LeetCode, Striver Sheet)"
-                      value={resourceInput.name}
-                      onChange={(e) => setResourceInput({ ...resourceInput, name: e.target.value })}
-                      style={{ flexGrow: 1 }}
-                    />
-                    <select 
-                      className="input-field"
-                      value={resourceInput.type}
-                      onChange={(e) => setResourceInput({ ...resourceInput, type: e.target.value })}
-                      style={{ width: '130px' }}
-                    >
-                      <option value="DSA">DSA</option>
-                      <option value="AI/ML">AI/ML</option>
-                      <option value="Books">Books</option>
-                      <option value="System Design">System Design</option>
-                      <option value="Web Dev">Web Dev</option>
-                    </select>
-                    <button 
-                      type="button" 
-                      onClick={handleAddResource} 
-                      className="btn btn-secondary"
-                      style={{ padding: '0.5rem 1rem' }}
-                    >
-                      <Plus size={16} />
-                    </button>
+                <div style={{
+                  padding: '1.75rem',
+                  borderRadius: '20px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-color)',
+                  marginBottom: '2rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--text-primary)',
+                      color: 'var(--bg-surface)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 800
+                    }}>3</div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>
+                      Resources & Materials Used
+                    </h3>
                   </div>
-                  {/* Resources preview list */}
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-                    {formData.resources.map((res, index) => (
-                      <span key={index} className="badge" style={{ fontSize: '0.7rem' }}>
-                        {res.name} ({res.type})
-                      </span>
-                    ))}
-                  </div>
-                </div>
 
-                {/* Dedicated Resume Upload Input */}
-                <div style={{ marginBottom: '2.5rem' }}>
-                  <label className="input-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                    Upload Senior Resume (PDF) *
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
-                    <div 
-                      onClick={() => document.getElementById('resume-file-upload')?.click()}
-                      style={{
-                        border: '1px dashed var(--border-color)',
-                        borderRadius: '12px',
-                        padding: resumeUploadFile ? '1rem' : '1.5rem',
-                        textAlign: 'center',
-                        backgroundColor: 'var(--bg-secondary)',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.2s',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: '100px',
-                        color: 'var(--text-primary)'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--text-secondary)'}
-                      onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) processResumeFile(file);
-                      }}
-                    >
-                      <input 
-                        type="file" 
-                        id="resume-file-upload" 
-                        onChange={(e) => {
-                           const file = e.target.files[0];
-                           if (!file) return;
-                           
-                           fileToBase64(file).then(base64Url => {
-                             setResumeUploadFile({
-                               fileName: file.name,
-                               fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-                               url: base64Url
-                             });
-                           }).catch(err => {
-                             console.error("Error reading file:", err);
-                             alert("Failed to read file.");
-                           });
-                         }} 
-                        style={{ display: 'none' }}
-                        accept=".pdf"
-                      />
-                      {resumeUploadFile ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0 0.5rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
-                            <span style={{
-                              padding: '0.4rem',
-                              backgroundColor: 'var(--bg-primary)',
-                              border: '1px solid var(--border-color)',
-                              borderRadius: '8px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#ff3b30'
-                            }}>
-                              <FileText size={18} />
-                            </span>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{resumeUploadFile.fileName}</span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{resumeUploadFile.fileSize}</span>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (resumeUploadFile.url && resumeUploadFile.url.startsWith('blob:')) {
-                                URL.revokeObjectURL(resumeUploadFile.url);
-                              }
-                              setResumeUploadFile(null);
-                            }}
-                            className="btn btn-secondary"
-                            style={{ padding: '0.35rem', color: '#ff453a', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                            title="Remove Resume"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <FileText size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
-                            Click to select your Resume PDF
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Study Materials Input */}
-                <div style={{ marginBottom: '2.5rem' }}>
-                  <label className="input-label">
-                    Upload Study Material
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
-                    
-                    {/* Mock Dropzone File Selector */}
-                    <div 
-                      onClick={() => document.getElementById('material-file-upload')?.click()}
-                      style={{
-                        border: '1px dashed var(--border-color)',
-                        borderRadius: '12px',
-                        padding: materialInput.previewUrl ? '1rem' : '1.5rem',
-                        textAlign: 'center',
-                        backgroundColor: 'var(--bg-primary)',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.2s',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: '120px'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--text-secondary)'}
-                      onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) processMaterialFile(file);
-                      }}
-                    >
-                      <input 
-                        type="file" 
-                        id="material-file-upload" 
-                        onChange={handleFileChange} 
-                        style={{ display: 'none' }}
-                        accept=".pdf,.png,.jpg,.jpeg"
-                      />
-                      {materialInput.previewUrl ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
-                          {materialInput.type === 'Image' ? (
-                            <div style={{ position: 'relative', width: '100%', height: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                              <img 
-                                src={materialInput.previewUrl} 
-                                alt="Preview" 
-                                style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', borderRadius: '6px' }} 
-                              />
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
-                              <div style={{
-                                width: '48px',
-                                height: '60px',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                backgroundColor: materialInput.type === 'PDF' ? '#ffe5e5' : '#e5f1ff',
-                                color: materialInput.type === 'PDF' ? '#ff3b30' : '#007aff',
-                                fontWeight: 'bold',
-                                fontSize: '0.75rem'
-                              }}>
-                                {materialInput.type}
-                              </div>
-                            </div>
-                          )}
-                          <p style={{ fontSize: '0.8rem', fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
-                            {materialInput.fileName}
-                          </p>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>
-                            {materialInput.fileSize} • Click to replace file
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <Upload size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
-                            Click to select or drop a study material file (PDF or Image)
-                          </p>
-                        </>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {/* Resources Input */}
+                  <div style={{ marginBottom: '1.75rem' }}>
+                    <label className="input-label">Add Resource Used</label>
+                    <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.25rem' }}>
                       <input 
                         type="text" 
                         className="input-field" 
-                        placeholder="Material Title"
-                        value={materialInput.title}
-                        onChange={(e) => setMaterialInput({ ...materialInput, title: e.target.value })}
+                        placeholder="Resource Name (e.g. LeetCode, Striver Sheet, NeetCode)"
+                        value={resourceInput.name}
+                        onChange={(e) => setResourceInput({ ...resourceInput, name: e.target.value })}
                         style={{ flexGrow: 1 }}
                       />
                       <select 
                         className="input-field"
-                        value={materialInput.type}
-                        onChange={(e) => setMaterialInput({ ...materialInput, type: e.target.value })}
-                        style={{ width: '130px' }}
+                        value={resourceInput.type}
+                        onChange={(e) => setResourceInput({ ...resourceInput, type: e.target.value })}
+                        style={{ width: '140px' }}
                       >
-                        <option value="PDF">PDF</option>
-                        <option value="Image">Image</option>
-                        <option value="Roadmap">Roadmap</option>
-                        <option value="Notes">Notes</option>
-                        <option value="Interview Questions">Interview Qs</option>
+                        <option value="DSA">DSA</option>
+                        <option value="AI/ML">AI/ML</option>
+                        <option value="Books">Books</option>
+                        <option value="System Design">System Design</option>
+                        <option value="Web Dev">Web Dev</option>
                       </select>
                       <button 
                         type="button" 
-                        onClick={handleAddMaterial} 
+                        onClick={handleAddResource} 
                         className="btn btn-secondary"
-                        style={{ padding: '0.5rem 1rem' }}
+                        style={{ padding: '0.6rem 1.1rem', borderRadius: '12px' }}
                       >
                         <Plus size={16} />
                       </button>
                     </div>
-                  </div>
-                  
-                  {/* Materials preview list */}
-                  {formData.studyMaterials.length > 0 && (
-                    <div style={{ 
-                      marginTop: '1.25rem', 
-                      display: 'grid', 
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', 
-                      gap: '0.75rem' 
-                    }}>
-                      {formData.studyMaterials.map((mat, index) => (
-                        <div 
-                          key={index} 
-                          style={{
+                    {/* Resources preview list */}
+                    {formData.resources.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
+                        {formData.resources.map((res, index) => (
+                          <span key={index} className="badge" style={{
+                            fontSize: '0.75rem',
+                            padding: '0.4rem 0.75rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.06)',
                             border: '1px solid var(--border-color)',
-                            borderRadius: '12px',
-                            padding: '0.75rem 0.5rem',
-                            position: 'relative',
-                            backgroundColor: 'var(--bg-primary)',
-                            display: 'flex',
-                            flexDirection: 'column',
+                            display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.4rem',
-                            textAlign: 'center'
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (mat.url && mat.url.startsWith('blob:')) {
-                                URL.revokeObjectURL(mat.url);
-                              }
-                              setFormData({
-                                ...formData,
-                                studyMaterials: formData.studyMaterials.filter((_, i) => i !== index)
-                              });
-                            }}
-                            style={{
-                              position: 'absolute',
-                              top: '0.25rem',
-                              right: '0.25rem',
-                              background: 'rgba(0,0,0,0.6)',
-                              border: 'none',
-                              color: '#fff',
-                              borderRadius: '50%',
-                              width: '18px',
-                              height: '18px',
+                            gap: '0.35rem'
+                          }}>
+                            <strong>{res.name}</strong> <span style={{ opacity: 0.6 }}>({res.type})</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dedicated Resume Upload Input */}
+                  <div style={{ marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <label className="input-label" style={{ color: 'var(--text-primary)', fontWeight: 700, margin: 0 }}>
+                        Upload Senior Resume (PDF) *
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                      <div 
+                        onClick={() => document.getElementById('resume-file-upload')?.click()}
+                        style={{
+                          border: '1.5px dashed var(--border-color)',
+                          borderRadius: '16px',
+                          padding: resumeUploadFile ? '1rem 1.25rem' : '1.75rem 1.25rem',
+                          textAlign: 'center',
+                          backgroundColor: 'var(--bg-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minHeight: '100px',
+                          color: 'var(--text-primary)'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--text-primary)';
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                        }}
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) processResumeFile(file);
+                        }}
+                      >
+                        <input 
+                          type="file" 
+                          id="resume-file-upload" 
+                          onChange={(e) => {
+                             const file = e.target.files[0];
+                             if (!file) return;
+                             
+                             fileToBase64(file).then(base64Url => {
+                               setResumeUploadFile({
+                                 fileName: file.name,
+                                 fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+                                 url: base64Url
+                               });
+                             }).catch(err => {
+                               console.error("Error reading file:", err);
+                               alert("Failed to read file.");
+                             });
+                           }} 
+                          style={{ display: 'none' }}
+                          accept=".pdf"
+                        />
+                        {resumeUploadFile ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', textAlign: 'left' }}>
+                              <span style={{
+                                padding: '0.6rem',
+                                backgroundColor: 'rgba(255, 59, 48, 0.12)',
+                                border: '1px solid rgba(255, 59, 48, 0.25)',
+                                borderRadius: '10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ff3b30'
+                              }}>
+                                <FileText size={20} />
+                              </span>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>{resumeUploadFile.fileName}</span>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{resumeUploadFile.fileSize} • Click to replace</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (resumeUploadFile.url && resumeUploadFile.url.startsWith('blob:')) {
+                                  URL.revokeObjectURL(resumeUploadFile.url);
+                                }
+                                setResumeUploadFile(null);
+                              }}
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ff453a',
+                                border: 'none',
+                                background: 'rgba(255, 69, 58, 0.1)',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title="Remove Resume"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '12px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              border: '1px solid var(--border-color)',
                               display: 'flex',
-                              justifyContent: 'center',
                               alignItems: 'center',
-                              cursor: 'pointer',
-                              fontSize: '0.65rem'
+                              justifyContent: 'center',
+                              marginBottom: '0.6rem'
+                            }}>
+                              <FileText size={22} style={{ color: 'var(--text-primary)' }} />
+                            </div>
+                            <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600, margin: '0 0 0.25rem 0' }}>
+                              Choose Resume PDF or drag & drop here
+                            </p>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              PDF up to 10MB
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Study Materials Input */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <label className="input-label" style={{ margin: 0 }}>
+                        Upload Study Material
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                      
+                      {/* Dropzone File Selector */}
+                      <div 
+                        onClick={() => document.getElementById('material-file-upload')?.click()}
+                        style={{
+                          border: '1.5px dashed var(--border-color)',
+                          borderRadius: '16px',
+                          padding: materialInput.previewUrl ? '1rem 1.25rem' : '1.75rem 1.25rem',
+                          textAlign: 'center',
+                          backgroundColor: 'var(--bg-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minHeight: '120px'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--text-primary)';
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                          e.currentTarget.style.backgroundColor = 'var(--bg-primary)';
+                        }}
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) processMaterialFile(file);
+                        }}
+                      >
+                        <input 
+                          type="file" 
+                          id="material-file-upload" 
+                          onChange={handleFileChange} 
+                          style={{ display: 'none' }}
+                          accept=".pdf,.png,.jpg,.jpeg"
+                        />
+                        {materialInput.previewUrl ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', width: '100%' }}>
+                            {materialInput.type === 'Image' ? (
+                              <div style={{ position: 'relative', width: '100%', height: '110px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <img 
+                                  src={materialInput.previewUrl} 
+                                  alt="Preview" 
+                                  style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', borderRadius: '8px' }} 
+                                />
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+                                <div style={{
+                                  width: '48px',
+                                  height: '60px',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: '8px',
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  backgroundColor: materialInput.type === 'PDF' ? 'rgba(255, 59, 48, 0.15)' : 'rgba(0, 122, 255, 0.15)',
+                                  color: materialInput.type === 'PDF' ? '#ff3b30' : '#007aff',
+                                  fontWeight: 'bold',
+                                  fontSize: '0.78rem'
+                                }}>
+                                  {materialInput.type}
+                                </div>
+                              </div>
+                            )}
+                            <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
+                              {materialInput.fileName}
+                            </p>
+                            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0 }}>
+                              {materialInput.fileSize} • Click to replace file
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '12px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              border: '1px solid var(--border-color)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginBottom: '0.6rem'
+                            }}>
+                              <Upload size={20} style={{ color: 'var(--text-primary)' }} />
+                            </div>
+                            <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600, margin: '0 0 0.25rem 0' }}>
+                              Choose Material or drop file here
+                            </p>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              Supports PDF, PNG, JPG
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.6rem' }}>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="Material Title (e.g. Cheat Sheet, Handwritten Notes)"
+                          value={materialInput.title}
+                          onChange={(e) => setMaterialInput({ ...materialInput, title: e.target.value })}
+                          style={{ flexGrow: 1 }}
+                        />
+                        <select 
+                          className="input-field"
+                          value={materialInput.type}
+                          onChange={(e) => setMaterialInput({ ...materialInput, type: e.target.value })}
+                          style={{ width: '140px' }}
+                        >
+                          <option value="PDF">PDF</option>
+                          <option value="Image">Image</option>
+                          <option value="Roadmap">Roadmap</option>
+                          <option value="Notes">Notes</option>
+                          <option value="Interview Questions">Interview Qs</option>
+                        </select>
+                        <button 
+                          type="button" 
+                          onClick={handleAddMaterial} 
+                          className="btn btn-secondary"
+                          style={{ padding: '0.6rem 1.1rem', borderRadius: '12px' }}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Materials preview list */}
+                    {formData.studyMaterials.length > 0 && (
+                      <div style={{ 
+                        marginTop: '1.25rem', 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', 
+                        gap: '0.75rem' 
+                      }}>
+                        {formData.studyMaterials.map((mat, index) => (
+                          <div 
+                            key={index} 
+                            style={{
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '14px',
+                              padding: '0.85rem 0.6rem',
+                              position: 'relative',
+                              backgroundColor: 'var(--bg-primary)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              textAlign: 'center'
                             }}
                           >
-                            ✕
-                          </button>
-                          
-                          {mat.type === 'Image' && mat.url && mat.url !== '#' ? (
-                            <div style={{ width: '100%', height: '55px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '4px', overflow: 'hidden' }}>
-                              <img 
-                                src={mat.url} 
-                                alt={mat.title} 
-                                style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} 
-                              />
-                            </div>
-                          ) : (
-                            <div style={{ 
-                              width: '36px', 
-                              height: '45px', 
-                              border: '1px solid var(--border-color)', 
-                              borderRadius: '4px', 
-                              display: 'flex', 
-                              justifyContent: 'center', 
-                              alignItems: 'center', 
-                              backgroundColor: mat.type === 'PDF' ? '#ffe5e5' : '#e5f1ff', 
-                              color: mat.type === 'PDF' ? '#ff3b30' : '#007aff', 
-                              fontWeight: 'bold', 
-                              fontSize: '0.6rem' 
-                            }}>
-                              {mat.type}
-                            </div>
-                          )}
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 0.25rem' }}>
-                            {mat.title}
-                          </span>
-                          {mat.fileSize && (
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                              {mat.fileSize}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (mat.url && mat.url.startsWith('blob:')) {
+                                  URL.revokeObjectURL(mat.url);
+                                }
+                                setFormData({
+                                  ...formData,
+                                  studyMaterials: formData.studyMaterials.filter((_, i) => i !== index)
+                                });
+                              }}
+                              style={{
+                                position: 'absolute',
+                                top: '0.35rem',
+                                right: '0.35rem',
+                                background: 'rgba(0,0,0,0.5)',
+                                border: 'none',
+                                color: '#fff',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontSize: '0.7rem'
+                              }}
+                            >
+                              ✕
+                            </button>
+                            
+                            {mat.type === 'Image' && mat.url && mat.url !== '#' ? (
+                              <div style={{ width: '100%', height: '60px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '6px', overflow: 'hidden' }}>
+                                <img 
+                                  src={mat.url} 
+                                  alt={mat.title} 
+                                  style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} 
+                                />
+                              </div>
+                            ) : (
+                              <div style={{ 
+                                width: '38px', 
+                                height: '48px', 
+                                border: '1px solid var(--border-color)', 
+                                borderRadius: '6px', 
+                                display: 'flex', 
+                                justifyContent: 'center', 
+                                alignItems: 'center', 
+                                backgroundColor: mat.type === 'PDF' ? 'rgba(255, 59, 48, 0.15)' : 'rgba(0, 122, 255, 0.15)', 
+                                color: mat.type === 'PDF' ? '#ff3b30' : '#007aff', 
+                                fontWeight: 'bold', 
+                                fontSize: '0.65rem' 
+                              }}>
+                                {mat.type}
+                              </div>
+                            )}
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 0.25rem' }}>
+                              {mat.title}
                             </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                            {mat.fileSize && (
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                {mat.fileSize}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
-                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => setIsModalOpen(false)} 
-                      className="btn btn-secondary"
-                      style={{ padding: '0.8rem 1.5rem' }}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit" 
-                      disabled={submitting}
-                      className="btn btn-primary"
-                      style={{ 
-                        padding: '0.8rem 2rem',
-                        opacity: submitting ? 0.7 : 1,
-                        cursor: submitting ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {submitting ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                          <div style={{ position: 'relative', width: '24px', height: '24px' }}>
-                            <svg width="24" height="24" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
-                              <circle
-                                cx="18"
-                                cy="18"
-                                r="15"
-                                fill="none"
-                                stroke="rgba(255, 255, 255, 0.2)"
-                                strokeWidth="3"
-                              />
-                              <circle
-                                cx="18"
-                                cy="18"
-                                r="15"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                                strokeDasharray="94.2"
-                                strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
-                                strokeLinecap="round"
-                                style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
-                              />
-                            </svg>
-                            <div style={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              width: '100%',
-                              height: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '8px',
-                              fontWeight: 'bold',
-                              color: 'currentColor'
-                            }}>
-                              {uploadProgress}%
-                            </div>
+                {/* Modal Actions */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: '1rem',
+                  paddingTop: '1rem',
+                  borderTop: '1px solid var(--border-color)'
+                }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)} 
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '0.85rem 1.75rem',
+                      borderRadius: '14px',
+                      fontSize: '0.95rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={submitting}
+                    className="btn btn-primary"
+                    style={{ 
+                      padding: '0.85rem 2.5rem',
+                      borderRadius: '14px',
+                      fontSize: '0.95rem',
+                      fontWeight: 700,
+                      opacity: submitting ? 0.7 : 1,
+                      cursor: submitting ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 4px 18px rgba(0, 0, 0, 0.25)'
+                    }}
+                  >
+                    {submitting ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}>
+                        <div style={{ position: 'relative', width: '22px', height: '22px' }}>
+                          <svg width="22" height="22" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="15"
+                              fill="none"
+                              stroke="rgba(255, 255, 255, 0.25)"
+                              strokeWidth="3.5"
+                            />
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="15"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3.5"
+                              strokeDasharray="94.2"
+                              strokeDashoffset={94.2 - (94.2 * uploadProgress) / 100}
+                              strokeLinecap="round"
+                              style={{ transition: 'stroke-dashoffset 0.1s ease-out' }}
+                            />
+                          </svg>
+                          <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '7px',
+                            fontWeight: 'bold',
+                            color: 'currentColor'
+                          }}>
+                            {uploadProgress}%
                           </div>
-                          <span>{uploadProgress === 100 ? 'Saving...' : 'Submitting...'}</span>
                         </div>
-                      ) : 'Submit Journey'}
-                    </button>
-                  </div>
-                  {submitting && (
-                    <p style={{
-                      fontSize: '0.75rem',
-                      color: '#ff4d4d',
-                      margin: '0.2rem 0 0 0',
-                      opacity: 0.9,
-                      textAlign: 'right',
-                      fontWeight: '500'
-                    }}>
-                      ⚠️ Keep this tab active. Switching or minimizing tabs will pause the upload.
-                    </p>
-                  )}
+                        <span>{uploadProgress === 100 ? 'Saving...' : 'Submitting...'}</span>
+                      </div>
+                    ) : 'Submit Journey'}
+                  </button>
                 </div>
+                {submitting && (
+                  <p style={{
+                    fontSize: '0.78rem',
+                    color: '#ff4d4d',
+                    margin: '0.6rem 0 0 0',
+                    opacity: 0.9,
+                    textAlign: 'right',
+                    fontWeight: '500'
+                  }}>
+                    ⚠️ Keep this tab active. Switching or minimizing tabs will pause the upload.
+                  </p>
+                )}
               </form>
             )}
           </div>
