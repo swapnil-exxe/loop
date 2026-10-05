@@ -1160,7 +1160,11 @@ app.post('/api/pending-stories', authenticateToken, async (req, res) => {
 
 app.delete('/api/pending-stories/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    await PendingStory.deleteOne({ id: req.params.id });
+    const { id } = req.params;
+    const query = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ id }, { _id: id }] }
+      : { id };
+    await PendingStory.deleteOne(query);
     res.json({ message: 'Pending story rejected/deleted.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1170,7 +1174,10 @@ app.delete('/api/pending-stories/:id', authenticateToken, requireAdmin, async (r
 app.post('/api/pending-stories/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const pending = await PendingStory.findOne({ id });
+    const query = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ id }, { _id: id }] }
+      : { id };
+    const pending = await PendingStory.findOne(query);
     if (!pending) return res.status(404).json({ error: 'Pending story not found.' });
 
     if (pending.requestType === 'delete') {
@@ -1197,7 +1204,7 @@ app.post('/api/pending-stories/:id/approve', authenticateToken, requireAdmin, as
       await Story.create(storyObj);
     }
 
-    await PendingStory.deleteOne({ id });
+    await PendingStory.deleteOne({ _id: pending._id });
     res.json({ message: 'Story approved successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2127,7 +2134,11 @@ app.post('/api/pending-resources', authenticateToken, async (req, res) => {
 
 app.delete('/api/pending-resources/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    await PendingResource.deleteOne({ id: req.params.id });
+    const { id } = req.params;
+    const query = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ id }, { _id: id }] }
+      : { id };
+    await PendingResource.deleteOne(query);
     res.json({ message: 'Pending resource rejected/deleted.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2137,7 +2148,10 @@ app.delete('/api/pending-resources/:id', authenticateToken, requireAdmin, async 
 app.post('/api/pending-resources/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const pending = await PendingResource.findOne({ id });
+    const query = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ id }, { _id: id }] }
+      : { id };
+    const pending = await PendingResource.findOne(query);
     if (!pending) return res.status(404).json({ error: 'Pending resource not found.' });
 
     if (pending.requestType === 'delete') {
@@ -2164,7 +2178,7 @@ app.post('/api/pending-resources/:id/approve', authenticateToken, requireAdmin, 
       await Resource.create(resourceObj);
     }
 
-    await PendingResource.deleteOne({ id });
+    await PendingResource.deleteOne({ _id: pending._id });
     res.json({ message: 'Resource approved successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -176,7 +176,7 @@ export const initDB = () => {
 };
 
 export const getStories = async () => {
-  let data = [];
+  let data = null;
   try {
     const res = await authFetch(`${API_URL}/stories`);
     if (res.ok) {
@@ -185,9 +185,9 @@ export const getStories = async () => {
   } catch (e) {
     console.warn('[db] Failed to fetch stories from server:', e.message);
   }
-  const existingIds = new Set((data || []).map(s => String(s.id || s._id)));
-  const extraMocks = localMockStories.filter(m => !existingIds.has(String(m.id)));
-  data = [...(data || []), ...extraMocks];
+  if (data === null) {
+    return isLocal ? adjustUrls(localMockStories) : [];
+  }
   return adjustUrls(data);
 };
 
@@ -199,8 +199,10 @@ export const getStoryById = async (id) => {
       return adjustUrls(data);
     }
   } catch (e) {}
-  const mock = localMockStories.find(m => String(m.id) === String(id));
-  if (mock) return adjustUrls(mock);
+  if (isLocal) {
+    const mock = localMockStories.find(m => String(m.id) === String(id));
+    if (mock) return adjustUrls(mock);
+  }
   throw new Error('Failed to fetch story details');
 };
 
@@ -218,14 +220,18 @@ export const addStory = async (story) => {
 };
 
 export const deleteStory = async (id) => {
-  if (['1', '2', '3', '4', '5', '6'].includes(String(id))) {
+  try {
+    const res = await authFetch(`${API_URL}/stories/${id}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) return res.json();
+  } catch (e) {
+    if (!isLocal) throw e;
+  }
+  if (isLocal) {
     return { success: true, message: 'Story deleted.' };
   }
-  const res = await authFetch(`${API_URL}/stories/${id}`, {
-    method: 'DELETE'
-  });
-  if (!res.ok) throw new Error('Failed to delete story');
-  return res.json();
+  throw new Error('Failed to delete story');
 };
 
 export const updateStory = async (id, updatedStory) => {
@@ -243,7 +249,7 @@ export const updateStory = async (id, updatedStory) => {
 
 // Pending Stories Helpers
 export const getPendingStories = async () => {
-  let data = [];
+  let data = null;
   try {
     const res = await authFetch(`${API_URL}/pending-stories`);
     if (res.ok) {
@@ -252,8 +258,8 @@ export const getPendingStories = async () => {
   } catch (e) {
     console.warn('[db] Failed to fetch pending stories from server:', e.message);
   }
-  if (!data || data.length === 0) {
-    return localMockPendingStories;
+  if (data === null) {
+    return isLocal ? adjustUrls(localMockPendingStories) : [];
   }
   return adjustUrls(data);
 };
@@ -273,29 +279,39 @@ export const addPendingStory = async (story, onProgress) => {
 
 export const approveStory = async (id) => {
   if (String(id).startsWith('pending-')) {
+    const idx = localMockPendingStories.findIndex(s => String(s.id) === String(id) || String(s._id) === String(id));
+    if (idx !== -1) localMockPendingStories.splice(idx, 1);
     return { success: true, message: 'Story approved.' };
   }
   const res = await authFetch(`${API_URL}/pending-stories/${id}/approve`, {
     method: 'POST'
   });
-  if (!res.ok) throw new Error('Failed to approve story');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to approve story');
+  }
   return res.json();
 };
 
 export const rejectPendingStory = async (id) => {
   if (String(id).startsWith('pending-')) {
+    const idx = localMockPendingStories.findIndex(s => String(s.id) === String(id) || String(s._id) === String(id));
+    if (idx !== -1) localMockPendingStories.splice(idx, 1);
     return { success: true, message: 'Story rejected.' };
   }
   const res = await authFetch(`${API_URL}/pending-stories/${id}`, {
     method: 'DELETE'
   });
-  if (!res.ok) throw new Error('Failed to reject pending story');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to reject pending story');
+  }
   return res.json();
 };
 
 // Resources Helpers
 export const getResources = async () => {
-  let data = [];
+  let data = null;
   try {
     const res = await authFetch(`${API_URL}/resources`);
     if (res.ok) {
@@ -304,9 +320,9 @@ export const getResources = async () => {
   } catch (e) {
     console.warn('[db] Failed to fetch resources from server:', e.message);
   }
-  const existingIds = new Set((data || []).map(d => String(d.id)));
-  const extraMocks = localMockResources.filter(m => !existingIds.has(String(m.id)));
-  data = [...(data || []), ...extraMocks];
+  if (data === null) {
+    return isLocal ? adjustUrls(localMockResources) : [];
+  }
   return adjustUrls(data);
 };
 
@@ -318,8 +334,10 @@ export const getResourceById = async (id) => {
       return adjustUrls(data);
     }
   } catch (e) {}
-  const mock = localMockResources.find(m => String(m.id) === String(id));
-  if (mock) return mock;
+  if (isLocal) {
+    const mock = localMockResources.find(m => String(m.id) === String(id));
+    if (mock) return mock;
+  }
   throw new Error('Resource not found');
 };
 
@@ -337,38 +355,42 @@ export const addResource = async (resource) => {
 };
 
 export const deleteResource = async (id) => {
-  if (String(id).startsWith('mock-')) {
+  try {
+    const res = await authFetch(`${API_URL}/resources/${id}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) return res.json();
+  } catch (e) {
+    if (!isLocal) throw e;
+  }
+  if (isLocal) {
+    const idx = localMockResources.findIndex(r => String(r.id) === String(id) || String(r._id) === String(id));
+    if (idx !== -1) localMockResources.splice(idx, 1);
     return { success: true, message: 'Resource removed.' };
   }
-  const res = await authFetch(`${API_URL}/resources/${id}`, {
-    method: 'DELETE'
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || `Failed to delete resource (${res.status})`);
-  }
-  return res.json();
+  throw new Error('Failed to delete resource');
 };
 
 export const updateResource = async (id, updatedResource) => {
-  if (String(id).startsWith('mock-')) {
+  try {
+    const res = await authFetch(`${API_URL}/resources/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedResource)
+    });
+    if (res.ok) return res.json();
+  } catch (e) {
+    if (!isLocal) throw e;
+  }
+  if (isLocal) {
     return { success: true, message: 'Resource updated.' };
   }
-  const res = await authFetch(`${API_URL}/resources/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updatedResource)
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || `Failed to update resource (${res.status})`);
-  }
-  return res.json();
+  throw new Error('Failed to update resource');
 };
 
 // Pending Resources Helpers
 export const getPendingResources = async () => {
-  let data = [];
+  let data = null;
   try {
     const res = await authFetch(`${API_URL}/pending-resources`);
     if (res.ok) {
@@ -377,8 +399,8 @@ export const getPendingResources = async () => {
   } catch (e) {
     console.warn('[db] Failed to fetch pending resources from server:', e.message);
   }
-  if (!data || data.length === 0) {
-    return localMockPendingResources;
+  if (data === null) {
+    return isLocal ? adjustUrls(localMockPendingResources) : [];
   }
   return adjustUrls(data);
 };
@@ -398,29 +420,39 @@ export const addPendingResource = async (resource, onProgress) => {
 
 export const approveResource = async (id) => {
   if (String(id).startsWith('pending-')) {
+    const idx = localMockPendingResources.findIndex(r => String(r.id) === String(id) || String(r._id) === String(id));
+    if (idx !== -1) localMockPendingResources.splice(idx, 1);
     return { success: true, message: 'Resource approved.' };
   }
   const res = await authFetch(`${API_URL}/pending-resources/${id}/approve`, {
     method: 'POST'
   });
-  if (!res.ok) throw new Error('Failed to approve resource');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to approve resource');
+  }
   return res.json();
 };
 
 export const rejectPendingResource = async (id) => {
   if (String(id).startsWith('pending-')) {
+    const idx = localMockPendingResources.findIndex(r => String(r.id) === String(id) || String(r._id) === String(id));
+    if (idx !== -1) localMockPendingResources.splice(idx, 1);
     return { success: true, message: 'Resource rejected.' };
   }
   const res = await authFetch(`${API_URL}/pending-resources/${id}`, {
     method: 'DELETE'
   });
-  if (!res.ok) throw new Error('Failed to reject pending resource');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to reject pending resource');
+  }
   return res.json();
 };
 
 // Achievements Helpers
 export const getAchievements = async () => {
-  let data = [];
+  let data = null;
   try {
     const res = await authFetch(`${API_URL}/achievements`);
     if (res.ok) {
@@ -429,8 +461,8 @@ export const getAchievements = async () => {
   } catch (e) {
     console.warn('[db] Failed to fetch achievements from server:', e.message);
   }
-  if (!data || data.length === 0) {
-    data = localMockAchievements;
+  if (data === null) {
+    return isLocal ? adjustUrls(localMockAchievements) : [];
   }
   return adjustUrls(data);
 };
@@ -468,7 +500,7 @@ export const updateAchievement = async (id, updatedAchievement) => {
 
 // User Management Helpers
 export const getUsers = async () => {
-  let data = [];
+  let data = null;
   try {
     const res = await authFetch(`${API_URL}/users`);
     if (res.ok) {
@@ -477,9 +509,9 @@ export const getUsers = async () => {
   } catch (e) {
     console.warn('[db] Failed to fetch users from server:', e.message);
   }
-  const existingEmails = new Set((data || []).map(u => u.email));
-  const extraMocks = localMockUsers.filter(m => !existingEmails.has(m.email));
-  data = [...(data || []), ...extraMocks];
+  if (data === null) {
+    return isLocal ? localMockUsers : [];
+  }
   return data;
 };
 
@@ -605,7 +637,7 @@ export const updateUser = async (email, userData) => {
 
 // Folder Management Helpers (New APIs)
 export const getFolders = async () => {
-  let data = [];
+  let data = null;
   try {
     const res = await authFetch(`${API_URL}/folders`);
     if (res.ok) {
@@ -614,9 +646,9 @@ export const getFolders = async () => {
   } catch (e) {
     console.warn('[db] Failed to fetch folders from server:', e.message);
   }
-  const existingIds = new Set((data || []).map(f => String(f.id || f._id)));
-  const extraMocks = localMockFolders.filter(m => !existingIds.has(String(m.id)));
-  data = [...(data || []), ...extraMocks];
+  if (data === null) {
+    return isLocal ? localMockFolders : [];
+  }
   return data;
 };
 
@@ -631,33 +663,35 @@ export const addFolder = async (folder) => {
 };
 
 export const updateFolder = async (id, updates) => {
-  if (String(id).startsWith('system-') || String(id).startsWith('priv-') || String(id).startsWith('pub-') || String(id).startsWith('cse-')) {
+  try {
+    const res = await authFetch(`${API_URL}/folders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    if (res.ok) return res.json();
+  } catch (e) {
+    if (!isLocal) throw e;
+  }
+  if (isLocal) {
     return { success: true, folder: { id, ...updates } };
   }
-  const res = await authFetch(`${API_URL}/folders/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates)
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to update folder');
-  }
-  return res.json();
+  throw new Error('Failed to update folder');
 };
 
 export const deleteFolder = async (id) => {
-  if (String(id).startsWith('system-') || String(id).startsWith('priv-') || String(id).startsWith('pub-') || String(id).startsWith('cse-')) {
+  try {
+    const res = await authFetch(`${API_URL}/folders/${id}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) return res.json();
+  } catch (e) {
+    if (!isLocal) throw e;
+  }
+  if (isLocal) {
     return { success: true, message: 'Folder deleted.' };
   }
-  const res = await authFetch(`${API_URL}/folders/${id}`, {
-    method: 'DELETE'
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to delete folder');
-  }
-  return res.json();
+  throw new Error('Failed to delete folder');
 };
 
 export const patchResource = async (id, updates) => {

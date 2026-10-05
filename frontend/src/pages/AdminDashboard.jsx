@@ -871,9 +871,9 @@ export default function AdminDashboard() {
     playApproveSound();
     const previousPending = [...pendingStories];
     const previousActive = [...activeStories];
-    const approvedStory = pendingStories.find(s => s.id === id);
+    const approvedStory = pendingStories.find(s => String(s.id) === String(id) || String(s._id) === String(id));
     
-    mutatePendingStories(pendingStories.filter(s => s.id !== id), false);
+    mutatePendingStories(pendingStories.filter(s => String(s.id) !== String(id) && String(s._id) !== String(id)), false);
     if (approvedStory) {
       mutateActiveStories([...activeStories, { ...approvedStory, status: 'approved' }], false);
     }
@@ -891,7 +891,7 @@ export default function AdminDashboard() {
   const handleRejectStory = async (id) => {
     playRejectSound();
     const previousPending = [...pendingStories];
-    mutatePendingStories(pendingStories.filter(s => s.id !== id), false);
+    mutatePendingStories(pendingStories.filter(s => String(s.id) !== String(id) && String(s._id) !== String(id)), false);
     try {
       await rejectPendingStory(id);
       refreshData();
@@ -905,9 +905,9 @@ export default function AdminDashboard() {
     playApproveSound();
     const previousPending = [...pendingResources];
     const previousActive = [...activeResources];
-    const approvedResource = pendingResources.find(r => r.id === id);
+    const approvedResource = pendingResources.find(r => String(r.id) === String(id) || String(r._id) === String(id));
     
-    mutatePendingResources(pendingResources.filter(r => r.id !== id), false);
+    mutatePendingResources(pendingResources.filter(r => String(r.id) !== String(id) && String(r._id) !== String(id)), false);
     if (approvedResource) {
       mutateActiveResources([...activeResources, { ...approvedResource, status: 'approved' }], false);
     }
@@ -925,7 +925,7 @@ export default function AdminDashboard() {
   const handleRejectResource = async (id) => {
     playRejectSound();
     const previousPending = [...pendingResources];
-    mutatePendingResources(pendingResources.filter(r => r.id !== id), false);
+    mutatePendingResources(pendingResources.filter(r => String(r.id) !== String(id) && String(r._id) !== String(id)), false);
     try {
       await rejectPendingResource(id);
       refreshData();
@@ -1397,14 +1397,14 @@ export default function AdminDashboard() {
                           <FileText size={14} /> Preview Submission
                         </button>
                         <button 
-                          onClick={() => handleApproveStory(story.id)}
+                          onClick={() => handleApproveStory(story.id || story._id)}
                           className="btn btn-primary"
                           style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', backgroundColor: '#30d158', borderColor: '#30d158', color: '#fff', cursor: 'pointer' }}
                         >
                           <Check size={14} /> {story.requestType === 'delete' ? 'Approve Deletion' : story.requestType === 'edit' ? 'Approve Edits' : 'Approve Story & Resume'}
                         </button>
                         <button 
-                          onClick={() => handleRejectStory(story.id)}
+                          onClick={() => handleRejectStory(story.id || story._id)}
                           className="btn btn-secondary"
                           style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.2)', cursor: 'pointer' }}
                         >
@@ -1474,14 +1474,14 @@ export default function AdminDashboard() {
                         <FileText size={14} /> Preview
                       </button>
                       <button 
-                        onClick={() => handleApproveResource(res.id)}
+                        onClick={() => handleApproveResource(res.id || res._id)}
                         className="btn btn-primary"
                         style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', backgroundColor: '#30d158', borderColor: '#30d158', color: '#fff', cursor: 'pointer' }}
                       >
                         <Check size={14} /> {res.requestType === 'delete' ? 'Approve Deletion' : 'Approve Resource'}
                       </button>
                       <button 
-                        onClick={() => handleRejectResource(res.id)}
+                        onClick={() => handleRejectResource(res.id || res._id)}
                         className="btn btn-secondary"
                         style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.2)', cursor: 'pointer' }}
                       >
@@ -4754,7 +4754,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button
                   onClick={() => {
-                    handleRejectStory(previewingPendingStory.id);
+                    handleRejectStory(previewingPendingStory.id || previewingPendingStory._id);
                     setPreviewingPendingStory(null);
                   }}
                   className="btn btn-secondary"
@@ -4764,7 +4764,7 @@ export default function AdminDashboard() {
                 </button>
                 <button
                   onClick={() => {
-                    handleApproveStory(previewingPendingStory.id);
+                    handleApproveStory(previewingPendingStory.id || previewingPendingStory._id);
                     setPreviewingPendingStory(null);
                   }}
                   className="btn btn-primary"
@@ -4932,7 +4932,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button
                   onClick={() => {
-                    handleRejectResource(previewingPendingResource.id);
+                    handleRejectResource(previewingPendingResource.id || previewingPendingResource._id);
                     setPreviewingPendingResource(null);
                   }}
                   className="btn btn-secondary"
@@ -4942,7 +4942,7 @@ export default function AdminDashboard() {
                 </button>
                 <button
                   onClick={() => {
-                    handleApproveResource(previewingPendingResource.id);
+                    handleApproveResource(previewingPendingResource.id || previewingPendingResource._id);
                     setPreviewingPendingResource(null);
                   }}
                   className="btn btn-primary"
