@@ -906,7 +906,7 @@ export default function Stories() {
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">CGPA (Optional)</label>
+                    <label className="input-label">CGPA</label>
                     <input 
                       type="text" 
                       className="input-field" 
@@ -917,13 +917,13 @@ export default function Stories() {
                   </div>
                 </div>
 
-                {/* Step 2: The Journey (Optional) */}
+                {/* Step 2: The Journey */}
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: '2rem 0 1.25rem 0' }}>
-                  2. Your Journey (Year by Year - Optional)
+                  2. Your Journey (Year by Year)
                 </h3>
 
                 <div className="input-group">
-                  <label className="input-label">First Year Journey (Optional)</label>
+                  <label className="input-label">First Year Journey</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -937,7 +937,7 @@ export default function Stories() {
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Second Year Journey (Optional)</label>
+                  <label className="input-label">Second Year Journey</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -951,7 +951,7 @@ export default function Stories() {
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Third Year Journey (Optional)</label>
+                  <label className="input-label">Third Year Journey</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -965,7 +965,7 @@ export default function Stories() {
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Fourth Year Journey (Optional)</label>
+                  <label className="input-label">Fourth Year Journey</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -979,7 +979,7 @@ export default function Stories() {
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Preparation & Strategy (Optional)</label>
+                  <label className="input-label">Preparation & Strategy</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -993,7 +993,7 @@ export default function Stories() {
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">How You Secured the Placement (Optional)</label>
+                  <label className="input-label">How You Secured the Placement</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -1085,17 +1085,17 @@ export default function Stories() {
 
                 {/* Step 3: Resources and Uploads */}
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: '2rem 0 1.25rem 0' }}>
-                  3. Resources & Materials Used (Optional)
+                  3. Resources & Materials Used
                 </h3>
 
                 {/* Resources Input */}
                 <div style={{ marginBottom: '1.5rem' }}>
-                  <label className="input-label">Add Resource Used (Optional - e.g. LeetCode, Striver Sheet)</label>
+                  <label className="input-label">Add Resource Used</label>
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                     <input 
                       type="text" 
                       className="input-field" 
-                      placeholder="Resource Name"
+                      placeholder="Resource Name (e.g. LeetCode, Striver Sheet)"
                       value={resourceInput.name}
                       onChange={(e) => setResourceInput({ ...resourceInput, name: e.target.value })}
                       style={{ flexGrow: 1 }}
@@ -1134,7 +1134,7 @@ export default function Stories() {
                 {/* Dedicated Resume Upload Input */}
                 <div style={{ marginBottom: '2.5rem' }}>
                   <label className="input-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                    Upload Senior Resume (PDF) * <span style={{ color: '#ff3b30' }}>(Required)</span>
+                    Upload Senior Resume (PDF) *
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
                     <div 
@@ -1225,7 +1225,7 @@ export default function Stories() {
                         <>
                           <FileText size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
-                            Click to select your Resume PDF (Required)
+                            Click to select your Resume PDF
                           </p>
                         </>
                       )}
@@ -1236,7 +1236,7 @@ export default function Stories() {
                 {/* Study Materials Input */}
                 <div style={{ marginBottom: '2.5rem' }}>
                   <label className="input-label">
-                    Upload Study Material (Max 1 File - Optional)
+                    Upload Study Material
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
                     
@@ -1314,7 +1314,7 @@ export default function Stories() {
                         <>
                           <Upload size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
-                            Click to select or drop 1 study material file (PDF or Image - Optional)
+                            Click to select or drop a study material file (PDF or Image)
                           </p>
                         </>
                       )}
@@ -1346,7 +1346,6 @@ export default function Stories() {
                         onClick={handleAddMaterial} 
                         className="btn btn-secondary"
                         style={{ padding: '0.5rem 1rem' }}
-                        title="Add Material (Max 1)"
                       >
                         <Plus size={16} />
                       </button>
