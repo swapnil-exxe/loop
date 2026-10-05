@@ -211,25 +211,28 @@ export default function Stories() {
       alert('Please fill in the required fields (Name, Company, Role)');
       return;
     }
+    if (!resumeUploadFile) {
+      alert('Please upload your Resume (PDF is required).');
+      return;
+    }
 
     setSubmitting(true);
     const photoUrl = '/images/file-1.jpg';
 
-    // Auto-add staged material if user selected a file but forgot to click '+'
+    // Auto-add staged material if user selected a file but forgot to click '+' (max 1 file allowed)
     let finalStudyMaterials = [...formData.studyMaterials];
     if (materialInput.title.trim() && materialInput.previewUrl) {
-      // Check if it's already added to prevent duplicate
-      const isAlreadyAdded = finalStudyMaterials.some(m => m.previewUrl === materialInput.previewUrl);
-      if (!isAlreadyAdded) {
-        finalStudyMaterials.push({
-          title: materialInput.title.trim(),
-          type: materialInput.type,
-          fileName: materialInput.fileName,
-          fileSize: materialInput.fileSize,
-          url: materialInput.previewUrl,
-          previewUrl: materialInput.previewUrl
-        });
-      }
+      finalStudyMaterials = [{
+        title: materialInput.title.trim(),
+        type: materialInput.type,
+        fileName: materialInput.fileName,
+        fileSize: materialInput.fileSize,
+        url: materialInput.previewUrl,
+        previewUrl: materialInput.previewUrl
+      }];
+    }
+    if (finalStudyMaterials.length > 1) {
+      finalStudyMaterials = finalStudyMaterials.slice(0, 1);
     }
 
     const submission = {
@@ -244,10 +247,8 @@ export default function Stories() {
       photo: photoUrl,
       requestType: 'add',
       customSections: customSections.filter(sec => sec.title.trim() && sec.content.trim()),
-      resume: resumeUploadFile
-        ? resumeUploadFile.fileName
-        : `${formData.name.toLowerCase().replace(/\s+/g, '_')}_resume.pdf`,
-      resumeFile: resumeUploadFile || null,
+      resume: resumeUploadFile.fileName,
+      resumeFile: resumeUploadFile,
       uploadedByEmail: currentUser ? currentUser.email : ''
     };
     
@@ -300,7 +301,7 @@ export default function Stories() {
     if (!materialInput.title.trim()) return;
     setFormData({
       ...formData,
-      studyMaterials: [...formData.studyMaterials, { ...materialInput, url: materialInput.previewUrl || '#' }]
+      studyMaterials: [{ ...materialInput, url: materialInput.previewUrl || '#' }]
     });
     setMaterialInput({ title: '', type: 'PDF', fileName: '', fileSize: '', previewUrl: '' });
   };
@@ -916,13 +917,13 @@ export default function Stories() {
                   </div>
                 </div>
 
-                {/* Step 2: The Journey */}
+                {/* Step 2: The Journey (Optional) */}
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: '2rem 0 1.25rem 0' }}>
-                  2. Your Journey (Year by Year)
+                  2. Your Journey (Year by Year - Optional)
                 </h3>
 
                 <div className="input-group">
-                  <label className="input-label">First Year Journey *</label>
+                  <label className="input-label">First Year Journey (Optional)</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -932,12 +933,11 @@ export default function Stories() {
                       ...formData,
                       journey: { ...formData.journey, firstYear: e.target.value }
                     })}
-                    required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Second Year Journey *</label>
+                  <label className="input-label">Second Year Journey (Optional)</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -947,12 +947,11 @@ export default function Stories() {
                       ...formData,
                       journey: { ...formData.journey, secondYear: e.target.value }
                     })}
-                    required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Third Year Journey *</label>
+                  <label className="input-label">Third Year Journey (Optional)</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -962,12 +961,11 @@ export default function Stories() {
                       ...formData,
                       journey: { ...formData.journey, thirdYear: e.target.value }
                     })}
-                    required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Fourth Year Journey *</label>
+                  <label className="input-label">Fourth Year Journey (Optional)</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -977,12 +975,11 @@ export default function Stories() {
                       ...formData,
                       journey: { ...formData.journey, fourthYear: e.target.value }
                     })}
-                    required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Preparation & Strategy *</label>
+                  <label className="input-label">Preparation & Strategy (Optional)</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -992,14 +989,11 @@ export default function Stories() {
                       ...formData,
                       journey: { ...formData.journey, prep: e.target.value }
                     })}
-                    required
                   />
                 </div>
 
-
-
                 <div className="input-group">
-                  <label className="input-label">How You Secured the Placement *</label>
+                  <label className="input-label">How You Secured the Placement (Optional)</label>
                   <textarea 
                     className="input-field" 
                     rows={3} 
@@ -1009,7 +1003,6 @@ export default function Stories() {
                       ...formData,
                       journey: { ...formData.journey, howSecured: e.target.value }
                     })}
-                    required
                   />
                 </div>
 
@@ -1092,12 +1085,12 @@ export default function Stories() {
 
                 {/* Step 3: Resources and Uploads */}
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: '2rem 0 1.25rem 0' }}>
-                  3. Resources & Materials Used
+                  3. Resources & Materials Used (Optional)
                 </h3>
 
                 {/* Resources Input */}
                 <div style={{ marginBottom: '1.5rem' }}>
-                  <label className="input-label">Add Resource Used (e.g. LeetCode, Striver Sheet)</label>
+                  <label className="input-label">Add Resource Used (Optional - e.g. LeetCode, Striver Sheet)</label>
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                     <input 
                       type="text" 
@@ -1140,7 +1133,9 @@ export default function Stories() {
 
                 {/* Dedicated Resume Upload Input */}
                 <div style={{ marginBottom: '2.5rem' }}>
-                  <label className="input-label">Upload Senior Resume (PDF) *</label>
+                  <label className="input-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                    Upload Senior Resume (PDF) * <span style={{ color: '#ff3b30' }}>(Required)</span>
+                  </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
                     <div 
                       onClick={() => document.getElementById('resume-file-upload')?.click()}
@@ -1240,7 +1235,9 @@ export default function Stories() {
 
                 {/* Study Materials Input */}
                 <div style={{ marginBottom: '2.5rem' }}>
-                  <label className="input-label">Upload Study Material (PDF, PNG, JPG) *</label>
+                  <label className="input-label">
+                    Upload Study Material (Max 1 File - Optional)
+                  </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
                     
                     {/* Mock Dropzone File Selector */}
@@ -1310,14 +1307,14 @@ export default function Stories() {
                             {materialInput.fileName}
                           </p>
                           <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>
-                            {materialInput.fileSize} • Click to change file
+                            {materialInput.fileSize} • Click to replace file
                           </p>
                         </div>
                       ) : (
                         <>
                           <Upload size={22} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
-                            Click to select or drop a study material file (PDF or Image)
+                            Click to select or drop 1 study material file (PDF or Image - Optional)
                           </p>
                         </>
                       )}
@@ -1349,6 +1346,7 @@ export default function Stories() {
                         onClick={handleAddMaterial} 
                         className="btn btn-secondary"
                         style={{ padding: '0.5rem 1rem' }}
+                        title="Add Material (Max 1)"
                       >
                         <Plus size={16} />
                       </button>
