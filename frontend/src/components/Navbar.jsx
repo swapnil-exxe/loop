@@ -127,31 +127,35 @@ export default function Navbar() {
         style={{
           pointerEvents: 'auto',
           width: '100%',
-          maxWidth: isScrolled ? '860px' : '100%',
+          maxWidth: isScrolled ? '980px' : '100%',
           borderRadius: isScrolled ? '9999px' : '0px',
           borderTop: isScrolled ? '1px solid var(--liquid-pill-border)' : 'none',
           borderLeft: isScrolled ? '1px solid var(--liquid-pill-border)' : 'none',
           borderRight: isScrolled ? '1px solid var(--liquid-pill-border)' : 'none',
           borderBottom: isScrolled ? '1px solid var(--liquid-pill-border)' : '1px solid var(--border-color)',
-          padding: isScrolled ? '0.52rem 1.4rem' : '1.1rem 0',
+          padding: isScrolled ? '0.68rem 1.8rem' : '1.1rem 0',
+          minHeight: isScrolled ? '58px' : 'auto',
           boxShadow: isScrolled ? 'var(--liquid-pill-shadow)' : 'none',
           backgroundColor: isScrolled ? 'var(--liquid-pill-bg)' : 'var(--glass-bg)',
           backdropFilter: isScrolled ? 'blur(30px) saturate(190%) contrast(105%)' : 'blur(24px)',
           WebkitBackdropFilter: isScrolled ? 'blur(30px) saturate(190%) contrast(105%)' : 'blur(24px)',
           transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
-          position: 'relative'
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center'
         }}
       >
         <div
           className="navbar-grid"
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr auto 1fr',
+            position: 'relative',
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
             width: '100%',
             maxWidth: isScrolled ? '100%' : '1200px',
             margin: '0 auto',
-            padding: isScrolled ? '0 0.5rem' : '0 2rem',
+            padding: isScrolled ? '0 0.6rem' : '0 2rem',
             transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
         >
@@ -161,10 +165,11 @@ export default function Navbar() {
             alignItems: 'center',
             gap: isScrolled ? '1.5rem' : '2rem',
             fontFamily: 'var(--font-sans)',
-            fontSize: isScrolled ? '0.85rem' : '0.9rem',
+            fontSize: isScrolled ? '0.88rem' : '0.9rem',
             fontWeight: 600,
             letterSpacing: '0.03em',
-            transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
+            transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            zIndex: 2
           }}>
             <Link to="/stories" style={{
               color: isActive('/stories') ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -172,7 +177,7 @@ export default function Navbar() {
               transition: 'color 0.2s ease'
             }}>
               Stories
-              {isActive('/stories') && <span style={{ position: 'absolute', bottom: isScrolled ? '-9px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
+              {isActive('/stories') && <span style={{ position: 'absolute', bottom: isScrolled ? '-11px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
             </Link>
             
             <Link to="/resources" style={{
@@ -181,21 +186,31 @@ export default function Navbar() {
               transition: 'color 0.2s ease'
             }}>
               Resources
-              {isActive('/resources') && <span style={{ position: 'absolute', bottom: isScrolled ? '-9px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
+              {isActive('/resources') && <span style={{ position: 'absolute', bottom: isScrolled ? '-11px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
             </Link>
           </div>
 
-          {/* COLUMN 2: CENTER LOGO */}
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
+          {/* COLUMN 2: CENTER LOGO - ALWAYS MATHEMATICALLY DEAD CENTER */}
+          <div style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 3,
+            pointerEvents: 'auto'
+          }}>
             <Link to="/home" style={{
-              fontSize: isScrolled ? '1.35rem' : '1.65rem',
+              fontSize: isScrolled ? '1.45rem' : '1.65rem',
               fontWeight: 800,
               fontFamily: 'var(--font-sans)',
               letterSpacing: '0.2em',
               textTransform: 'uppercase',
               display: 'flex',
               alignItems: 'center',
-              gap: isScrolled ? '0.3rem' : '0.4rem',
+              gap: isScrolled ? '0.35rem' : '0.4rem',
               marginRight: '-0.2em',
               transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
             }}>
@@ -203,7 +218,7 @@ export default function Navbar() {
                 src="/favicon.png" 
                 alt="LOOP Logo" 
                 style={{ 
-                  height: isScrolled ? '22px' : '26px', 
+                  height: isScrolled ? '24px' : '26px', 
                   width: 'auto', 
                   filter: 'var(--logo-filter)',
                   marginRight: '0.2rem',
@@ -212,7 +227,7 @@ export default function Navbar() {
               />
               Loop
               <span style={{
-                fontSize: isScrolled ? '0.5rem' : '0.55rem',
+                fontSize: isScrolled ? '0.52rem' : '0.55rem',
                 letterSpacing: '0.02em',
                 padding: '1px 5px',
                 border: '1px solid var(--text-primary)',
@@ -228,11 +243,12 @@ export default function Navbar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
-            gap: isScrolled ? '1.1rem' : '1.5rem',
+            gap: isScrolled ? '1.15rem' : '1.5rem',
             fontFamily: 'var(--font-sans)',
-            fontSize: isScrolled ? '0.85rem' : '0.9rem',
+            fontSize: isScrolled ? '0.86rem' : '0.9rem',
             fontWeight: 600,
-            transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
+            transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            zIndex: 2
           }}>
             <Link to="/achievements" style={{
               color: isActive('/achievements') ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -240,7 +256,7 @@ export default function Navbar() {
               transition: 'color 0.2s ease'
             }}>
               Achievements
-              {isActive('/achievements') && <span style={{ position: 'absolute', bottom: isScrolled ? '-9px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
+              {isActive('/achievements') && <span style={{ position: 'absolute', bottom: isScrolled ? '-11px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
             </Link>
 
             {user?.isAdmin && (
