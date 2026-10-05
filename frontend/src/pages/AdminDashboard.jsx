@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, 
   ChevronDown, ChevronUp, ChevronRight, Search, Folder, HardDrive, 
-  ShieldCheck, ExternalLink, GitBranch, FolderPlus, Sparkles, AlertTriangle 
+  ShieldCheck, ExternalLink, GitBranch, FolderPlus, Sparkles, AlertTriangle,
+  Globe, Lock
 } from 'lucide-react';
 import { useCachedData } from '../hooks/useCachedData';
 import {
