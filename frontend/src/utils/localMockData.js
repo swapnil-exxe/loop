@@ -736,6 +736,7 @@ export const localMockStories = [
     role: 'AI Research Engineer',
     semester: '7',
     cgpa: '9.6',
+    createdAt: '2026-03-28T10:00:00.000Z',
     photo: '/images/file-1.jpg',
     journey: {
       firstYear: 'Spent the first year getting familiar with college life. Explored web development and basic C++ programming. Joined the SPIT Coding Club and began participating in local hackathons to understand teamwork.',
@@ -772,6 +773,7 @@ export const localMockStories = [
     role: 'Software Engineer',
     semester: '7',
     cgpa: '9.2',
+    createdAt: '2026-03-15T14:30:00.000Z',
     photo: '/images/file-2.jpg',
     journey: {
       firstYear: 'Learnt Python and HTML/CSS. Participated in my first SPIT coding contest. Made great friends and focused on adapting to the college curriculum.',
@@ -807,6 +809,7 @@ export const localMockStories = [
     role: 'Quantitative Analyst',
     semester: '8',
     cgpa: '8.4',
+    createdAt: '2026-02-20T09:15:00.000Z',
     photo: '/images/file-3.jpg',
     journey: {
       firstYear: 'Balanced academics with mathematics and algorithmic coding. Focused on probability, discrete math, and C++ OOP concepts.',
@@ -842,6 +845,7 @@ export const localMockStories = [
     role: 'Hardware Design Engineer',
     semester: '7',
     cgpa: '8.9',
+    createdAt: '2026-01-18T16:45:00.000Z',
     photo: '/images/file-4.jpg',
     journey: {
       firstYear: 'Built electronic and digital circuit prototypes in the college hardware lab. Explored Verilog and 8051 microcontrollers.',
@@ -877,6 +881,7 @@ export const localMockStories = [
     role: 'Software Development Engineer',
     semester: '6',
     cgpa: '9.5',
+    createdAt: '2025-12-10T11:20:00.000Z',
     photo: '/images/file-5.jpg',
     journey: {
       firstYear: 'Mastered standard template library (STL) in C++, participated in Google Kickstart, and built deep problem solving foundations.',
@@ -912,6 +917,7 @@ export const localMockStories = [
     role: 'Cloud Solutions Engineer',
     semester: '7',
     cgpa: '8.6',
+    createdAt: '2025-11-05T13:00:00.000Z',
     photo: '/images/file-1.jpg',
     journey: {
       firstYear: 'Learned Linux systems, bash scripting, network fundamentals, and modern web application stacks.',

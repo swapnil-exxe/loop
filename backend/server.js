@@ -1012,8 +1012,8 @@ function validateStoryFiles(payload) {
 // 3. Stories
 app.get('/api/stories', authenticateToken, async (req, res) => {
   try {
-    // Exclude heavy fields from the listing payload to optimize network & DB performance
-    const stories = await Story.find({}).select('-journey -resumeFile -studyMaterials -customSections -photo -resume');
+    // Exclude heavy fields from the listing payload and sort newest first
+    const stories = await Story.find({}).sort({ createdAt: -1 }).select('-journey -resumeFile -studyMaterials -customSections -photo -resume');
     res.json(stories);
   } catch (err) {
     res.status(500).json({ error: err.message });

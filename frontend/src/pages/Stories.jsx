@@ -1,8 +1,228 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, Upload, X, ArrowRight, Plus, Briefcase, CheckCircle, FileText, Search } from 'lucide-react';
+import { Filter, Upload, X, ArrowRight, Plus, Briefcase, CheckCircle, FileText, Search, Calendar } from 'lucide-react';
 import { getStories, addPendingStory, fileToBase64 } from '../utils/db';
 import { useCachedData } from '../hooks/useCachedData';
+
+function formatStoryDate(dateStr) {
+  if (!dateStr) return null;
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  } catch (e) {}
+  return null;
+}
+
+function Story3DCard({ story, index, navigate }) {
+  const cardRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  const handleMouseMove = (e) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -4.5;
+    const rotateY = ((x - centerX) / centerX) * 4.5;
+    setTilt({ x: rotateX, y: rotateY, active: true });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0, active: false });
+  };
+
+  const formattedDate = formatStoryDate(story.createdAt || story.date);
+  const isRecent = (() => {
+    if (!story.createdAt && !story.date) return false;
+    const time = new Date(story.createdAt || story.date).getTime();
+    return Date.now() - time < 14 * 24 * 60 * 60 * 1000;
+  })();
+
+  const transformStyle = isVisible
+    ? tilt.active
+      ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-6px) scale(1.015)`
+      : 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0) scale(1)'
+    : 'perspective(1000px) rotateX(12deg) translateY(45px) scale(0.96)';
+
+  return (
+    <div
+      ref={cardRef}
+      className="bento-card loop-card"
+      onClick={() => navigate(`/stories/${story.id}`)}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        padding: '1.75rem 2rem',
+        display: 'flex',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        minHeight: '140px',
+        position: 'relative',
+        border: '1px solid var(--border-color)',
+        borderRadius: '24px',
+        backgroundColor: 'var(--bg-surface)',
+        boxShadow: tilt.active
+          ? '0 24px 50px -10px rgba(0, 0, 0, 0.35), 0 0 1px 1px rgba(255, 255, 255, 0.15) inset'
+          : 'var(--card-shadow)',
+        gap: '2rem',
+        flexWrap: 'wrap',
+        cursor: 'pointer',
+        transform: transformStyle,
+        opacity: isVisible ? 1 : 0,
+        transition: tilt.active
+          ? 'transform 0.12s ease-out, box-shadow 0.25s ease, border-color 0.25s ease'
+          : 'transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.25s ease',
+        transformStyle: 'preserve-3d',
+        willChange: 'transform, opacity'
+      }}
+    >
+      <div style={{ flexGrow: 1, minWidth: '260px' }}>
+        {/* Top Chips Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+          <span
+            style={{
+              backgroundColor: 'rgba(212, 255, 50, 0.22)',
+              border: '1px solid rgba(212, 255, 50, 0.45)',
+              color: 'var(--text-primary)',
+              padding: '0.2rem 0.65rem',
+              borderRadius: '12px',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              letterSpacing: '0.03em',
+              textTransform: 'uppercase'
+            }}
+          >
+            {story.company}
+          </span>
+          <span className="badge" style={{ fontSize: '0.68rem', borderRadius: '10px' }}>
+            {story.branch} {story.subBranch && `(${story.subBranch})`}
+          </span>
+          <span className="badge" style={{ fontSize: '0.68rem', borderRadius: '10px' }}>
+            Class of {story.passoutYear}
+          </span>
+          {formattedDate && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '10px',
+              padding: '0.2rem 0.6rem'
+            }}>
+              <Calendar size={12} style={{ color: 'var(--text-secondary)' }} />
+              <span>{formattedDate}</span>
+            </span>
+          )}
+          {isRecent && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              fontSize: '0.68rem',
+              fontWeight: 800,
+              color: '#30d158',
+              backgroundColor: 'rgba(48, 209, 88, 0.12)',
+              border: '1px solid rgba(48, 209, 88, 0.3)',
+              borderRadius: '10px',
+              padding: '0.15rem 0.55rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em'
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#30d158', display: 'inline-block' }} />
+              New
+            </span>
+          )}
+        </div>
+
+        {/* Candidate Name */}
+        <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)', lineHeight: 1.15, letterSpacing: '-0.02em', margin: '0 0 0.4rem 0' }}>
+          {story.name}
+        </h2>
+
+        {/* Role & Company */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <Briefcase size={14} style={{ color: 'var(--text-secondary)' }} />
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+            {story.role}
+          </span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>•</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Semester {story.semester} Placed
+          </span>
+          {story.cgpa && (
+            <>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>•</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                CGPA {story.cgpa}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Metric Bar */}
+        <div style={{ maxWidth: '380px', marginTop: '0.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+            <span>4-Year Roadmap & Preparation</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Complete</span>
+          </div>
+          <div style={{ height: '5px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: '100%', backgroundColor: 'var(--text-primary)', borderRadius: '999px' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Action button */}
+      <div style={{ flexShrink: 0 }}>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/stories/${story.id}`);
+          }}
+          className="btn btn-primary"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1.4rem',
+            borderRadius: '999px',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+          }}
+        >
+          <span>Read Journey</span>
+          <ArrowRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Stories() {
   const location = useLocation();
@@ -251,6 +471,19 @@ export default function Stories() {
     return true;
   });
 
+  // Sort stories so newest additions appear on top (recent first, oldest at bottom)
+  const sortedStories = [...filteredStories].sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.date ? new Date(a.date).getTime() : 0);
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.date ? new Date(b.date).getTime() : 0);
+    if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+    if (timeB && !timeA) return 1;
+    if (timeA && !timeB) return -1;
+    const numA = Number(a.id);
+    const numB = Number(b.id);
+    if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
+    return 0;
+  });
+
   // Form submission handler
   const handleFormSubmit = async (e) => {
     e.preventDefault();
@@ -282,8 +515,11 @@ export default function Stories() {
       finalStudyMaterials = finalStudyMaterials.slice(0, 1);
     }
 
+    const nowIso = new Date().toISOString();
     const submission = {
       ...formData,
+      createdAt: nowIso,
+      date: nowIso,
       studyMaterials: finalStudyMaterials.map(m => ({
         title: m.title,
         type: m.type,
@@ -585,7 +821,7 @@ export default function Stories() {
           </div>
           {/* Results count */}
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-            {loading ? 'Searching stories...' : `${filteredStories.length} ${filteredStories.length === 1 ? 'story' : 'stories'} found${searchQuery ? ` for "${searchQuery}"` : ''}`}
+            {loading ? 'Searching stories...' : `${sortedStories.length} ${sortedStories.length === 1 ? 'story' : 'stories'} found${searchQuery ? ` for "${searchQuery}"` : ''}`}
           </p>
           {loading ? (
             <div style={{
@@ -632,131 +868,14 @@ export default function Stories() {
                 </div>
               ))}
             </div>
-          ) : filteredStories.length > 0 ? (
+          ) : sortedStories.length > 0 ? (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               gap: '1.5rem',
             }}>
-              {filteredStories.map((story) => (
-                <div 
-                  key={story.id} 
-                  className="bento-card loop-card hinge-card animate-fade-in"
-                  onClick={() => navigate(`/stories/${story.id}`)}
-                  style={{
-                    padding: '1.75rem 2rem',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    minHeight: '140px',
-                    position: 'relative',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '24px',
-                    backgroundColor: 'var(--bg-surface)',
-                    boxShadow: 'var(--card-shadow)',
-                    gap: '2rem',
-                    flexWrap: 'wrap',
-                    cursor: 'pointer',
-                    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.borderColor = 'var(--text-primary)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                  }}
-                >
-                  <div style={{ flexGrow: 1, minWidth: '260px' }}>
-                    {/* Top Chips Row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
-                      <span
-                        style={{
-                          backgroundColor: 'rgba(212, 255, 50, 0.22)',
-                          border: '1px solid rgba(212, 255, 50, 0.45)',
-                          color: 'var(--text-primary)',
-                          padding: '0.2rem 0.65rem',
-                          borderRadius: '12px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          letterSpacing: '0.03em',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        {story.company}
-                      </span>
-                      <span className="badge" style={{ fontSize: '0.68rem', borderRadius: '10px' }}>
-                        {story.branch} {story.subBranch && `(${story.subBranch})`}
-                      </span>
-                      <span className="badge" style={{ fontSize: '0.68rem', borderRadius: '10px' }}>
-                        Class of {story.passoutYear}
-                      </span>
-                    </div>
-
-                    {/* Candidate Name */}
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)', lineHeight: 1.15, letterSpacing: '-0.02em', margin: '0 0 0.4rem 0' }}>
-                      {story.name}
-                    </h2>
-
-                    {/* Role & Company */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                      <Briefcase size={14} style={{ color: 'var(--text-secondary)' }} />
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                        {story.role}
-                      </span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>•</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        Semester {story.semester} Placed
-                      </span>
-                      {story.cgpa && (
-                        <>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>•</span>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            CGPA {story.cgpa}
-                          </span>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Metric Bar (Matching Image 3) */}
-                    <div style={{ maxWidth: '380px', marginTop: '0.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                        <span>4-Year Roadmap & Preparation</span>
-                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Complete</span>
-                      </div>
-                      <div style={{ height: '5px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: '100%', backgroundColor: 'var(--text-primary)', borderRadius: '999px' }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action button */}
-                  <div style={{ flexShrink: 0 }}>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/stories/${story.id}`);
-                      }}
-                      className="btn btn-primary"
-                      style={{
-                        padding: '0.65rem 1.4rem',
-                        borderRadius: '999px',
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      <span>Read Journey</span>
-                      <ArrowRight size={14} />
-                    </button>
-                  </div>
-                </div>
+              {sortedStories.map((story, index) => (
+                <Story3DCard key={story.id} story={story} index={index} navigate={navigate} />
               ))}
             </div>
           ) : (
