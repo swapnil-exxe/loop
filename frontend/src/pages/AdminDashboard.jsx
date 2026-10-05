@@ -4,7 +4,7 @@ import {
   Check, X, ShieldAlert, Plus, Trash2, Users, Clock, Edit, FileText, 
   ChevronDown, ChevronUp, ChevronRight, Search, Folder, HardDrive, 
   ShieldCheck, ExternalLink, GitBranch, FolderPlus, Sparkles, AlertTriangle,
-  Globe, Lock
+  Globe, Lock, FolderInput, Eye
 } from 'lucide-react';
 import { useCachedData } from '../hooks/useCachedData';
 import {
@@ -564,6 +564,29 @@ export default function AdminDashboard() {
   const [folderRenameInput, setFolderRenameInput] = useState('');
   const [folderVisibilityInput, setFolderVisibilityInput] = useState('public');
   const [folderDescriptionInput, setFolderDescriptionInput] = useState('');
+
+  // Moving Resource File between Folders
+  const [movingResourceItem, setMovingResourceItem] = useState(null);
+  const [targetMoveFolderId, setTargetMoveFolderId] = useState('');
+
+  const handleStartMoveResource = (resource) => {
+    setMovingResourceItem(resource);
+    setTargetMoveFolderId(resource.folderId || 'system-placement-material');
+  };
+
+  const handleSaveMoveResource = async (e) => {
+    e.preventDefault();
+    if (!movingResourceItem || !targetMoveFolderId) return;
+    try {
+      await updateResource(movingResourceItem.id, {
+        folderId: targetMoveFolderId
+      });
+      setMovingResourceItem(null);
+      await refreshData();
+    } catch (err) {
+      alert(err.message || 'Failed to move resource file');
+    }
+  };
 
   const handleStartEditFolder = (folder) => {
     setEditingFolderItem(folder);
@@ -1588,165 +1611,48 @@ export default function AdminDashboard() {
                   )}
                 </div>
 
-                {/* Active Resources */}
-                <div>
-                  {/* Storage & Resource Metrics Banner */}
-                  {resourceStats && (
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                      gap: '1rem',
-                      marginBottom: '1.5rem'
-                    }}>
-                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(0, 113, 227, 0.1)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <HardDrive size={22} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Storage Used</div>
-                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{resourceStats.totalStorageFormatted || '0 B'}</div>
-                        </div>
+                {/* Active Resources & Storage Metrics Banner */}
+                {resourceStats && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    gap: '1rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(0, 113, 227, 0.1)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <HardDrive size={22} />
                       </div>
-
-                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(52, 199, 89, 0.1)', color: '#34c759', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <FileText size={22} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Files</div>
-                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{resourceStats.totalResources || 0} files</div>
-                        </div>
+                      <div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Storage Used</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{resourceStats.totalStorageFormatted || '0 B'}</div>
                       </div>
+                    </div>
 
-                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(255, 149, 0, 0.1)', color: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Folder size={22} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Folders</div>
-                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{resourceStats.totalFolders || 0}</div>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                            {resourceStats.systemFolders || 0} Sys • {resourceStats.publicFolders || 0} Pub • {resourceStats.privateFolders || 0} Priv
-                          </div>
+                    <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(52, 199, 89, 0.1)', color: '#34c759', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <FileText size={22} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Resources</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{activeResources.length} files</div>
+                      </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: 'rgba(255, 149, 0, 0.1)', color: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Folder size={22} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Folders</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{folders.length}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                          {resourceStats.systemFolders || 0} Sys • {resourceStats.publicFolders || 0} Pub • {resourceStats.privateFolders || 0} Priv
                         </div>
                       </div>
                     </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    <div 
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }} 
-                      onClick={() => setResourcesExpanded(!resourcesExpanded)}
-                    >
-                      <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Active Resources ({filteredActiveResources.length})</h2>
-                      {resourcesExpanded ? <ChevronUp size={20} style={{ color: 'var(--text-secondary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--text-secondary)' }} />}
-                    </div>
-                    {resourcesExpanded && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <div style={{ position: 'relative', minWidth: '220px' }}>
-                          <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-                          <input
-                            type="text"
-                            placeholder="Search study resources..."
-                            value={resourcesSearch}
-                            onChange={(e) => setResourcesSearch(e.target.value)}
-                            style={{
-                              padding: '0.4rem 0.75rem 0.4rem 2rem',
-                              fontSize: '0.85rem',
-                              borderRadius: '20px',
-                              border: '1px solid var(--border-color)',
-                              backgroundColor: 'var(--bg-secondary)',
-                              color: 'var(--text-primary)',
-                              outline: 'none',
-                              width: '100%'
-                            }}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => navigate('/resources')}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                        >
-                          <ExternalLink size={14} /> Explorer
-                        </button>
-                      </div>
-                    )}
                   </div>
-
-                  {resourcesExpanded && (
-                    <div className="glass-panel" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                      {filteredActiveResources.length > 0 ? (
-                        filteredActiveResources.map((res) => (
-                          <div key={res.id} style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '1rem 1.5rem',
-                            borderBottom: '1px solid var(--border-color)',
-                            gap: '1rem',
-                            flexWrap: 'wrap'
-                          }}>
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <p style={{ fontWeight: 600, margin: 0 }}>{res.title}</p>
-                                {res.size ? (
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-secondary)', padding: '0.1rem 0.4rem', borderRadius: '6px' }}>
-                                    {res.fileSizeFormatted || formatBytes(res.size)}
-                                  </span>
-                                ) : null}
-                                <span style={{
-                                  fontSize: '0.65rem',
-                                  textTransform: 'uppercase',
-                                  color: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? '#ff9500' : '#0071e3',
-                                  backgroundColor: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.1)' : 'rgba(0, 113, 227, 0.1)',
-                                  border: `1px solid ${(res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.3)' : 'rgba(0, 113, 227, 0.3)'}`,
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '4px',
-                                  fontWeight: 600
-                                }}>
-                                  Storage: {res.storageProvider?.toUpperCase() || 'GRIDFS'}
-                                </span>
-                              </div>
-                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
-                                {res.category} • Folder: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getFolderName(res.folderId) || res.folder || 'None'}</span> • Type: {res.type} • Shared by: {res.uploadedBy}
-                              </p>
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                              <button 
-                                type="button" 
-                                onClick={() => navigate(`/preview/${res.id}?folderId=${res.folderId || ''}`, {
-                                  state: {
-                                    file: res,
-                                    files: [res],
-                                    folderName: getFolderName(res.folderId) || 'Resource'
-                                  }
-                                })}
-                                className="btn btn-secondary" 
-                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '8px', cursor: 'pointer' }}
-                              >
-                                View File
-                              </button>
-                              <button 
-                                onClick={() => startEditResource(res)} 
-                                className="btn btn-secondary" 
-                                style={{ padding: '0.4rem', color: 'var(--text-primary)', border: 'none', cursor: 'pointer' }}
-                                title="Edit Resource"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button onClick={() => handleDeleteResource(res.id)} className="btn btn-secondary" style={{ padding: '0.4rem', color: '#ff453a', border: 'none', cursor: 'pointer' }}>
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p style={{ padding: '1.5rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>No resources found.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {/* Active Achievements */}
                 <div>
@@ -1986,6 +1892,95 @@ export default function AdminDashboard() {
                                     </div>
                                   </div>
 
+                                  {/* Folder's Files when expanded */}
+                                  {isExp && (
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                      {activeResources
+                                        .filter(r => r.folderId === n.id)
+                                        .map(res => (
+                                          <div key={res.id} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '0.4rem 0.65rem',
+                                            marginLeft: `${(depth + 1) * 22}px`,
+                                            borderRadius: '8px',
+                                            backgroundColor: 'var(--bg-secondary)',
+                                            border: '1px solid var(--border-color)',
+                                            marginBottom: '3px',
+                                            gap: '0.5rem',
+                                            flexWrap: 'wrap'
+                                          }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '150px', flex: 1 }}>
+                                              <FileText size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>{res.title}</span>
+                                              {res.size ? (
+                                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                                  ({res.fileSizeFormatted || formatBytes(res.size)})
+                                                </span>
+                                              ) : null}
+                                              <span style={{
+                                                fontSize: '0.62rem',
+                                                textTransform: 'uppercase',
+                                                color: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? '#ff9500' : '#0071e3',
+                                                backgroundColor: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.1)' : 'rgba(0, 113, 227, 0.1)',
+                                                border: `1px solid ${(res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.25)' : 'rgba(0, 113, 227, 0.25)'}`,
+                                                padding: '0.05rem 0.35rem',
+                                                borderRadius: '4px',
+                                                fontWeight: 600
+                                              }}>
+                                                {res.storageProvider?.toUpperCase() || 'GRIDFS'}
+                                              </span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => navigate(`/preview/${res.id}?folderId=${res.folderId || ''}`, {
+                                                  state: {
+                                                    file: res,
+                                                    files: [res],
+                                                    folderName: n.name
+                                                  }
+                                                })}
+                                                className="btn btn-secondary"
+                                                style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px' }}
+                                                title="Preview / View File"
+                                              >
+                                                <Eye size={11} /> View
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => startEditResource(res)}
+                                                className="btn btn-secondary"
+                                                style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px' }}
+                                                title="Rename / Edit Resource"
+                                              >
+                                                <Edit size={11} /> Rename
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleStartMoveResource(res)}
+                                                className="btn btn-secondary"
+                                                style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px', color: '#0071e3', borderColor: 'rgba(0,113,227,0.3)' }}
+                                                title="Move Document / File to another folder"
+                                              >
+                                                <FolderInput size={11} /> Move
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteResource(res.id)}
+                                                className="btn btn-secondary"
+                                                style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.25)' }}
+                                                title="Delete File"
+                                              >
+                                                <Trash2 size={11} />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  )}
+
                                   {hasChildren && isExp && (
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                       {n.children.map(child => renderNode(child, depth + 1))}
@@ -2058,7 +2053,7 @@ export default function AdminDashboard() {
                                         </span>
                                         {fileCount > 0 && (
                                           <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>
-                                            {fileCount} files
+                                            {fileCount} {fileCount === 1 ? 'file' : 'files'}
                                           </span>
                                         )}
                                       </div>
@@ -2096,6 +2091,95 @@ export default function AdminDashboard() {
                                       </div>
                                     </div>
 
+                                    {/* Folder's Files when expanded */}
+                                    {isExp && (
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        {activeResources
+                                          .filter(r => r.folderId === n.id)
+                                          .map(res => (
+                                            <div key={res.id} style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'space-between',
+                                              padding: '0.4rem 0.65rem',
+                                              marginLeft: `${(depth + 1) * 22}px`,
+                                              borderRadius: '8px',
+                                              backgroundColor: 'var(--bg-secondary)',
+                                              border: '1px solid var(--border-color)',
+                                              marginBottom: '3px',
+                                              gap: '0.5rem',
+                                              flexWrap: 'wrap'
+                                            }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '150px', flex: 1 }}>
+                                                <FileText size={14} style={{ color: '#34c759', flexShrink: 0 }} />
+                                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>{res.title}</span>
+                                                {res.size ? (
+                                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                                    ({res.fileSizeFormatted || formatBytes(res.size)})
+                                                  </span>
+                                                ) : null}
+                                                <span style={{
+                                                  fontSize: '0.62rem',
+                                                  textTransform: 'uppercase',
+                                                  color: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? '#ff9500' : '#0071e3',
+                                                  backgroundColor: (res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.1)' : 'rgba(0, 113, 227, 0.1)',
+                                                  border: `1px solid ${(res.storageProvider === 'r2' || res.storageProvider === 's3') ? 'rgba(255, 149, 0, 0.25)' : 'rgba(0, 113, 227, 0.25)'}`,
+                                                  padding: '0.05rem 0.35rem',
+                                                  borderRadius: '4px',
+                                                  fontWeight: 600
+                                                }}>
+                                                  {res.storageProvider?.toUpperCase() || 'GRIDFS'}
+                                                </span>
+                                              </div>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => navigate(`/preview/${res.id}?folderId=${res.folderId || ''}`, {
+                                                    state: {
+                                                      file: res,
+                                                      files: [res],
+                                                      folderName: n.name
+                                                    }
+                                                  })}
+                                                  className="btn btn-secondary"
+                                                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px' }}
+                                                  title="Preview / View File"
+                                                >
+                                                  <Eye size={11} /> View
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => startEditResource(res)}
+                                                  className="btn btn-secondary"
+                                                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px' }}
+                                                  title="Rename / Edit Resource"
+                                                >
+                                                  <Edit size={11} /> Rename
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleStartMoveResource(res)}
+                                                  className="btn btn-secondary"
+                                                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px', color: '#0071e3', borderColor: 'rgba(0,113,227,0.3)' }}
+                                                  title="Move Document / File to another folder"
+                                                >
+                                                  <FolderInput size={11} /> Move
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteResource(res.id)}
+                                                  className="btn btn-secondary"
+                                                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.25)' }}
+                                                  title="Delete File"
+                                                >
+                                                  <Trash2 size={11} />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ))}
+                                      </div>
+                                    )}
+
                                     {hasChildren && isExp && (
                                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         {n.children.map(child => renderUserNode(child, depth + 1))}
@@ -2106,6 +2190,82 @@ export default function AdminDashboard() {
                               };
                               return renderUserNode(node, 0);
                             })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Unassigned / Root Files (if any resource has folderId not in known folders) */}
+                    {activeResources.some(r => !folders.some(f => f.id === r.folderId)) && (
+                      <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border-color)' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#ff9500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <FileText size={14} /> Unassigned / Root Files
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {activeResources
+                            .filter(r => !folders.some(f => f.id === r.folderId))
+                            .map(res => (
+                              <div key={res.id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.4rem 0.65rem',
+                                borderRadius: '8px',
+                                backgroundColor: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                gap: '0.5rem',
+                                flexWrap: 'wrap'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '150px', flex: 1 }}>
+                                  <FileText size={14} style={{ color: '#ff9500', flexShrink: 0 }} />
+                                  <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{res.title}</span>
+                                  {res.size ? (
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                      ({res.fileSizeFormatted || formatBytes(res.size)})
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/preview/${res.id}?folderId=${res.folderId || ''}`, {
+                                      state: { file: res, files: [res], folderName: 'Unassigned' }
+                                    })}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px' }}
+                                    title="Preview / View File"
+                                  >
+                                    <Eye size={11} /> View
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditResource(res)}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px' }}
+                                    title="Rename / Edit Resource"
+                                  >
+                                    <Edit size={11} /> Rename
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartMoveResource(res)}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px', color: '#0071e3', borderColor: 'rgba(0,113,227,0.3)' }}
+                                    title="Move Document / File to another folder"
+                                  >
+                                    <FolderInput size={11} /> Move
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteResource(res.id)}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', borderRadius: '6px', color: '#ff453a', borderColor: 'rgba(255, 69, 58, 0.25)' }}
+                                    title="Delete File"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     )}
@@ -4768,6 +4928,101 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Resource / File Modal */}
+      {movingResourceItem && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setMovingResourceItem(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            backdropFilter: 'blur(8px)',
+            padding: '1rem'
+          }}
+        >
+          <div
+            className="loop-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              backgroundColor: 'var(--bg-primary)',
+              borderRadius: '20px',
+              border: '1px solid var(--border-color)',
+              padding: '2rem',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+              position: 'relative'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setMovingResourceItem(null)}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FolderInput size={20} style={{ color: 'var(--accent-primary)' }} />
+              <span>Move Document / File</span>
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+              Moving document: <strong style={{ color: 'var(--text-primary)' }}>{movingResourceItem.title}</strong>
+            </p>
+
+            <form onSubmit={handleSaveMoveResource} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="input-group">
+                <label className="input-label" style={{ fontSize: '0.8rem' }}>Destination Folder *</label>
+                <select
+                  value={targetMoveFolderId}
+                  onChange={(e) => setTargetMoveFolderId(e.target.value)}
+                  className="input-field"
+                  style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                  required
+                >
+                  {folders.map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.isSystemFolder ? '📁 [System] ' : '📂 '} {getFolderName(f.id) || f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setMovingResourceItem(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.6rem 1.25rem' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: '0.6rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <FolderInput size={15} /> Confirm Move
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
