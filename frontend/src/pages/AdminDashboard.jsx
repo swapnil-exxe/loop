@@ -814,15 +814,33 @@ export default function AdminDashboard() {
     refreshData();
   }, []);
 
+  // Handle Escape key to close any active modal & isolate background scrolling
   useEffect(() => {
-    if (editingItem || previewingPendingStory || previewingPendingResource) {
+    const isAnyModalOpen = !!(editingItem || previewingPendingStory || previewingPendingResource);
+    if (isAnyModalOpen) {
+      const prevBodyOverflow = document.body.style.overflow;
+      const prevHtmlOverflow = document.documentElement.style.overflow;
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
+      document.documentElement.style.overflow = 'hidden';
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+          e.preventDefault();
+          e.stopPropagation();
+          setEditingItem(null);
+          setPreviewingPendingStory(null);
+          setPreviewingPendingResource(null);
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown, true);
+
+      return () => {
+        document.body.style.overflow = prevBodyOverflow;
+        document.documentElement.style.overflow = prevHtmlOverflow;
+        window.removeEventListener('keydown', handleKeyDown, true);
+      };
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [editingItem, previewingPendingStory, previewingPendingResource]);
 
   const handleApproveStory = async (id) => {
@@ -2976,35 +2994,50 @@ export default function AdminDashboard() {
 
     {/* Glassmorphic Edit Details Overlay Modal */}
     {editingItem && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '650px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2rem',
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
-          }}>
+        <div 
+          onClick={() => setEditingItem(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.45)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="glass-panel animate-fade-in custom-scrollbar" 
+            style={{
+              width: '100%',
+              maxWidth: '650px',
+              borderRadius: '24px',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              position: 'relative',
+              padding: '2rem',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
+            }}
+          >
             <button 
-              onClick={() => setEditingItem(null)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setEditingItem(null);
+              }}
               style={{
                 position: 'absolute',
                 top: '1.5rem',
@@ -3012,8 +3045,13 @@ export default function AdminDashboard() {
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                color: 'var(--text-primary)'
+                color: 'var(--text-primary)',
+                zIndex: 50,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
+              title="Close (Esc)"
             >
               <X size={20} />
             </button>
@@ -4195,35 +4233,50 @@ export default function AdminDashboard() {
 
       {/* Glassmorphic Preview Story Details Overlay Modal */}
       {previewingPendingStory && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '750px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2.5rem',
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
-          }}>
+        <div 
+          onClick={() => setPreviewingPendingStory(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.45)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="glass-panel animate-fade-in custom-scrollbar" 
+            style={{
+              width: '100%',
+              maxWidth: '750px',
+              borderRadius: '24px',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              position: 'relative',
+              padding: '2.5rem',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
+            }}
+          >
             <button 
-              onClick={() => setPreviewingPendingStory(null)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setPreviewingPendingStory(null);
+              }}
               style={{
                 position: 'absolute',
                 top: '1.5rem',
@@ -4231,8 +4284,13 @@ export default function AdminDashboard() {
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                color: 'var(--text-primary)'
+                color: 'var(--text-primary)',
+                zIndex: 50,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
+              title="Close (Esc)"
             >
               <X size={20} />
             </button>
@@ -4534,33 +4592,50 @@ export default function AdminDashboard() {
 
       {/* Glassmorphic Preview Resource Details Overlay Modal */}
       {previewingPendingResource && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{
-            width: '100%',
-            maxWidth: '550px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            position: 'relative',
-            padding: '2.5rem',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
-          }}>
+        <div 
+          onClick={() => setPreviewingPendingResource(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.45)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="glass-panel animate-fade-in custom-scrollbar" 
+            style={{
+              width: '100%',
+              maxWidth: '550px',
+              borderRadius: '24px',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              position: 'relative',
+              padding: '2.5rem',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset'
+            }}
+          >
             <button 
-              onClick={() => setPreviewingPendingResource(null)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setPreviewingPendingResource(null);
+              }}
               style={{
                 position: 'absolute',
                 top: '1.5rem',
@@ -4568,8 +4643,13 @@ export default function AdminDashboard() {
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                color: 'var(--text-primary)'
+                color: 'var(--text-primary)',
+                zIndex: 50,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
+              title="Close (Esc)"
             >
               <X size={20} />
             </button>
