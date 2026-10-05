@@ -236,6 +236,15 @@ export default function Navbar() {
               Resources
               {isActive('/resources') && <span style={{ position: 'absolute', bottom: isScrolled ? '-11px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
             </Link>
+
+            <Link to="/achievements" style={{
+              color: isActive('/achievements') ? 'var(--text-primary)' : 'var(--text-secondary)',
+              position: 'relative',
+              transition: 'color 0.2s ease'
+            }}>
+              Achievements
+              {isActive('/achievements') && <span style={{ position: 'absolute', bottom: isScrolled ? '-11px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
+            </Link>
           </div>
 
           {/* COLUMN 2: CENTER LOGO - ALWAYS MATHEMATICALLY DEAD CENTER */}
@@ -291,110 +300,75 @@ export default function Navbar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
-            gap: isScrolled ? '1.15rem' : '1.5rem',
+            gap: isScrolled ? '0.75rem' : '1rem',
             fontFamily: 'var(--font-sans)',
             fontSize: isScrolled ? '0.86rem' : '0.9rem',
             fontWeight: 600,
             transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
             zIndex: 2
           }}>
-            <Link to="/achievements" style={{
-              color: isActive('/achievements') ? 'var(--text-primary)' : 'var(--text-secondary)',
-              position: 'relative',
-              transition: 'color 0.2s ease'
-            }}>
-              Achievements
-              {isActive('/achievements') && <span style={{ position: 'absolute', bottom: isScrolled ? '-11px' : '-21px', left: 0, right: 0, height: '2.5px', borderRadius: '2px', backgroundColor: 'var(--text-primary)', transition: 'bottom 0.35s ease' }} />}
-            </Link>
-
             {user?.isAdmin && (
               <Link to="/admin" style={{
                 color: isActive('/admin') ? 'var(--text-primary)' : 'var(--text-secondary)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.35rem',
-                padding: isScrolled ? '3px 8px' : '4px 10px',
-                border: '1px dashed var(--border-color)',
-                borderRadius: '8px',
-                fontSize: isScrolled ? '0.8rem' : '0.85rem',
+                padding: isScrolled ? '3px 10px' : '4px 12px',
+                border: '1px solid var(--border-color)',
+                borderRadius: '20px',
+                fontSize: isScrolled ? '0.8rem' : '0.84rem',
+                backgroundColor: isActive('/admin') ? 'var(--bg-tertiary)' : 'transparent',
                 transition: 'all 0.35s ease'
               }}>
                 <Shield size={isScrolled ? 12 : 13} />
-                Admin
+                <span>Admin</span>
               </Link>
             )}
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: isScrolled ? '0.6rem' : '0.75rem',
-              borderLeft: '1px solid var(--border-color)',
-              paddingLeft: isScrolled ? '0.85rem' : '1.1rem',
-              transition: 'all 0.35s ease'
-            }}>
-              {user ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.5rem' : '0.65rem' }}>
-                  {/* Profile Button - Opens edit/view profile info modal */}
-                  <button
-                    type="button"
-                    onClick={() => setShowProfileModal(true)}
-                    className="btn btn-secondary"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: isScrolled ? '0.32rem 0.75rem' : '0.42rem 0.85rem',
-                      borderRadius: '20px',
-                      fontSize: isScrolled ? '0.78rem' : '0.84rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.25s ease'
-                    }}
-                    title="View & Edit Profile"
-                  >
-                    <UserIcon size={isScrolled ? 12 : 13} />
-                    <span>Profile</span>
-                  </button>
+            {user?.isAdmin && (
+              <span style={{ color: 'var(--border-color)', userSelect: 'none' }}>•</span>
+            )}
 
-                  {/* Student / Role Status Pill - Purely informational badge, clicking does nothing */}
-                  <span 
-                    className="badge" 
-                    style={{ 
-                      textTransform: 'none', 
-                      fontSize: isScrolled ? '0.76rem' : '0.82rem', 
-                      padding: isScrolled ? '0.22rem 0.65rem' : '0.28rem 0.75rem', 
-                      cursor: 'default',
-                      userSelect: 'none',
-                      backgroundColor: 'var(--bg-tertiary)',
-                      color: 'var(--text-secondary)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '20px',
-                      fontWeight: 600,
-                      letterSpacing: '0.02em',
-                      pointerEvents: 'none'
-                    }}
-                    title="User Role"
-                  >
-                    {user.role || 'Student'}
-                  </span>
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.5rem' : '0.65rem' }}>
+                {/* Profile Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: isScrolled ? '0.32rem 0.75rem' : '0.42rem 0.85rem',
+                    borderRadius: '20px',
+                    fontSize: isScrolled ? '0.78rem' : '0.84rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.25s ease'
+                  }}
+                  title="View & Edit Profile"
+                >
+                  <UserIcon size={isScrolled ? 12 : 13} />
+                  <span>Profile</span>
+                </button>
 
-                  {/* Exit / Logout button */}
-                  <button 
-                    onClick={handleLogout} 
-                    className="btn btn-secondary" 
-                    style={{ padding: isScrolled ? '0.32rem 0.7rem' : '0.42rem 0.8rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}
-                    title="Log out"
-                  >
-                    <LogOut size={11} />
-                    <span>Exit</span>
-                  </button>
-                </div>
-              ) : (
-                <Link to="/login" className="btn btn-primary" style={{ padding: isScrolled ? '0.35rem 0.9rem' : '0.45rem 1.1rem', borderRadius: '20px', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}>
-                  Login
-                </Link>
-              )}
-            </div>
+                {/* Exit / Logout button */}
+                <button 
+                  onClick={handleLogout} 
+                  className="btn btn-secondary" 
+                  style={{ padding: isScrolled ? '0.32rem 0.7rem' : '0.42rem 0.8rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}
+                  title="Log out"
+                >
+                  <LogOut size={11} />
+                  <span>Exit</span>
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="btn btn-primary" style={{ padding: isScrolled ? '0.35rem 0.9rem' : '0.45rem 1.1rem', borderRadius: '20px', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}>
+                Login
+              </Link>
+            )}
           </div>
 
           {/* MOBILE MENU TOGGLE (Mobile only) */}
