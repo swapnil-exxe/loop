@@ -56,6 +56,21 @@ export default function Stories() {
   useEffect(() => {
     document.title = 'LOOP | Senior Placement Stories';
   }, []);
+
+  // Prevent background page from scrolling when Share Your Story modal is active
+  useEffect(() => {
+    if (isModalOpen) {
+      const prevBodyOverflow = document.body.style.overflow;
+      const prevHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevBodyOverflow;
+        document.documentElement.style.overflow = prevHtmlOverflow;
+      };
+    }
+  }, [isModalOpen]);
+
   const [uploadSuccess, setUploadSuccess] = useState(false);
   
   // Form state
@@ -750,10 +765,11 @@ export default function Stories() {
           alignItems: 'center',
           justifyContent: 'center',
           padding: '2rem 1.5rem',
-          overflowY: 'auto'
+          overflow: 'hidden',
+          overscrollBehavior: 'contain'
         }}>
           <div 
-            className="animate-fade-in" 
+            className="animate-fade-in custom-scrollbar" 
             style={{
               width: '100%',
               maxWidth: '820px',
@@ -761,8 +777,9 @@ export default function Stories() {
               backgroundColor: 'var(--bg-surface)',
               border: '1px solid var(--border-color)',
               boxShadow: '0 30px 80px rgba(0, 0, 0, 0.22), 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
-              maxHeight: '92vh',
+              maxHeight: '90vh',
               overflowY: 'auto',
+              overscrollBehavior: 'contain',
               position: 'relative',
               padding: '3rem 3rem 2.5rem 3rem'
             }}
