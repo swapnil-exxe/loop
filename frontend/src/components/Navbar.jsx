@@ -1,8 +1,42 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Shield, Menu, X, User as UserIcon, BookOpen, Calendar, ChevronDown, Lock } from 'lucide-react';
+import { LogOut, Shield, Menu, X, User as UserIcon, BookOpen, Calendar, ChevronDown, Lock, Palette } from 'lucide-react';
 import { requestProfileEdit, updateUser } from '../utils/db';
+
+// Preset palette colors for the user name badge
+const PRESET_NAME_COLORS = [
+  { name: 'Default', value: '' },
+  { name: 'Electric Blue', value: '#0071E3' },
+  { name: 'Emerald', value: '#34C759' },
+  { name: 'Amber Orange', value: '#FF9500' },
+  { name: 'Crimson', value: '#FF3B30' },
+  { name: 'Royal Purple', value: '#AF52DE' },
+  { name: 'Vibrant Pink', value: '#FF2D55' },
+  { name: 'Teal Cyan', value: '#5AC8FA' },
+  { name: 'Volt Lime', value: '#A5D600' }
+];
+
+// Deterministic avatar hue/color based on email or user ID
+const getRandomUserColor = (seed = '') => {
+  if (!seed) return '#0071E3';
+  const colors = [
+    '#0071E3', // Blue
+    '#34C759', // Green
+    '#FF9500', // Orange
+    '#AF52DE', // Purple
+    '#FF2D55', // Pink
+    '#5AC8FA', // Teal/Cyan
+    '#5856D6', // Indigo
+    '#FF3B30'  // Coral Red
+  ];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -36,6 +70,7 @@ export default function Navbar() {
   const [branch, setBranch] = useState('CSE');
   const [cseSpecialization, setCseSpecialization] = useState('CSE');
   const [passoutYear, setPassoutYear] = useState('2026');
+  const [nameColor, setNameColor] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -64,6 +99,7 @@ export default function Navbar() {
       else if (rawYear === 'Alumnus / Graduate') defaultPassoutYear = '2024';
       
       setPassoutYear(defaultPassoutYear);
+      setNameColor(user.nameColor || '');
       setNewPassword('');
       setConfirmPassword('');
       setError('');
@@ -143,11 +179,12 @@ export default function Navbar() {
       const selectedBranch = branch === 'CSE' ? cseSpecialization : branch;
       const isAdmin = user.isAdmin || user.role === 'Administrator' || user.role === 'Admin' || user.email?.toLowerCase() === 'admin@spit.ac.in';
 
-      // 1. If password was entered, update password directly
+      // 1. Update payload including nameColor
       const updatePayload = {
         name: name.trim(),
         branch: selectedBranch,
         currentYear: passoutYear,
+        nameColor: nameColor || '',
         ...(newPassword ? { password: newPassword } : {})
       };
 
@@ -166,7 +203,8 @@ export default function Navbar() {
           const res = await updateUser(user.email, {
             name: name.trim(),
             branch: selectedBranch,
-            currentYear: passoutYear
+            currentYear: passoutYear,
+            nameColor: nameColor || ''
           });
           updatedUser = res.user || res;
         } catch (updateErr) {
@@ -175,7 +213,8 @@ export default function Navbar() {
             name: name.trim(),
             role: user.role || 'Student',
             branch: selectedBranch,
-            currentYear: passoutYear
+            currentYear: passoutYear,
+            nameColor: nameColor || ''
           });
         }
       }
@@ -188,6 +227,7 @@ export default function Navbar() {
         branch: selectedBranch,
         currentYear: passoutYear,
         passoutYear: passoutYear,
+        nameColor: nameColor || '',
         hasPendingEdit: false
       };
       localStorage.setItem('loop_current_user', JSON.stringify(newSession));
@@ -387,29 +427,48 @@ export default function Navbar() {
 
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.5rem' : '0.65rem' }}>
-                {/* Profile Button with First Name */}
-                <button
-                  type="button"
-                  onClick={() => setShowProfileModal(true)}
-                  className="btn btn-secondary"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: isScrolled ? '0.32rem 0.75rem' : '0.42rem 0.85rem',
-                    borderRadius: '20px',
-                    fontSize: isScrolled ? '0.78rem' : '0.84rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.25s ease'
-                  }}
-                  title="View & Edit Profile"
-                >
-                  <UserIcon size={isScrolled ? 12 : 13} />
-                  <span>
-                    {user?.name?.trim() ? user.name.trim().split(/\s+/)[0] : 'Profile'}
-                  </span>
-                </button>
+                {/* Profile Button with First Name & Custom User Color */}
+                {(() => {
+                  const effectiveColor = user?.nameColor || getRandomUserColor(user?.email || user?.id || user?.name || '');
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowProfileModal(true)}
+                      className="btn"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.42rem',
+                        padding: isScrolled ? '0.32rem 0.8rem' : '0.42rem 0.95rem',
+                        borderRadius: '20px',
+                        fontSize: isScrolled ? '0.78rem' : '0.84rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                        backgroundColor: `${effectiveColor}14`,
+                        color: effectiveColor,
+                        border: `1.5px solid ${effectiveColor}38`,
+                        boxShadow: `0 2px 10px ${effectiveColor}1A`
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = `${effectiveColor}24`;
+                        e.currentTarget.style.borderColor = effectiveColor;
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = `${effectiveColor}14`;
+                        e.currentTarget.style.borderColor = `${effectiveColor}38`;
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
+                      title="View & Edit Profile (Change Name Button Color)"
+                    >
+                      <UserIcon size={isScrolled ? 13 : 14} strokeWidth={2.4} style={{ color: effectiveColor }} />
+                      <span style={{ color: effectiveColor, letterSpacing: '-0.01em' }}>
+                        {user?.name?.trim() ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+                      </span>
+                    </button>
+                  );
+                })()}
 
                 {/* Exit / Logout button */}
                 <button 
@@ -480,14 +539,34 @@ export default function Navbar() {
             {user ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <button 
-                    type="button"
-                    onClick={() => { setShowProfileModal(true); setMobileMenuOpen(false); }} 
-                    className="btn btn-secondary" 
-                    style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderRadius: '14px' }}
-                  >
-                    <UserIcon size={14} /> {user?.name?.trim() ? user.name.trim().split(/\s+/)[0] : 'Profile'}
-                  </button>
+                  {(() => {
+                    const effectiveColor = user?.nameColor || getRandomUserColor(user?.email || user?.id || user?.name || '');
+                    return (
+                      <button 
+                        type="button"
+                        onClick={() => { setShowProfileModal(true); setMobileMenuOpen(false); }} 
+                        className="btn" 
+                        style={{
+                          padding: '0.45rem 0.95rem',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          borderRadius: '14px',
+                          fontWeight: 700,
+                          backgroundColor: `${effectiveColor}14`,
+                          color: effectiveColor,
+                          border: `1.5px solid ${effectiveColor}38`,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <UserIcon size={14} style={{ color: effectiveColor }} strokeWidth={2.4} /> 
+                        <span style={{ color: effectiveColor }}>
+                          {user?.name?.trim() ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+                        </span>
+                      </button>
+                    );
+                  })()}
                   <span 
                     className="badge" 
                     style={{ 
@@ -874,7 +953,184 @@ export default function Navbar() {
               </div>
             </div>
 
-            {/* Card 2: Security & Password Change */}
+            {/* Card 2: Name Button Color & Appearance */}
+            <div style={{
+              padding: '1.5rem 1.75rem',
+              borderRadius: '20px',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid var(--border-color)',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--text-primary)',
+                    color: 'var(--bg-surface)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 800
+                  }}>2</div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
+                    Name Button Color
+                  </h3>
+                </div>
+
+                {/* Live Preview of Button */}
+                {(() => {
+                  const previewColor = nameColor || getRandomUserColor(user?.email || user?.id || name || '');
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700 }}>Live Preview:</span>
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        padding: '0.28rem 0.75rem',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        backgroundColor: `${previewColor}14`,
+                        color: previewColor,
+                        border: `1.5px solid ${previewColor}38`,
+                        boxShadow: `0 2px 8px ${previewColor}1A`
+                      }}>
+                        <UserIcon size={13} strokeWidth={2.4} style={{ color: previewColor }} />
+                        <span>{name.trim() ? name.trim().split(/\s+/)[0] : 'Profile'}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0 0 1.15rem 0', lineHeight: 1.45 }}>
+                Personalize your navbar button. Choose a color from the palette, select your own custom shade, or keep it on default (random assigned color).
+              </p>
+
+              {/* Color Presets Grid */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                {PRESET_NAME_COLORS.map(p => {
+                  const isSelected = nameColor.toLowerCase() === p.value.toLowerCase();
+                  if (!p.value) {
+                    // Default / Remove Color button
+                    return (
+                      <button
+                        key="default-random"
+                        type="button"
+                        onClick={() => setNameColor('')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '16px',
+                          border: isSelected ? '1.5px solid var(--text-primary)' : '1px solid var(--border-color)',
+                          backgroundColor: isSelected ? 'var(--text-primary)' : 'var(--bg-secondary)',
+                          color: isSelected ? 'var(--bg-surface)' : 'var(--text-primary)',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        title="Remove custom color and use automatic random color"
+                      >
+                        <span>Default (Random)</span>
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setNameColor(p.value)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        backgroundColor: p.value,
+                        border: isSelected ? '3px solid var(--bg-surface)' : '2px solid transparent',
+                        boxShadow: isSelected ? `0 0 0 2px ${p.value}, 0 4px 10px ${p.value}40` : '0 2px 5px rgba(0,0,0,0.1)',
+                        cursor: 'pointer',
+                        transition: 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+                        transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#FFFFFF'
+                      }}
+                      title={`${p.name} (${p.value})`}
+                    >
+                      {isSelected ? '✓' : ''}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Color Input / Picker */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', paddingTop: '0.75rem', borderTop: '1px dashed var(--border-color)' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Palette size={15} style={{ color: nameColor || 'var(--accent-primary)' }} /> Custom Color Picker:
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="color"
+                    value={nameColor || '#0071E3'}
+                    onChange={(e) => setNameColor(e.target.value)}
+                    style={{
+                      width: '36px',
+                      height: '32px',
+                      padding: 0,
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      backgroundColor: 'transparent'
+                    }}
+                    title="Click to pick any hex color"
+                  />
+                  <input
+                    type="text"
+                    placeholder="#0071E3"
+                    value={nameColor}
+                    onChange={(e) => setNameColor(e.target.value)}
+                    style={{
+                      padding: '0.35rem 0.65rem',
+                      fontSize: '0.82rem',
+                      width: '90px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                  {nameColor && (
+                    <button
+                      type="button"
+                      onClick={() => setNameColor('')}
+                      style={{
+                        padding: '0.35rem 0.65rem',
+                        fontSize: '0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'transparent',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer'
+                      }}
+                      title="Reset back to default random color"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Security & Password Change */}
             <div style={{
               padding: '1.5rem 1.75rem',
               borderRadius: '20px',
@@ -894,7 +1150,7 @@ export default function Navbar() {
                   justifyContent: 'center',
                   fontSize: '0.75rem',
                   fontWeight: 800
-                }}>2</div>
+                }}>3</div>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
                   Security & Password
                 </h3>

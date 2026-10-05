@@ -14,7 +14,9 @@ const UserSchema = new mongoose.Schema({
   pendingRole: { type: String, default: '' },
   pendingBranch: { type: String, default: '' },
   pendingCurrentYear: { type: String, default: '' },
-  hasPendingEdit: { type: Boolean, default: false }
+  hasPendingEdit: { type: Boolean, default: false },
+  nameColor: { type: String, default: '' },
+  pendingNameColor: { type: String, default: '' }
 }, { timestamps: true });
 
 UserSchema.index({ createdAt: -1 });

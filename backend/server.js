@@ -692,6 +692,7 @@ app.post('/api/users/login', async (req, res) => {
       currentYear: user.currentYear,
       onboarded: isUserAdmin ? true : user.onboarded,
       isAdmin: isUserAdmin,
+      nameColor: user.nameColor || '',
       token
     });
   } catch (err) {
@@ -767,7 +768,7 @@ app.put('/api/users/:email', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied. You can only update your own profile.' });
     }
 
-    const { name, role, branch, currentYear, status, password } = req.body;
+    const { name, role, branch, currentYear, status, password, nameColor } = req.body;
 
     // Input size limits
     if (name !== undefined && (typeof name !== 'string' || name.length > 200)) {
@@ -782,6 +783,9 @@ app.put('/api/users/:email', authenticateToken, async (req, res) => {
     if (password !== undefined && (typeof password !== 'string' || password.length > 100)) {
       return res.status(400).json({ error: 'Invalid password.' });
     }
+    if (nameColor !== undefined && typeof nameColor === 'string' && nameColor.length > 50) {
+      return res.status(400).json({ error: 'Invalid name color format.' });
+    }
     
     const user = await User.findOne({ email: new RegExp('^' + escapeRegExp(email.trim()) + '$', 'i') });
     if (!user) {
@@ -791,6 +795,7 @@ app.put('/api/users/:email', authenticateToken, async (req, res) => {
     if (name !== undefined) user.name = sanitizeString(name.trim());
     if (branch !== undefined) user.branch = sanitizeString(branch.trim());
     if (currentYear !== undefined) user.currentYear = sanitizeString(String(currentYear).trim());
+    if (nameColor !== undefined) user.nameColor = sanitizeString(nameColor.trim());
     
     // Status can only be changed by Admin
     if (status !== undefined && isUserAdmin) {
@@ -887,7 +892,7 @@ app.post('/api/users/:email/edit-request', authenticateToken, async (req, res) =
       return res.status(403).json({ error: 'Access denied. You can only request edits for your own profile.' });
     }
 
-    const { name, role, branch, currentYear } = req.body;
+    const { name, role, branch, currentYear, nameColor } = req.body;
     
     if (!name || !role || !branch || !currentYear) {
       return res.status(400).json({ error: 'Name, role, branch, and current year are all required.' });
@@ -908,6 +913,9 @@ app.post('/api/users/:email/edit-request', authenticateToken, async (req, res) =
     }
     user.pendingBranch = sanitizeString(branch.trim());
     user.pendingCurrentYear = sanitizeString(currentYear.trim());
+    if (nameColor !== undefined) {
+      user.pendingNameColor = sanitizeString(nameColor.trim());
+    }
     user.hasPendingEdit = true;
     
     await user.save();
@@ -922,10 +930,12 @@ app.post('/api/users/:email/edit-request', authenticateToken, async (req, res) =
       currentYear: user.currentYear,
       onboarded: user.onboarded,
       isAdmin: isUserAdmin,
+      nameColor: user.nameColor,
       pendingName: user.pendingName,
       pendingRole: user.pendingRole,
       pendingBranch: user.pendingBranch,
       pendingCurrentYear: user.pendingCurrentYear,
+      pendingNameColor: user.pendingNameColor,
       hasPendingEdit: user.hasPendingEdit
     });
   } catch (err) {
@@ -951,12 +961,16 @@ app.post('/api/users/:email/approve-edit', authenticateToken, requireAdmin, asyn
     user.role = user.pendingRole;
     user.branch = user.pendingBranch;
     user.currentYear = user.pendingCurrentYear;
+    if (user.pendingNameColor !== undefined) {
+      user.nameColor = user.pendingNameColor;
+    }
     
     // Clear pending fields
     user.pendingName = '';
     user.pendingRole = '';
     user.pendingBranch = '';
     user.pendingCurrentYear = '';
+    user.pendingNameColor = '';
     user.hasPendingEdit = false;
     
     await user.save();
@@ -981,6 +995,7 @@ app.post('/api/users/:email/reject-edit', authenticateToken, requireAdmin, async
     user.pendingRole = '';
     user.pendingBranch = '';
     user.pendingCurrentYear = '';
+    user.pendingNameColor = '';
     user.hasPendingEdit = false;
     
     await user.save();
