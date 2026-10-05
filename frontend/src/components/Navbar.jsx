@@ -211,8 +211,9 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <header
-      className="navbar-header-sticky"
+    <>
+      <header
+        className="navbar-header-sticky"
       style={{
         position: 'sticky',
         top: 0,
@@ -518,475 +519,6 @@ export default function Navbar() {
       )}
       </nav>
 
-      {/* Profile Modal */}
-      {showProfileModal && typeof document !== 'undefined' && createPortal(
-        <div 
-          onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.65)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '1.5rem',
-            overflow: 'hidden',
-            overscrollBehavior: 'contain'
-          }}
-        >
-          <div 
-            onClick={(e) => e.stopPropagation()}
-            className="animate-fade-in"
-            style={{
-              width: '100%',
-              maxWidth: '680px',
-              borderRadius: '28px',
-              backgroundColor: 'var(--bg-surface)',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 30px 80px rgba(0, 0, 0, 0.28), 0 4px 20px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              overscrollBehavior: 'contain',
-              position: 'relative',
-              padding: '2.5rem 2.5rem 2.25rem 2.5rem'
-            }}
-          >
-            {/* Close Button - Apple Style Circle Button (Cross) */}
-            <button 
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowProfileModal(false);
-                setError('');
-                setSuccess('');
-              }}
-              style={{
-                position: 'absolute',
-                top: '1.5rem',
-                right: '1.5rem',
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-color)',
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 100,
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--text-primary)';
-                e.currentTarget.style.color = 'var(--bg-surface)';
-                e.currentTarget.style.transform = 'scale(1.08)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                e.currentTarget.style.color = 'var(--text-primary)';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-              aria-label="Close Profile"
-              title="Close (Esc)"
-            >
-              <X size={20} strokeWidth={2.2} />
-            </button>
-
-            {/* Header Banner - Matching Share Your Journey */}
-            <div style={{ marginBottom: '2rem' }}>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.3rem 0.75rem',
-                borderRadius: '20px',
-                backgroundColor: 'rgba(212, 255, 50, 0.22)',
-                border: '1px solid rgba(212, 255, 50, 0.45)',
-                color: 'var(--text-primary)',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                letterSpacing: '0.04em',
-                textTransform: 'uppercase',
-                marginBottom: '0.75rem'
-              }}>
-                Account & Profile Settings
-              </div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 0.4rem 0', color: 'var(--text-primary)' }}>
-                User Profile
-              </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span>{user.email}</span>
-                <span style={{ opacity: 0.4 }}>•</span>
-                <span style={{ 
-                  display: 'inline-block',
-                  padding: '0.15rem 0.55rem',
-                  borderRadius: '12px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)'
-                }}>
-                  {user.role || 'Student'}
-                </span>
-              </p>
-            </div>
-
-            {user.hasPendingEdit && (
-              <div style={{
-                backgroundColor: 'rgba(255, 149, 0, 0.12)',
-                border: '1px solid rgba(255, 149, 0, 0.3)',
-                color: '#ff9500',
-                borderRadius: '16px',
-                padding: '0.85rem 1.15rem',
-                fontSize: '0.82rem',
-                marginBottom: '1.5rem',
-                textAlign: 'left',
-                fontWeight: 500,
-                lineHeight: 1.45
-              }}>
-                ⚠️ <strong>Pending Request:</strong> Your previous profile edit request is currently under review by the administrator.
-              </div>
-            )}
-
-            {error && (
-              <div style={{
-                backgroundColor: 'rgba(255, 69, 58, 0.12)',
-                border: '1px solid rgba(255, 69, 58, 0.3)',
-                color: '#ff453a',
-                borderRadius: '16px',
-                padding: '0.85rem 1.15rem',
-                fontSize: '0.82rem',
-                marginBottom: '1.5rem',
-                textAlign: 'left',
-                fontWeight: 500
-              }}>
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div style={{
-                backgroundColor: 'rgba(52, 199, 89, 0.12)',
-                border: '1px solid rgba(52, 199, 89, 0.3)',
-                color: '#34c759',
-                borderRadius: '16px',
-                padding: '0.85rem 1.15rem',
-                fontSize: '0.82rem',
-                marginBottom: '1.5rem',
-                textAlign: 'center',
-                fontWeight: 600
-              }}>
-                ✓ {success}
-              </div>
-            )}
-
-            <form onSubmit={handleProfileSubmit}>
-              {/* Card 1: Academic & Personal Details */}
-              <div style={{
-                padding: '1.5rem 1.75rem',
-                borderRadius: '20px',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid var(--border-color)',
-                marginBottom: '1.5rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                  <div style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    backgroundColor: 'var(--text-primary)',
-                    color: 'var(--bg-surface)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                    fontWeight: 800
-                  }}>1</div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
-                    Academic & Personal Details
-                  </h3>
-                </div>
-
-                {/* Name */}
-                <div className="input-group" style={{ marginBottom: '1.25rem' }}>
-                  <label className="input-label">Full Name *</label>
-                  <div style={{ position: 'relative' }}>
-                    <UserIcon size={16} style={{
-                      position: 'absolute',
-                      left: '1rem',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: 'var(--text-secondary)',
-                      pointerEvents: 'none'
-                    }} />
-                    <input
-                      type="text"
-                      className="input-field"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      style={{ paddingLeft: '2.75rem' }}
-                      disabled={loading}
-                      placeholder="e.g. John Doe"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Branch, Specialization, Passout Year Grid */}
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: branch === 'CSE' ? 'repeat(auto-fit, minmax(160px, 1fr))' : 'repeat(auto-fit, minmax(200px, 1fr))', 
-                  gap: '1rem' 
-                }}>
-                  {/* Branch select */}
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">Branch *</label>
-                    <div style={{ position: 'relative' }}>
-                      <BookOpen size={16} style={{
-                        position: 'absolute',
-                        left: '1rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: 'var(--text-secondary)',
-                        pointerEvents: 'none'
-                      }} />
-                      <select
-                        className="input-field"
-                        value={branch}
-                        onChange={(e) => setBranch(e.target.value)}
-                        style={{ 
-                          paddingLeft: '2.75rem',
-                          paddingRight: '2.5rem',
-                          appearance: 'none',
-                          WebkitAppearance: 'none',
-                          backgroundColor: 'var(--bg-secondary)',
-                          color: 'var(--text-primary)',
-                          cursor: loading ? 'not-allowed' : 'pointer'
-                        }}
-                        disabled={loading}
-                      >
-                        <option value="CSE">CSE</option>
-                        <option value="CE">CE</option>
-                        <option value="EXTC">EXTC</option>
-                      </select>
-                      <ChevronDown size={16} style={{
-                        position: 'absolute',
-                        right: '1rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: 'var(--text-secondary)',
-                        pointerEvents: 'none'
-                      }} />
-                    </div>
-                  </div>
-
-                  {/* Sub-Category (if CSE) */}
-                  {branch === 'CSE' && (
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Sub-Category *</label>
-                      <div style={{ position: 'relative' }}>
-                        <select
-                          className="input-field"
-                          value={cseSpecialization}
-                          onChange={(e) => setCseSpecialization(e.target.value)}
-                          style={{ 
-                            paddingRight: '2.5rem',
-                            appearance: 'none',
-                            WebkitAppearance: 'none',
-                            backgroundColor: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)',
-                            cursor: loading ? 'not-allowed' : 'pointer'
-                          }}
-                          disabled={loading}
-                        >
-                          <option value="CSE">CSE</option>
-                          <option value="CSE AI">AI</option>
-                          <option value="CSE DS">DS</option>
-                        </select>
-                        <ChevronDown size={16} style={{
-                          position: 'absolute',
-                          right: '1rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          color: 'var(--text-secondary)',
-                          pointerEvents: 'none'
-                        }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Passout Year input */}
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">Which year are you / Passout Year *</label>
-                    <div style={{ position: 'relative' }}>
-                      <Calendar size={16} style={{
-                        position: 'absolute',
-                        left: '1rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: 'var(--text-secondary)',
-                        pointerEvents: 'none'
-                      }} />
-                      <input 
-                        type="number"
-                        className="input-field"
-                        placeholder="2026"
-                        value={passoutYear}
-                        onChange={(e) => setPassoutYear(e.target.value)}
-                        style={{ paddingLeft: '2.75rem' }}
-                        disabled={loading}
-                        required
-                        min="2000"
-                        max="2035"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Security & Password Change */}
-              <div style={{
-                padding: '1.5rem 1.75rem',
-                borderRadius: '20px',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid var(--border-color)',
-                marginBottom: '1.75rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                  <div style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    backgroundColor: 'var(--text-primary)',
-                    color: 'var(--bg-surface)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                    fontWeight: 800
-                  }}>2</div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
-                    Security & Password
-                  </h3>
-                </div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0 0 1.25rem 0' }}>
-                  Leave blank if you do not want to change your current password.
-                </p>
-
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-                  gap: '1rem' 
-                }}>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">New Password</label>
-                    <div style={{ position: 'relative' }}>
-                      <Lock size={16} style={{
-                        position: 'absolute',
-                        left: '1rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: 'var(--text-secondary)',
-                        pointerEvents: 'none'
-                      }} />
-                      <input 
-                        type="password"
-                        className="input-field"
-                        placeholder="New password (min 6 chars)"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        style={{ paddingLeft: '2.75rem' }}
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">Confirm New Password</label>
-                    <div style={{ position: 'relative' }}>
-                      <Lock size={16} style={{
-                        position: 'absolute',
-                        left: '1rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: 'var(--text-secondary)',
-                        pointerEvents: 'none'
-                      }} />
-                      <input 
-                        type="password"
-                        className="input-field"
-                        placeholder="Re-enter new password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        style={{ paddingLeft: '2.75rem' }}
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
-                  style={{
-                    flex: 1,
-                    padding: '0.9rem',
-                    borderRadius: '14px',
-                    backgroundColor: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                    fontWeight: 600,
-                    fontSize: '0.92rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{
-                    flex: 2,
-                    padding: '0.9rem',
-                    borderRadius: '14px',
-                    border: 'none',
-                    backgroundColor: 'var(--accent-color)',
-                    color: 'var(--accent-inverse)',
-                    fontWeight: 700,
-                    fontSize: '0.92rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
-                    transition: 'all 0.2s'
-                  }}
-                  disabled={loading}
-                >
-                  {loading ? 'Saving...' : 'Save & Update Profile'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
       {/* Inline styles for responsive grid */}
       <style>{`
         @media (max-width: 900px) {
@@ -1003,5 +535,478 @@ export default function Navbar() {
         }
       `}</style>
     </header>
+
+    {/* Profile Modal - Clean Portal Overlay (outside header to avoid any pointer-events interference) */}
+    {showProfileModal && typeof document !== 'undefined' && createPortal(
+      <div 
+        onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          backdropFilter: 'blur(30px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(30px) saturate(190%)',
+          zIndex: 100000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2rem 1.5rem',
+          overflow: 'hidden',
+          overscrollBehavior: 'contain',
+          pointerEvents: 'auto'
+        }}
+      >
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="animate-fade-in custom-scrollbar"
+          style={{
+            width: '100%',
+            maxWidth: '680px',
+            borderRadius: '28px',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 30px 80px rgba(0, 0, 0, 0.28), 0 4px 20px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            position: 'relative',
+            padding: '2.75rem 2.5rem 2.25rem 2.5rem',
+            pointerEvents: 'auto'
+          }}
+        >
+          {/* Close Button - Apple Style Circle Button (Cross) */}
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowProfileModal(false);
+              setError('');
+              setSuccess('');
+            }}
+            style={{
+              position: 'absolute',
+              top: '1.5rem',
+              right: '1.5rem',
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              cursor: 'pointer',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 100,
+              pointerEvents: 'auto',
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--text-primary)';
+              e.currentTarget.style.color = 'var(--bg-surface)';
+              e.currentTarget.style.transform = 'scale(1.08)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+              e.currentTarget.style.color = 'var(--text-primary)';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+            aria-label="Close Profile"
+            title="Close (Esc)"
+          >
+            <X size={20} strokeWidth={2.2} style={{ pointerEvents: 'none' }} />
+          </button>
+
+          {/* Header Banner - Matching Share Your Journey */}
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              padding: '0.3rem 0.75rem',
+              borderRadius: '20px',
+              backgroundColor: 'rgba(212, 255, 50, 0.22)',
+              border: '1px solid rgba(212, 255, 50, 0.45)',
+              color: 'var(--text-primary)',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              marginBottom: '0.75rem'
+            }}>
+              Account & Profile Settings
+            </div>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 0.4rem 0', color: 'var(--text-primary)' }}>
+              User Profile
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span>{user?.email}</span>
+              <span style={{ opacity: 0.4 }}>•</span>
+              <span style={{ 
+                display: 'inline-block',
+                padding: '0.15rem 0.55rem',
+                borderRadius: '12px',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'var(--text-primary)'
+              }}>
+                {user?.role || 'Student'}
+              </span>
+            </p>
+          </div>
+
+          {user?.hasPendingEdit && (
+            <div style={{
+              backgroundColor: 'rgba(255, 149, 0, 0.12)',
+              border: '1px solid rgba(255, 149, 0, 0.3)',
+              color: '#ff9500',
+              borderRadius: '16px',
+              padding: '0.85rem 1.15rem',
+              fontSize: '0.82rem',
+              marginBottom: '1.5rem',
+              textAlign: 'left',
+              fontWeight: 500,
+              lineHeight: 1.45
+            }}>
+              ⚠️ <strong>Pending Request:</strong> Your previous profile edit request is currently under review by the administrator.
+            </div>
+          )}
+
+          {error && (
+            <div style={{
+              backgroundColor: 'rgba(255, 69, 58, 0.12)',
+              border: '1px solid rgba(255, 69, 58, 0.3)',
+              color: '#ff453a',
+              borderRadius: '16px',
+              padding: '0.85rem 1.15rem',
+              fontSize: '0.82rem',
+              marginBottom: '1.5rem',
+              textAlign: 'left',
+              fontWeight: 500
+            }}>
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div style={{
+              backgroundColor: 'rgba(52, 199, 89, 0.12)',
+              border: '1px solid rgba(52, 199, 89, 0.3)',
+              color: '#34c759',
+              borderRadius: '16px',
+              padding: '0.85rem 1.15rem',
+              fontSize: '0.82rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center',
+              fontWeight: 600
+            }}>
+              ✓ {success}
+            </div>
+          )}
+
+          <form onSubmit={handleProfileSubmit}>
+            {/* Card 1: Academic & Personal Details */}
+            <div style={{
+              padding: '1.5rem 1.75rem',
+              borderRadius: '20px',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid var(--border-color)',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--text-primary)',
+                  color: 'var(--bg-surface)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 800
+                }}>1</div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
+                  Academic & Personal Details
+                </h3>
+              </div>
+
+              {/* Name */}
+              <div className="input-group" style={{ marginBottom: '1.25rem' }}>
+                <label className="input-label">Full Name *</label>
+                <div style={{ position: 'relative' }}>
+                  <UserIcon size={16} style={{
+                    position: 'absolute',
+                    left: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--text-secondary)',
+                    pointerEvents: 'none'
+                  }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={{ paddingLeft: '2.75rem', cursor: 'text' }}
+                    disabled={loading}
+                    placeholder="e.g. John Doe"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Branch, Specialization, Passout Year Grid */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: branch === 'CSE' ? 'repeat(auto-fit, minmax(160px, 1fr))' : 'repeat(auto-fit, minmax(200px, 1fr))', 
+                gap: '1rem' 
+              }}>
+                {/* Branch select */}
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Branch *</label>
+                  <div style={{ position: 'relative' }}>
+                    <BookOpen size={16} style={{
+                      position: 'absolute',
+                      left: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-secondary)',
+                      pointerEvents: 'none'
+                    }} />
+                    <select
+                      className="input-field"
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      style={{ 
+                        paddingLeft: '2.75rem',
+                        paddingRight: '2.5rem',
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        cursor: loading ? 'not-allowed' : 'pointer'
+                      }}
+                      disabled={loading}
+                    >
+                      <option value="CSE">CSE</option>
+                      <option value="CE">CE</option>
+                      <option value="EXTC">EXTC</option>
+                    </select>
+                    <ChevronDown size={16} style={{
+                      position: 'absolute',
+                      right: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-secondary)',
+                      pointerEvents: 'none'
+                    }} />
+                  </div>
+                </div>
+
+                {/* Sub-Category (if CSE) */}
+                {branch === 'CSE' && (
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">Sub-Category *</label>
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        className="input-field"
+                        value={cseSpecialization}
+                        onChange={(e) => setCseSpecialization(e.target.value)}
+                        style={{ 
+                          paddingRight: '2.5rem',
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text-primary)',
+                          cursor: loading ? 'not-allowed' : 'pointer'
+                        }}
+                        disabled={loading}
+                      >
+                        <option value="CSE">CSE</option>
+                        <option value="CSE AI">AI</option>
+                        <option value="CSE DS">DS</option>
+                      </select>
+                      <ChevronDown size={16} style={{
+                        position: 'absolute',
+                        right: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none'
+                      }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Passout Year input */}
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Which year are you / Passout Year *</label>
+                  <div style={{ position: 'relative' }}>
+                    <Calendar size={16} style={{
+                      position: 'absolute',
+                      left: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-secondary)',
+                      pointerEvents: 'none'
+                    }} />
+                    <input 
+                      type="number"
+                      className="input-field"
+                      placeholder="2026"
+                      value={passoutYear}
+                      onChange={(e) => setPassoutYear(e.target.value)}
+                      style={{ paddingLeft: '2.75rem', cursor: 'text' }}
+                      disabled={loading}
+                      required
+                      min="2000"
+                      max="2035"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Security & Password Change */}
+            <div style={{
+              padding: '1.5rem 1.75rem',
+              borderRadius: '20px',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid var(--border-color)',
+              marginBottom: '1.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--text-primary)',
+                  color: 'var(--bg-surface)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 800
+                }}>2</div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: 'var(--text-primary)' }}>
+                  Security & Password
+                </h3>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0 0 1.25rem 0' }}>
+                Leave blank if you do not want to change your current password.
+              </p>
+
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
+                gap: '1rem' 
+              }}>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">New Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={16} style={{
+                      position: 'absolute',
+                      left: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-secondary)',
+                      pointerEvents: 'none'
+                    }} />
+                    <input 
+                      type="password"
+                      className="input-field"
+                      placeholder="New password (min 6 chars)"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      style={{ paddingLeft: '2.75rem', cursor: 'text' }}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Confirm New Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={16} style={{
+                      position: 'absolute',
+                      left: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-secondary)',
+                      pointerEvents: 'none'
+                    }} />
+                    <input 
+                      type="password"
+                      className="input-field"
+                      placeholder="Re-enter new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      style={{ paddingLeft: '2.75rem', cursor: 'text' }}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => { setShowProfileModal(false); setError(''); setSuccess(''); }}
+                style={{
+                  flex: 1,
+                  padding: '0.9rem',
+                  borderRadius: '14px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 600,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{
+                  flex: 2,
+                  padding: '0.9rem',
+                  borderRadius: '14px',
+                  border: 'none',
+                  backgroundColor: 'var(--accent-color)',
+                  color: 'var(--accent-inverse)',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
+                  transition: 'all 0.2s'
+                }}
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Save & Update Profile'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>,
+      document.body
+    )}
+  </>
   );
 }
