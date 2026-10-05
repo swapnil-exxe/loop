@@ -15,6 +15,154 @@ import {
 import { useCachedData } from '../hooks/useCachedData';
 import { useUpload } from '../context/UploadContext';
 
+function ResourceFolder3DCard({ folder, isPrivate, resCount, onClick, onEdit, onDelete }) {
+  const cardRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  const handleMouseMove = (e) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -5;
+    const rotateY = ((x - centerX) / centerX) * 5;
+    setTilt({ x: rotateX, y: rotateY, active: true });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0, active: false });
+  };
+
+  const transformStyle = isVisible
+    ? tilt.active
+      ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-6px) scale(1.02)`
+      : 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0) scale(1)'
+    : 'perspective(1000px) rotateX(12deg) translateY(45px) scale(0.96)';
+
+  return (
+    <div
+      ref={cardRef}
+      onClick={onClick}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="bento-card glass-panel"
+      style={{
+        padding: '1.75rem',
+        borderRadius: '22px',
+        cursor: 'pointer',
+        border: '1px solid var(--border-color)',
+        backgroundColor: 'var(--bg-surface)',
+        boxShadow: tilt.active
+          ? '0 24px 50px -10px rgba(0, 0, 0, 0.25), 0 0 1px 1px rgba(255, 255, 255, 0.15) inset'
+          : 'var(--card-shadow)',
+        transform: transformStyle,
+        opacity: isVisible ? 1 : 0,
+        transition: tilt.active
+          ? 'transform 0.12s ease-out, box-shadow 0.25s ease, border-color 0.25s ease'
+          : 'transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.25s ease',
+        transformStyle: 'preserve-3d',
+        willChange: 'transform, opacity',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        minHeight: '190px'
+      }}
+    >
+      <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+          <div style={{
+            backgroundColor: isPrivate ? 'rgba(255, 159, 10, 0.12)' : 'rgba(212, 255, 50, 0.22)',
+            border: isPrivate ? '1px solid rgba(255, 159, 10, 0.3)' : '1px solid rgba(212, 255, 50, 0.45)',
+            borderRadius: '12px',
+            padding: '0.55rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            {isPrivate ? <Lock size={20} color="#ff9f0a" /> : <Folder size={20} color="var(--text-primary)" />}
+          </div>
+          <span style={{
+            backgroundColor: isPrivate ? 'rgba(255, 159, 10, 0.15)' : 'rgba(212, 255, 50, 0.25)',
+            border: isPrivate ? '1px solid rgba(255, 159, 10, 0.3)' : '1px solid rgba(212, 255, 50, 0.45)',
+            color: isPrivate ? '#ff9f0a' : 'var(--text-primary)',
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            padding: '0.2rem 0.55rem',
+            borderRadius: '10px',
+            letterSpacing: '0.04em'
+          }}>
+            {isPrivate ? 'PRIVATE' : 'OFFICIAL'}
+          </span>
+        </div>
+        <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: '0 0 0.4rem 0', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+          {folder.name}
+        </h3>
+        <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+          {folder.description || (isPrivate ? 'Personal private resource folder.' : 'Academic course modules and semester question banks.')}
+        </p>
+      </div>
+
+      <div style={{ marginTop: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+          <span>{isPrivate ? 'Personal Vault' : 'Curated Academic Vault'}</span>
+          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{resCount} {resCount === 1 ? 'file' : 'files'}</span>
+        </div>
+        <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem' }}>
+          <div style={{ height: '100%', width: resCount > 0 ? '100%' : (isPrivate ? '15%' : '20%'), backgroundColor: isPrivate ? '#ff9f0a' : 'var(--text-primary)', borderRadius: '999px' }} />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{isPrivate ? 'Visible only to you' : 'Verified SPIT Material'}</span>
+          {isPrivate ? (
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={onEdit}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                title="Rename Folder"
+              >
+                <Edit size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                title="Delete Folder"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ) : (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.78rem' }}>
+              Explore <ChevronRight size={13} />
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Resources() {
   const navigate = useNavigate();
   const { data: cachedResources, loading: loadingResources, mutate: mutateResources } = useCachedData('resources', getResources);
@@ -708,68 +856,13 @@ export default function Resources() {
                 {systemFolders.map(folder => {
                   const resCount = getResourceCountForFolder(folder.id);
                   return (
-                    <div
+                    <ResourceFolder3DCard
                       key={folder.id}
+                      folder={folder}
+                      isPrivate={false}
+                      resCount={resCount}
                       onClick={() => setCurrentFolderId(folder.id)}
-                      className="bento-card glass-panel"
-                      style={{
-                        padding: '1.75rem',
-                        borderRadius: '22px',
-                        cursor: 'pointer',
-                        border: '1px solid var(--border-color)',
-                        backgroundColor: 'var(--bg-surface)',
-                        boxShadow: 'var(--card-shadow)',
-                        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                        position: 'relative',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        minHeight: '190px'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.borderColor = 'var(--text-primary)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                      }}
-                    >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                          <div style={{ backgroundColor: 'rgba(212, 255, 50, 0.22)', border: '1px solid rgba(212, 255, 50, 0.45)', borderRadius: '12px', padding: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Folder size={20} color="var(--text-primary)" />
-                          </div>
-                          <span style={{ backgroundColor: 'rgba(212, 255, 50, 0.25)', border: '1px solid rgba(212, 255, 50, 0.45)', color: 'var(--text-primary)', fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '10px', letterSpacing: '0.04em' }}>
-                            OFFICIAL
-                          </span>
-                        </div>
-                        <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: '0 0 0.4rem 0', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-                          {folder.name}
-                        </h3>
-                        <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
-                          {folder.description || 'Academic course modules and semester question banks.'}
-                        </p>
-                      </div>
-
-                      <div style={{ marginTop: '1.25rem' }}>
-                        {/* Progress / Metric Bar (Image 3 inspired) */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                          <span>Curated Academic Vault</span>
-                          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{resCount} {resCount === 1 ? 'file' : 'files'}</span>
-                        </div>
-                        <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem' }}>
-                          <div style={{ height: '100%', width: resCount > 0 ? '100%' : '20%', backgroundColor: 'var(--text-primary)', borderRadius: '999px' }} />
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Verified SPIT Material</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.78rem' }}>
-                            Explore <ChevronRight size={13} />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    />
                   );
                 })}
               </div>
@@ -835,81 +928,15 @@ export default function Resources() {
                   {myPrivateFolders.map(folder => {
                     const resCount = getResourceCountForFolder(folder.id);
                     return (
-                      <div
+                      <ResourceFolder3DCard
                         key={folder.id}
+                        folder={folder}
+                        isPrivate={true}
+                        resCount={resCount}
                         onClick={() => setCurrentFolderId(folder.id)}
-                        className="bento-card glass-panel"
-                        style={{
-                          padding: '1.75rem',
-                          borderRadius: '22px',
-                          cursor: 'pointer',
-                          border: '1px solid var(--border-color)',
-                          backgroundColor: 'var(--bg-surface)',
-                          boxShadow: 'var(--card-shadow)',
-                          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between',
-                          minHeight: '190px'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.borderColor = '#ff9f0a';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.borderColor = 'var(--border-color)';
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                            <div style={{ backgroundColor: 'rgba(255, 159, 10, 0.12)', borderRadius: '12px', padding: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Lock size={20} color="#ff9f0a" />
-                            </div>
-                            <span style={{ backgroundColor: 'rgba(255, 159, 10, 0.15)', color: '#ff9f0a', fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '10px', letterSpacing: '0.04em' }}>
-                              PRIVATE
-                            </span>
-                          </div>
-                          <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: '0 0 0.4rem 0', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-                            {folder.name}
-                          </h3>
-                          <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
-                            {folder.description || 'Personal private resource folder.'}
-                          </p>
-                        </div>
-
-                        <div style={{ marginTop: '1.25rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                            <span>Personal Vault</span>
-                            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{resCount} {resCount === 1 ? 'file' : 'files'}</span>
-                          </div>
-                          <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem' }}>
-                            <div style={{ height: '100%', width: resCount > 0 ? '100%' : '15%', backgroundColor: '#ff9f0a', borderRadius: '999px' }} />
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Visible only to you</span>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => setEditingFolder(folder)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
-                                title="Rename Folder"
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirm({ type: 'folder', item: folder })}
-                                style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
-                                title="Delete Folder"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        onEdit={() => setEditingFolder(folder)}
+                        onDelete={() => setDeleteConfirm({ type: 'folder', item: folder })}
+                      />
                     );
                   })}
                 </div>

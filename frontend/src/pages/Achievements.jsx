@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar, ArrowUpRight, Search, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAchievements } from '../utils/db';
@@ -76,6 +76,238 @@ const parseSliders = (posStr) => {
     inner: { ...p }
   };
 };
+
+function Achievement3DCard({ item, navigate }) {
+  const cardRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  const handleMouseMove = (e) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -4;
+    const rotateY = ((x - centerX) / centerX) * 4;
+    setTilt({ x: rotateX, y: rotateY, active: true });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0, active: false });
+  };
+
+  const transformStyle = isVisible
+    ? tilt.active
+      ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(-6px) scale(1.012)`
+      : 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0) scale(1)'
+    : 'perspective(1000px) rotateX(12deg) translateY(45px) scale(0.96)';
+
+  return (
+    <article
+      ref={cardRef}
+      onClick={() => navigate(`/achievements/${item.id}`)}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="bento-card loop-card achievement-card"
+      style={{
+        padding: '2rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.25rem',
+        cursor: 'pointer',
+        borderRadius: '24px',
+        border: '1px solid var(--border-color)',
+        backgroundColor: 'var(--bg-surface)',
+        boxShadow: tilt.active
+          ? '0 24px 50px -10px rgba(0, 0, 0, 0.28), 0 0 1px 1px rgba(255, 255, 255, 0.15) inset'
+          : 'var(--card-shadow)',
+        transform: transformStyle,
+        opacity: isVisible ? 1 : 0,
+        transition: tilt.active
+          ? 'transform 0.12s ease-out, box-shadow 0.25s ease, border-color 0.25s ease'
+          : 'transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.25s ease',
+        transformStyle: 'preserve-3d',
+        willChange: 'transform, opacity'
+      }}
+    >
+      {/* Card Header (Meta Info) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span 
+          style={{
+            backgroundColor: 'rgba(212, 255, 50, 0.22)',
+            color: 'var(--text-primary)',
+            border: '1px solid rgba(212, 255, 50, 0.45)',
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+            padding: '0.25rem 0.75rem',
+            borderRadius: '12px'
+          }}
+        >
+          {item.category}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <Calendar size={13} style={{ color: 'var(--text-secondary)' }} />
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+            {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </span>
+        </div>
+      </div>
+
+      {/* Title & Description */}
+      <div>
+        <h3 style={{
+          fontSize: '1.4rem',
+          fontWeight: 700,
+          lineHeight: '1.3',
+          marginBottom: '0.75rem',
+          color: 'var(--text-primary)',
+          fontFamily: 'var(--font-display)'
+        }}>
+          {item.title}
+        </h3>
+        <p style={{
+          fontSize: '0.92rem',
+          color: 'var(--text-secondary)',
+          lineHeight: '1.6',
+          margin: 0
+        }}>
+          {item.description && item.description.length > 180 
+            ? item.description.slice(0, 180) + '...' 
+            : item.description}
+        </p>
+      </div>
+
+      {/* Image under text */}
+      <div style={{
+        width: '100%',
+        aspectRatio: '2.42 / 1',
+        overflow: 'hidden',
+        borderRadius: '12px',
+        position: 'relative',
+        backgroundColor: 'var(--bg-secondary)'
+      }}>
+        {(() => {
+          const isCrop = item.imageFit === 'crop' && item.imagePosition && item.imagePosition.startsWith('crop:');
+          if (isCrop) {
+            const cropData = parseCrop(item.imagePosition);
+            const { x, y, w, h } = cropData.outer;
+            return (
+              <img 
+                src={item.image} 
+                alt={item.title} 
+                style={{
+                  position: 'absolute',
+                  width: `${10000 / w}%`,
+                  height: `${10000 / h}%`,
+                  left: `${-x * (100 / w)}%`,
+                  top: `${-y * (100 / h)}%`,
+                  objectFit: 'cover',
+                  transition: 'transform 0.5s ease',
+                  transformOrigin: 'center',
+                  '--zoom-scale': 1.0,
+                  transform: 'scale(var(--zoom-scale))'
+                }}
+                className="achievement-image"
+              />
+            );
+          }
+          if (item.imageFit === 'cover') {
+            const slidersData = parseSliders(item.imagePosition);
+            const p = slidersData.outer;
+            return (
+              <img 
+                src={item.image} 
+                alt={item.title} 
+                style={{
+                  position: 'absolute',
+                  width: `${p.zoom * 100}%`,
+                  height: `${p.zoom * 100}%`,
+                  left: `${-p.x * (p.zoom - 1)}%`,
+                  top: `${-p.y * (p.zoom - 1)}%`,
+                  objectFit: 'cover',
+                  objectPosition: `${p.x}% ${p.y}%`,
+                  transition: 'transform 0.5s ease',
+                  transformOrigin: 'center',
+                  '--zoom-scale': 1.0,
+                  transform: 'scale(var(--zoom-scale))'
+                }}
+                className="achievement-image"
+              />
+            );
+          }
+          const p = parsePosition(item.imagePosition);
+          return (
+            <img 
+              src={item.image} 
+              alt={item.title} 
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: item.imageFit || 'cover',
+                objectPosition: `${p.x}% ${p.y}%`,
+                transition: 'transform 0.5s ease',
+                transformOrigin: 'center',
+                '--zoom-scale': p.zoom,
+                transform: 'scale(var(--zoom-scale))'
+              }}
+              className="achievement-image"
+            />
+          );
+        })()}
+      </div>
+
+      {/* Footer action */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingTop: '0.75rem',
+        borderTop: '1px solid var(--border-color)',
+        flexWrap: 'wrap',
+        gap: '0.5rem'
+      }}>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          Sardar Patel Institute of Technology
+        </span>
+        <span
+          className="btn btn-primary"
+          style={{
+            padding: '0.5rem 1.1rem',
+            borderRadius: '999px',
+            fontSize: '0.78rem',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem'
+          }}
+        >
+          <span>Explore Milestone</span>
+          <ArrowUpRight size={13} />
+        </span>
+      </div>
+    </article>
+  );
+}
 
 export default function Achievements() {
   const { data: cachedAchievements, loading, error: fetchError, refresh } = useCachedData('achievements', getAchievements);
@@ -346,181 +578,7 @@ export default function Achievements() {
           gap: '2.5rem'
         }}>
           {sortedAndFilteredAchievements.map((item) => (
-            <article 
-              key={item.id} 
-              onClick={() => navigate(`/achievements/${item.id}`)}
-              className="bento-card loop-card achievement-card"
-              style={{
-                padding: '2rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.25rem',
-                cursor: 'pointer',
-                borderRadius: '24px',
-                border: '1px solid var(--border-color)',
-                backgroundColor: 'var(--bg-surface)',
-                boxShadow: 'var(--card-shadow)',
-                transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-              }}
-            >
-              {/* Card Header (Meta Info) */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span 
-                  style={{
-                    backgroundColor: 'rgba(212, 255, 50, 0.22)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid rgba(212, 255, 50, 0.45)',
-                    fontSize: '0.72rem',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '12px'
-                  }}
-                >
-                  {item.category}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Calendar size={13} style={{ color: 'var(--text-secondary)' }} />
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                    {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Title & Description */}
-              <div>
-                <h3 style={{
-                  fontSize: '1.4rem',
-                  fontWeight: 700,
-                  lineHeight: '1.3',
-                  marginBottom: '0.75rem',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)'
-                }}>
-                  {item.title}
-                </h3>
-                <p style={{
-                  fontSize: '0.92rem',
-                  color: 'var(--text-secondary)',
-                  lineHeight: '1.6',
-                  margin: 0
-                }}>
-                  {item.description && item.description.length > 180 
-                    ? item.description.slice(0, 180) + '...' 
-                    : item.description}
-                </p>
-              </div>
-
-              {/* Image under text */}
-              <div style={{
-                width: '100%',
-                aspectRatio: '2.42 / 1',
-                overflow: 'hidden',
-                borderRadius: '12px',
-                position: 'relative',
-                backgroundColor: 'var(--bg-secondary)'
-              }}>
-                {(() => {
-                  const isCrop = item.imageFit === 'crop' && item.imagePosition && item.imagePosition.startsWith('crop:');
-                  if (isCrop) {
-                    const cropData = parseCrop(item.imagePosition);
-                    const { x, y, w, h } = cropData.outer;
-                    return (
-                      <img 
-                        src={item.image} 
-                        alt={item.title} 
-                        style={{
-                          position: 'absolute',
-                          width: `${10000 / w}%`,
-                          height: `${10000 / h}%`,
-                          left: `${-x * (100 / w)}%`,
-                          top: `${-y * (100 / h)}%`,
-                          objectFit: 'cover',
-                          transition: 'transform 0.5s ease',
-                          transformOrigin: 'center',
-                          '--zoom-scale': 1.0,
-                          transform: 'scale(var(--zoom-scale))'
-                        }}
-                        className="achievement-image"
-                      />
-                    );
-                  }
-                  if (item.imageFit === 'cover') {
-                    const slidersData = parseSliders(item.imagePosition);
-                    const p = slidersData.outer;
-                    return (
-                      <img 
-                        src={item.image} 
-                        alt={item.title} 
-                        style={{
-                          position: 'absolute',
-                          width: `${p.zoom * 100}%`,
-                          height: `${p.zoom * 100}%`,
-                          left: `${-p.x * (p.zoom - 1)}%`,
-                          top: `${-p.y * (p.zoom - 1)}%`,
-                          objectFit: 'cover',
-                          objectPosition: `${p.x}% ${p.y}%`,
-                          transition: 'transform 0.5s ease',
-                          transformOrigin: 'center',
-                          '--zoom-scale': 1.0,
-                          transform: 'scale(var(--zoom-scale))'
-                        }}
-                        className="achievement-image"
-                      />
-                    );
-                  }
-                  const p = parsePosition(item.imagePosition);
-                  return (
-                    <img 
-                      src={item.image} 
-                      alt={item.title} 
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: item.imageFit || 'cover',
-                        objectPosition: `${p.x}% ${p.y}%`,
-                        transition: 'transform 0.5s ease',
-                        transformOrigin: 'center',
-                        '--zoom-scale': p.zoom,
-                        transform: 'scale(var(--zoom-scale))'
-                      }}
-                      className="achievement-image"
-                    />
-                  );
-                })()}
-              </div>
-
-              {/* Footer action */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingTop: '0.75rem',
-                borderTop: '1px solid var(--border-color)',
-                flexWrap: 'wrap',
-                gap: '0.5rem'
-              }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Sardar Patel Institute of Technology
-                </span>
-                <span
-                  className="btn btn-primary"
-                  style={{
-                    padding: '0.5rem 1.1rem',
-                    borderRadius: '999px',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem'
-                  }}
-                >
-                  <span>Explore Milestone</span>
-                  <ArrowUpRight size={13} />
-                </span>
-              </div>
-            </article>
+            <Achievement3DCard key={item.id} item={item} navigate={navigate} />
           ))}
         </div>
       ) : (
