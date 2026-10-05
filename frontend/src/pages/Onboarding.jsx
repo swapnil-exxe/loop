@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { User, GraduationCap, BookOpen, Calendar, ArrowRight, ChevronDown } from 'lucide-react';
 import { onboardUser } from '../utils/db';
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentUser, setCurrentUser] = useState(null);
   const [name, setName] = useState('');
   const [role, setRole] = useState('Student');
@@ -13,6 +14,25 @@ export default function Onboarding() {
   const [currentYear, setCurrentYear] = useState('First Year');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const getRedirectTarget = () => {
+    let target = location.state?.redirectAfter || location.state?.from;
+    if (target && typeof target === 'object' && target.pathname) {
+      target = target.pathname + (target.search || '') + (target.hash || '');
+    }
+    if (!target) {
+      try {
+        target = sessionStorage.getItem('loop_redirect_after_login');
+      } catch (e) {}
+    }
+    try {
+      sessionStorage.removeItem('loop_redirect_after_login');
+    } catch (e) {}
+    if (!target || target === '/login' || target === '/onboarding' || target === '/') {
+      return '/home';
+    }
+    return target;
+  };
 
   useEffect(() => {
     const userSession = localStorage.getItem('loop_current_user');
@@ -23,9 +43,9 @@ export default function Onboarding() {
     const parsed = JSON.parse(userSession);
     setCurrentUser(parsed);
     
-    // If they are already onboarded or are admin, send them to home
+    // If they are already onboarded or are admin, send them to destination
     if (parsed.onboarded || parsed.isAdmin) {
-      navigate('/home');
+      navigate(getRedirectTarget(), { replace: true });
     }
   }, [navigate]);
 
@@ -61,8 +81,8 @@ export default function Onboarding() {
       // Save updated user session
       localStorage.setItem('loop_current_user', JSON.stringify(onboardedData));
       
-      // Navigate to landing
-      navigate('/home');
+      // Navigate to intended destination
+      navigate(getRedirectTarget(), { replace: true });
     } catch (err) {
       setError(err.message || 'Failed to complete onboarding. Please try again.');
     } finally {

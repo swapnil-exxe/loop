@@ -20,6 +20,13 @@ function ProtectedRoute({ children }) {
   const location = useLocation();
 
   if (!userSession) {
+    try {
+      const fullPath = location.pathname + location.search + location.hash;
+      if (fullPath && fullPath !== '/' && fullPath !== '/login' && fullPath !== '/home') {
+        sessionStorage.setItem('loop_redirect_after_login', fullPath);
+      }
+    } catch (e) {}
+
     // Redirect to login while saving the attempted location
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -28,7 +35,7 @@ function ProtectedRoute({ children }) {
   
   // If not onboarded, not an admin, and not currently on the onboarding page, redirect to onboarding
   if (!user.onboarded && !user.isAdmin && location.pathname !== '/onboarding') {
-    return <Navigate to="/onboarding" replace />;
+    return <Navigate to="/onboarding" state={{ from: location }} replace />;
   }
 
   return children;

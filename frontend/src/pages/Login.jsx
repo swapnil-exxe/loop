@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ArrowRight, Lock, Mail, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react';
 import { loginUser, requestRegistration } from '../utils/db';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const isRegisterMode = searchParams.get('mode') === 'register';
   const setIsRegisterMode = (isReg) => {
@@ -18,6 +19,58 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Helper to resolve where the user should go after successful authentication
+  const getRedirectUrl = () => {
+    let target = null;
+    const fromState = location.state?.from;
+    if (fromState) {
+      if (typeof fromState === 'string') {
+        target = fromState;
+      } else if (fromState.pathname) {
+        target = fromState.pathname + (fromState.search || '') + (fromState.hash || '');
+      }
+    }
+
+    if (!target) {
+      target = searchParams.get('redirect') || searchParams.get('returnUrl');
+    }
+
+    if (!target) {
+      try {
+        target = sessionStorage.getItem('loop_redirect_after_login');
+      } catch (e) {}
+    }
+
+    try {
+      sessionStorage.removeItem('loop_redirect_after_login');
+    } catch (e) {}
+
+    if (!target || target === '/login' || target === '/') {
+      return '/home';
+    }
+
+    return target;
+  };
+
+  useEffect(() => {
+    // Persist target in sessionStorage so mode switches and reloads preserve the destination
+    const fromState = location.state?.from;
+    if (fromState) {
+      const path = typeof fromState === 'string' ? fromState : fromState.pathname + (fromState.search || '') + (fromState.hash || '');
+      if (path && path !== '/login' && path !== '/') {
+        try {
+          sessionStorage.setItem('loop_redirect_after_login', path);
+        } catch (e) {}
+      }
+    }
+    const redirectParam = searchParams.get('redirect') || searchParams.get('returnUrl');
+    if (redirectParam && redirectParam !== '/login' && redirectParam !== '/') {
+      try {
+        sessionStorage.setItem('loop_redirect_after_login', redirectParam);
+      } catch (e) {}
+    }
+  }, [location.state, searchParams]);
+
   useEffect(() => {
     document.title = isRegisterMode ? 'LOOP | Register' : 'LOOP | Login';
   }, [isRegisterMode]);
@@ -26,10 +79,11 @@ export default function Login() {
     const userSession = localStorage.getItem('loop_current_user');
     if (userSession) {
       const parsed = JSON.parse(userSession);
-      if (parsed.onboarded) {
-        navigate('/home');
+      const targetUrl = getRedirectUrl();
+      if (parsed.onboarded || parsed.isAdmin) {
+        navigate(targetUrl, { replace: true });
       } else {
-        navigate('/onboarding');
+        navigate('/onboarding', { replace: true, state: { redirectAfter: targetUrl } });
       }
     }
   }, [navigate]);
@@ -71,11 +125,12 @@ export default function Login() {
         // Save user session
         localStorage.setItem('loop_current_user', JSON.stringify(userData));
         
-        // Redirect based on onboarding status or admin status
+        // Redirect to original destination or onboarding
+        const targetUrl = getRedirectUrl();
         if (userData.onboarded || userData.isAdmin) {
-          navigate('/home');
+          navigate(targetUrl, { replace: true });
         } else {
-          navigate('/onboarding');
+          navigate('/onboarding', { replace: true, state: { redirectAfter: targetUrl } });
         }
       }
     } catch (err) {
@@ -95,10 +150,11 @@ export default function Login() {
     try {
       const userData = await loginUser(demoEmail, demoPassword);
       localStorage.setItem('loop_current_user', JSON.stringify(userData));
+      const targetUrl = getRedirectUrl();
       if (userData.onboarded || userData.isAdmin) {
-        navigate('/home');
+        navigate(targetUrl, { replace: true });
       } else {
-        navigate('/onboarding');
+        navigate('/onboarding', { replace: true, state: { redirectAfter: targetUrl } });
       }
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
