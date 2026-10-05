@@ -281,33 +281,61 @@ export default function Navbar() {
               alignItems: 'center',
               gap: isScrolled ? '0.6rem' : '0.75rem',
               borderLeft: '1px solid var(--border-color)',
-              paddingLeft: isScrolled ? '1rem' : '1.25rem',
+              paddingLeft: isScrolled ? '0.85rem' : '1.1rem',
               transition: 'all 0.35s ease'
             }}>
               {user ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.5rem' : '0.75rem' }}>
-                  <span 
+                <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.5rem' : '0.65rem' }}>
+                  {/* Profile Button - Opens edit/view profile info modal */}
+                  <button
+                    type="button"
                     onClick={() => setShowProfileModal(true)}
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: isScrolled ? '0.32rem 0.75rem' : '0.42rem 0.85rem',
+                      borderRadius: '20px',
+                      fontSize: isScrolled ? '0.78rem' : '0.84rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.25s ease'
+                    }}
+                    title="View & Edit Profile"
+                  >
+                    <UserIcon size={isScrolled ? 12 : 13} />
+                    <span>Profile</span>
+                  </button>
+
+                  {/* Student / Role Status Pill - Purely informational badge, clicking does nothing */}
+                  <span 
                     className="badge" 
                     style={{ 
                       textTransform: 'none', 
-                      fontSize: isScrolled ? '0.8rem' : '0.85rem', 
-                      padding: isScrolled ? '0.2rem 0.65rem' : '0.25rem 0.75rem', 
-                      cursor: 'pointer',
+                      fontSize: isScrolled ? '0.76rem' : '0.82rem', 
+                      padding: isScrolled ? '0.22rem 0.65rem' : '0.28rem 0.75rem', 
+                      cursor: 'default',
+                      userSelect: 'none',
                       backgroundColor: 'var(--bg-tertiary)',
-                      color: 'var(--text-primary)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-color)',
                       borderRadius: '20px',
-                      transition: 'all 0.2s ease',
-                      fontWeight: 500
+                      fontWeight: 600,
+                      letterSpacing: '0.02em',
+                      pointerEvents: 'none'
                     }}
-                    title="Click to view/edit profile"
+                    title="User Role"
                   >
-                    {user.name || user.email.split('@')[0]}
+                    {user.role || 'Student'}
                   </span>
+
+                  {/* Exit / Logout button */}
                   <button 
                     onClick={handleLogout} 
                     className="btn btn-secondary" 
-                    style={{ padding: isScrolled ? '0.35rem 0.75rem' : '0.45rem 0.85rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}
+                    style={{ padding: isScrolled ? '0.32rem 0.7rem' : '0.42rem 0.8rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: isScrolled ? '0.75rem' : '0.8rem', transition: 'all 0.35s ease' }}
+                    title="Log out"
                   >
                     <LogOut size={11} />
                     <span>Exit</span>
@@ -368,13 +396,41 @@ export default function Navbar() {
             </Link>
           )}
           <hr style={{ border: 0, borderTop: '1px solid var(--border-color)' }} />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
             {user ? (
-              <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>
-                Logout
-              </button>
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <button 
+                    type="button"
+                    onClick={() => { setShowProfileModal(true); setMobileMenuOpen(false); }} 
+                    className="btn btn-secondary" 
+                    style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderRadius: '14px' }}
+                  >
+                    <UserIcon size={14} /> Profile
+                  </button>
+                  <span 
+                    className="badge" 
+                    style={{ 
+                      textTransform: 'none', 
+                      fontSize: '0.8rem', 
+                      padding: '0.3rem 0.75rem', 
+                      backgroundColor: 'var(--bg-tertiary)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '20px',
+                      fontWeight: 600,
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {user.role || 'Student'}
+                  </span>
+                </div>
+                <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="btn btn-secondary" style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderRadius: '14px' }}>
+                  <LogOut size={13} /> Exit
+                </button>
+              </>
             ) : (
-              <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="btn btn-primary" style={{ padding: '0.5rem 1rem', width: '100%', textAlign: 'center' }}>
                 Login
               </Link>
             )}

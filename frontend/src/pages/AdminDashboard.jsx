@@ -1480,30 +1480,33 @@ export default function AdminDashboard() {
           
           {(() => {
             const filteredActiveStories = activeStories.filter((story) => {
-              const query = storiesSearch.toLowerCase();
+              if (!story) return false;
+              const query = (storiesSearch || '').toLowerCase();
               return (
-                story.name.toLowerCase().includes(query) ||
-                story.company.toLowerCase().includes(query) ||
-                (story.role && story.role.toLowerCase().includes(query)) ||
-                (story.branch && story.branch.toLowerCase().includes(query))
+                (story.name || '').toLowerCase().includes(query) ||
+                (story.company || '').toLowerCase().includes(query) ||
+                (story.role && String(story.role).toLowerCase().includes(query)) ||
+                (story.branch && String(story.branch).toLowerCase().includes(query))
               );
             });
 
             const filteredActiveResources = activeResources.filter((res) => {
-              const query = resourcesSearch.toLowerCase();
+              if (!res) return false;
+              const query = (resourcesSearch || '').toLowerCase();
               return (
-                res.title.toLowerCase().includes(query) ||
-                res.category.toLowerCase().includes(query) ||
-                (res.uploadedBy && res.uploadedBy.toLowerCase().includes(query))
+                (res.title || '').toLowerCase().includes(query) ||
+                (res.category || '').toLowerCase().includes(query) ||
+                (res.uploadedBy && String(res.uploadedBy).toLowerCase().includes(query))
               );
             });
 
             const filteredActiveAchievements = activeAchievements.filter((item) => {
-              const query = achievementsSearch.toLowerCase();
+              if (!item) return false;
+              const query = (achievementsSearch || '').toLowerCase();
               return (
-                item.title.toLowerCase().includes(query) ||
-                item.category.toLowerCase().includes(query) ||
-                (item.description && item.description.toLowerCase().includes(query))
+                (item.title || '').toLowerCase().includes(query) ||
+                (item.category || '').toLowerCase().includes(query) ||
+                (item.description && String(item.description).toLowerCase().includes(query))
               );
             });
 
