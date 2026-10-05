@@ -243,16 +243,19 @@ export default function Landing() {
           <h1 style={{
             fontSize: 'calc(2.2rem + 2vw)',
             fontFamily: 'var(--font-serif)',
-            fontWeight: 500,
+            fontWeight: 600,
             lineHeight: '1.15',
             letterSpacing: '-0.02em',
-            marginBottom: '2rem'
+            marginBottom: '2rem',
+            color: '#ffffff',
+            textShadow: '0 4px 30px rgba(0, 0, 0, 0.85), 0 2px 8px rgba(0, 0, 0, 0.9)'
           }}>
             Your Guide to Corporate Success
           </h1>
           <p style={{
             fontSize: '1.15rem',
-            color: 'rgba(255, 255, 255, 0.8)',
+            color: 'rgba(255, 255, 255, 0.92)',
+            textShadow: '0 2px 16px rgba(0, 0, 0, 0.7)',
             marginBottom: '3rem',
             maxWidth: '560px',
             margin: '0 auto 3rem auto',

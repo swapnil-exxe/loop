@@ -35,7 +35,7 @@ export default function Stories() {
   const [selectedSubBranches, setSelectedSubBranches] = useState(['CSE', 'AI', 'DS']);
   const [minYear, setMinYear] = useState('ALL');
   const [maxYear, setMaxYear] = useState('ALL');
-  const [minCGPA, setMinCGPA] = useState(4.0);
+  const [maxCGPA, setMaxCGPA] = useState(10.0);
   const yearOptions = ['ALL', ...Array.from({ length: 36 }, (_, i) => 2000 + i)];
   const [inputValue, setInputValue] = useState(searchParams.get('q') || '');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
@@ -196,9 +196,9 @@ export default function Stories() {
     const yearMatch = minMatch && maxMatch;
     if (!yearMatch) return false;
     
-    // CGPA Match
+    // CGPA Match (Opposite: filters up to selected maxCGPA, e.g. 4.0 to 9.0)
     const cgpaVal = parseFloat(story.cgpa);
-    const cgpaMatch = (!isNaN(cgpaVal)) ? (cgpaVal >= minCGPA) : true;
+    const cgpaMatch = (!isNaN(cgpaVal)) ? (cgpaVal >= 4.0 && cgpaVal <= maxCGPA) : true;
     if (!cgpaMatch) return false;
     
     return true;
@@ -466,10 +466,10 @@ export default function Stories() {
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Min CGPA
+                  CGPA Range
                 </h4>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {minCGPA.toFixed(1)}+
+                  4.0 – {maxCGPA.toFixed(1)}
                 </span>
               </div>
               <input 
@@ -477,8 +477,8 @@ export default function Stories() {
                 min="4.0" 
                 max="10.0" 
                 step="0.5" 
-                value={minCGPA} 
-                onChange={(e) => setMinCGPA(parseFloat(e.target.value))}
+                value={maxCGPA} 
+                onChange={(e) => setMaxCGPA(parseFloat(e.target.value))}
                 style={{
                   width: '100%',
                   accentColor: 'var(--text-primary)',
@@ -499,7 +499,7 @@ export default function Stories() {
               setSelectedSubBranches(['CSE', 'AI', 'DS']);
               setMinYear('ALL');
               setMaxYear('ALL');
-              setMinCGPA(4.0);
+              setMaxCGPA(10.0);
               setInputValue('');
               setSearchQuery('');
             }}
@@ -593,7 +593,8 @@ export default function Stories() {
               {filteredStories.map((story) => (
                 <div 
                   key={story.id} 
-                  className="loop-card hinge-card animate-fade-in"
+                  className="bento-card loop-card hinge-card animate-fade-in"
+                  onClick={() => navigate(`/stories/${story.id}`)}
                   style={{
                     padding: '1.75rem 2rem',
                     display: 'flex',
@@ -604,57 +605,102 @@ export default function Stories() {
                     position: 'relative',
                     border: '1px solid var(--border-color)',
                     borderRadius: '24px',
-                    backgroundColor: 'var(--bg-secondary)',
+                    backgroundColor: 'var(--bg-surface)',
+                    boxShadow: 'var(--card-shadow)',
                     gap: '2rem',
-                    flexWrap: 'wrap'
+                    flexWrap: 'wrap',
+                    cursor: 'pointer',
+                    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.borderColor = 'var(--text-primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
                   }}
                 >
                   <div style={{ flexGrow: 1, minWidth: '260px' }}>
-                    {/* Profile Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                      <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)', lineHeight: 1.1 }}>
-                        {story.name}
-                      </h2>
-                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                        <span className="badge" style={{ fontSize: '0.65rem' }}>
-                          {story.branch} {story.subBranch && `(${story.subBranch})`}
-                        </span>
-                        <span className="badge" style={{ fontSize: '0.65rem' }}>
-                          Class of {story.passoutYear}
-                        </span>
-                      </div>
+                    {/* Top Chips Row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+                      <span
+                        style={{
+                          backgroundColor: 'rgba(212, 255, 50, 0.22)',
+                          border: '1px solid rgba(212, 255, 50, 0.45)',
+                          color: 'var(--text-primary)',
+                          padding: '0.2rem 0.65rem',
+                          borderRadius: '12px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.03em',
+                          textTransform: 'uppercase'
+                        }}
+                      >
+                        {story.company}
+                      </span>
+                      <span className="badge" style={{ fontSize: '0.68rem', borderRadius: '10px' }}>
+                        {story.branch} {story.subBranch && `(${story.subBranch})`}
+                      </span>
+                      <span className="badge" style={{ fontSize: '0.68rem', borderRadius: '10px' }}>
+                        Class of {story.passoutYear}
+                      </span>
                     </div>
 
-                    {/* Company stats chip */}
+                    {/* Candidate Name */}
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)', lineHeight: 1.15, letterSpacing: '-0.02em', margin: '0 0 0.4rem 0' }}>
+                      {story.name}
+                    </h2>
+
+                    {/* Role & Company */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                       <Briefcase size={14} style={{ color: 'var(--text-secondary)' }} />
-                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{story.company}</span>
-                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>•</span>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{story.role}</span>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        {story.role}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>•</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Semester {story.semester} Placed
+                      </span>
+                      {story.cgpa && (
+                        <>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>•</span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            CGPA {story.cgpa}
+                          </span>
+                        </>
+                      )}
                     </div>
 
-                    {/* Other metadata */}
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <span className="badge" style={{ fontSize: '0.65rem' }}>Semester {story.semester} Placed</span>
-                      {story.cgpa && <span className="badge" style={{ fontSize: '0.65rem' }}>CGPA: {story.cgpa}</span>}
+                    {/* Metric Bar (Matching Image 3) */}
+                    <div style={{ maxWidth: '380px', marginTop: '0.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                        <span>4-Year Roadmap & Preparation</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Complete</span>
+                      </div>
+                      <div style={{ height: '5px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: '100%', backgroundColor: 'var(--text-primary)', borderRadius: '999px' }} />
+                      </div>
                     </div>
                   </div>
 
                   {/* Action button */}
                   <div style={{ flexShrink: 0 }}>
                     <button 
-                      onClick={() => navigate(`/stories/${story.id}`)}
-                      className="btn btn-secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/stories/${story.id}`);
+                      }}
+                      className="btn btn-primary"
                       style={{
-                        padding: '0.75rem 1.5rem',
-                        borderRadius: '12px',
+                        padding: '0.65rem 1.4rem',
+                        borderRadius: '999px',
                         display: 'flex',
                         justifyContent: 'center',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        border: '1px solid var(--border-color)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
                         whiteSpace: 'nowrap'
                       }}
                     >

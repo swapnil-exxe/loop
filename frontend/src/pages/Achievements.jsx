@@ -111,12 +111,12 @@ export default function Achievements() {
   }, []);
 
   useEffect(() => {
-    if (fetchError) {
+    if (fetchError && achievements.length === 0) {
       setError('Connection issue: Unable to fetch achievements from server.');
     } else {
       setError(null);
     }
-  }, [fetchError]);
+  }, [fetchError, achievements.length]);
 
   const categories = [
     'ALL',
@@ -349,39 +349,40 @@ export default function Achievements() {
             <article 
               key={item.id} 
               onClick={() => navigate(`/achievements/${item.id}`)}
-              className="loop-card achievement-card"
+              className="bento-card loop-card achievement-card"
               style={{
                 padding: '2rem',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1.25rem',
                 cursor: 'pointer',
-                borderRadius: '20px',
+                borderRadius: '24px',
                 border: '1px solid var(--border-color)',
-                backgroundColor: 'var(--bg-primary)',
-                transition: 'all 0.3s ease'
+                backgroundColor: 'var(--bg-surface)',
+                boxShadow: 'var(--card-shadow)',
+                transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
             >
               {/* Card Header (Meta Info) */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span 
-                  className="badge"
                   style={{
-                    backgroundColor: 'var(--bg-secondary)',
+                    backgroundColor: 'rgba(212, 255, 50, 0.22)',
                     color: 'var(--text-primary)',
-                    border: '1px solid var(--border-color)',
-                    fontSize: '0.7rem',
+                    border: '1px solid rgba(212, 255, 50, 0.45)',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
                     textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    padding: '0.3rem 0.8rem',
+                    letterSpacing: '0.04em',
+                    padding: '0.25rem 0.75rem',
                     borderRadius: '12px'
                   }}
                 >
                   {item.category}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Calendar size={12} style={{ color: 'var(--text-secondary)' }} />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  <Calendar size={13} style={{ color: 'var(--text-secondary)' }} />
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                     {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
@@ -494,13 +495,30 @@ export default function Achievements() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.4rem',
-                color: 'var(--text-primary)',
-                fontSize: '0.88rem',
-                fontWeight: 600
+                justifyContent: 'space-between',
+                paddingTop: '0.75rem',
+                borderTop: '1px solid var(--border-color)',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
               }}>
-                <span>Tap to open</span>
-                <ArrowUpRight size={14} />
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Sardar Patel Institute of Technology
+                </span>
+                <span
+                  className="btn btn-primary"
+                  style={{
+                    padding: '0.5rem 1.1rem',
+                    borderRadius: '999px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                >
+                  <span>Explore Milestone</span>
+                  <ArrowUpRight size={13} />
+                </span>
               </div>
             </article>
           ))}

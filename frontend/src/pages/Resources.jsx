@@ -96,6 +96,19 @@ export default function Resources() {
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const abortControllerRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Global Cmd+K / Ctrl+K search shortcut
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // New Folder form state
   const [folderForm, setFolderForm] = useState({
@@ -203,10 +216,10 @@ export default function Resources() {
     // Only consider folders with parentId === null for root categories
     const rootFolders = folders.filter(f => !f.parentId);
 
-    const system = rootFolders.filter(f => f.folderType === 'system' || f.isSystemFolder);
-    const myPrivate = rootFolders.filter(f => f.visibility === 'private' && (f.ownerEmail === currentUserEmail || isAdmin));
-    const myPublic = rootFolders.filter(f => f.folderType === 'user' && f.visibility === 'public' && f.ownerEmail === currentUserEmail);
-    const community = rootFolders.filter(f => f.folderType === 'user' && f.visibility === 'public' && f.ownerEmail !== currentUserEmail);
+    const system = rootFolders.filter(f => f.folderType === 'system' || f.isSystemFolder || f.id?.startsWith('system-'));
+    const myPrivate = rootFolders.filter(f => f.visibility === 'private' && (f.ownerEmail === currentUserEmail || isAdmin || !currentUserEmail || f.id?.startsWith('priv-')));
+    const myPublic = rootFolders.filter(f => (f.folderType === 'user' || !f.isSystemFolder) && f.visibility === 'public' && f.ownerEmail === currentUserEmail);
+    const community = rootFolders.filter(f => (f.folderType === 'user' || !f.isSystemFolder) && f.visibility === 'public' && (f.ownerEmail !== currentUserEmail || isAdmin) && !f.id?.startsWith('system-'));
 
     return { systemFolders: system, myPrivateFolders: myPrivate, myPublicFolders: myPublic, communityFolders: community };
   }, [folders, currentUserEmail, isAdmin]);
@@ -524,16 +537,22 @@ export default function Resources() {
         </div>
 
         {/* Search Input */}
-        <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: '340px' }}>
           <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
           <input
+            ref={searchInputRef}
             type="text"
             className="input-field"
-            placeholder="Search files, roadmaps, notes..."
+            placeholder="Search files, notes, subjects and resources…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: '2.5rem', borderRadius: '10px', fontSize: '0.85rem', height: '38px', margin: 0 }}
+            style={{ paddingLeft: '2.5rem', paddingRight: searchQuery ? '2.5rem' : '4rem', borderRadius: '12px', fontSize: '0.85rem', height: '40px', margin: 0, transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}
           />
+          {!searchQuery && (
+            <span style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', pointerEvents: 'none' }}>
+              ⌘K
+            </span>
+          )}
           {searchQuery && (
             <button
               type="button"
@@ -708,58 +727,74 @@ export default function Resources() {
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
-                {systemFolders.map(folder => (
-                  <div
-                    key={folder.id}
-                    onClick={() => setCurrentFolderId(folder.id)}
-                    className="glass-panel"
-                    style={{
-                      padding: '1.5rem',
-                      borderRadius: '16px',
-                      cursor: 'pointer',
-                      border: '1px solid var(--border-color)',
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      minHeight: '160px'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.borderColor = 'var(--accent-color)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.borderColor = 'var(--border-color)';
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                        <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '10px', padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Folder size={22} color="var(--accent-color)" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.25rem' }}>
+                {systemFolders.map(folder => {
+                  const resCount = getResourceCountForFolder(folder.id);
+                  return (
+                    <div
+                      key={folder.id}
+                      onClick={() => setCurrentFolderId(folder.id)}
+                      className="bento-card glass-panel"
+                      style={{
+                        padding: '1.75rem',
+                        borderRadius: '22px',
+                        cursor: 'pointer',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'var(--bg-surface)',
+                        boxShadow: 'var(--card-shadow)',
+                        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        minHeight: '190px'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.borderColor = 'var(--text-primary)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.borderColor = 'var(--border-color)';
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                          <div style={{ backgroundColor: 'rgba(212, 255, 50, 0.22)', border: '1px solid rgba(212, 255, 50, 0.45)', borderRadius: '12px', padding: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Folder size={20} color="var(--text-primary)" />
+                          </div>
+                          <span style={{ backgroundColor: 'rgba(212, 255, 50, 0.25)', border: '1px solid rgba(212, 255, 50, 0.45)', color: 'var(--text-primary)', fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '10px', letterSpacing: '0.04em' }}>
+                            OFFICIAL
+                          </span>
                         </div>
-                        <span className="badge" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700 }}>
-                          SYSTEM
-                        </span>
+                        <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: '0 0 0.4rem 0', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                          {folder.name}
+                        </h3>
+                        <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+                          {folder.description || 'Academic course modules and semester question banks.'}
+                        </p>
                       </div>
-                      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
-                        {folder.name}
-                      </h3>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                        {folder.description || 'Academic course modules and semester question banks.'}
-                      </p>
-                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      <span>{getResourceCountForFolder(folder.id)} resources</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--accent-color)', fontWeight: 600 }}>
-                        Open <ChevronRight size={13} />
-                      </span>
+                      <div style={{ marginTop: '1.25rem' }}>
+                        {/* Progress / Metric Bar (Image 3 inspired) */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                          <span>Curated Academic Vault</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{resCount} {resCount === 1 ? 'file' : 'files'}</span>
+                        </div>
+                        <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem' }}>
+                          <div style={{ height: '100%', width: resCount > 0 ? '100%' : '20%', backgroundColor: 'var(--text-primary)', borderRadius: '999px' }} />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Verified SPIT Material</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.78rem' }}>
+                            Explore <ChevronRight size={13} />
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -819,72 +854,87 @@ export default function Resources() {
                   </button>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
-                  {myPrivateFolders.map(folder => (
-                    <div
-                      key={folder.id}
-                      onClick={() => setCurrentFolderId(folder.id)}
-                      className="glass-panel"
-                      style={{
-                        padding: '1.5rem',
-                        borderRadius: '16px',
-                        cursor: 'pointer',
-                        border: '1px solid var(--border-color)',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        minHeight: '160px'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.borderColor = '#ff9f0a';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                      }}
-                    >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                          <div style={{ backgroundColor: 'rgba(255, 159, 10, 0.1)', borderRadius: '10px', padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Lock size={20} color="#ff9f0a" />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.25rem' }}>
+                  {myPrivateFolders.map(folder => {
+                    const resCount = getResourceCountForFolder(folder.id);
+                    return (
+                      <div
+                        key={folder.id}
+                        onClick={() => setCurrentFolderId(folder.id)}
+                        className="bento-card glass-panel"
+                        style={{
+                          padding: '1.75rem',
+                          borderRadius: '22px',
+                          cursor: 'pointer',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'var(--bg-surface)',
+                          boxShadow: 'var(--card-shadow)',
+                          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          minHeight: '190px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.borderColor = '#ff9f0a';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                            <div style={{ backgroundColor: 'rgba(255, 159, 10, 0.12)', borderRadius: '12px', padding: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Lock size={20} color="#ff9f0a" />
+                            </div>
+                            <span style={{ backgroundColor: 'rgba(255, 159, 10, 0.15)', color: '#ff9f0a', fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '10px', letterSpacing: '0.04em' }}>
+                              PRIVATE
+                            </span>
                           </div>
-                          <span className="badge" style={{ backgroundColor: 'rgba(255, 159, 10, 0.15)', color: '#ff9f0a', fontSize: '0.7rem', fontWeight: 700 }}>
-                            PRIVATE
-                          </span>
+                          <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: '0 0 0.4rem 0', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                            {folder.name}
+                          </h3>
+                          <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+                            {folder.description || 'Personal private resource folder.'}
+                          </p>
                         </div>
-                        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
-                          {folder.name}
-                        </h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                          {folder.description || 'Personal private resource folder.'}
-                        </p>
-                      </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        <span>{getResourceCountForFolder(folder.id)} files</span>
-                        <div style={{ display: 'flex', gap: '0.4rem' }} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => setEditingFolder(folder)}
-                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px' }}
-                            title="Rename Folder"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirm({ type: 'folder', item: folder })}
-                            style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px' }}
-                            title="Delete Folder"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                        <div style={{ marginTop: '1.25rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                            <span>Personal Vault</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{resCount} {resCount === 1 ? 'file' : 'files'}</span>
+                          </div>
+                          <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem' }}>
+                            <div style={{ height: '100%', width: resCount > 0 ? '100%' : '15%', backgroundColor: '#ff9f0a', borderRadius: '999px' }} />
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Visible only to you</span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => setEditingFolder(folder)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                title="Rename Folder"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirm({ type: 'folder', item: folder })}
+                                style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                title="Delete Folder"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -928,24 +978,27 @@ export default function Resources() {
                   </p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.25rem' }}>
                   {[...myPublicFolders, ...communityFolders].map(folder => {
                     const isMy = folder.ownerEmail === currentUserEmail;
+                    const resCount = getResourceCountForFolder(folder.id);
                     return (
                       <div
                         key={folder.id}
                         onClick={() => setCurrentFolderId(folder.id)}
-                        className="glass-panel"
+                        className="bento-card glass-panel"
                         style={{
-                          padding: '1.5rem',
-                          borderRadius: '16px',
+                          padding: '1.75rem',
+                          borderRadius: '22px',
                           cursor: 'pointer',
                           border: '1px solid var(--border-color)',
-                          transition: 'all 0.2s',
+                          backgroundColor: 'var(--bg-surface)',
+                          boxShadow: 'var(--card-shadow)',
+                          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'space-between',
-                          minHeight: '160px'
+                          minHeight: '190px'
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.transform = 'translateY(-2px)';
@@ -957,54 +1010,63 @@ export default function Resources() {
                         }}
                       >
                         <div>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                            <div style={{ backgroundColor: 'rgba(48, 209, 88, 0.1)', borderRadius: '10px', padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                            <div style={{ backgroundColor: 'rgba(48, 209, 88, 0.12)', borderRadius: '12px', padding: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <Globe size={20} color="#30d158" />
                             </div>
                             <div style={{ display: 'flex', gap: '0.35rem' }}>
                               {isMy && (
-                                <span className="badge" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', fontSize: '0.7rem' }}>
+                                <span className="badge" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', fontSize: '0.68rem', borderRadius: '10px' }}>
                                   Mine
                                 </span>
                               )}
-                              <span className="badge" style={{ backgroundColor: 'rgba(48, 209, 88, 0.15)', color: '#30d158', fontSize: '0.7rem', fontWeight: 700 }}>
+                              <span style={{ backgroundColor: 'rgba(48, 209, 88, 0.15)', color: '#30d158', fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '10px', letterSpacing: '0.04em' }}>
                                 PUBLIC
                               </span>
                             </div>
                           </div>
-                          <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+                          <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: '0 0 0.4rem 0', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
                             {folder.name}
                           </h3>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                          <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
                             {folder.description || 'Community resource library.'}
                           </p>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          <div>
-                            <span>{getResourceCountForFolder(folder.id)} files</span>
-                            {folder.ownerName && <span> • by {folder.ownerName}</span>}
+                        <div style={{ marginTop: '1.25rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                            <span>Community Contributions</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{resCount} {resCount === 1 ? 'file' : 'files'}</span>
                           </div>
-                          {(isMy || isAdmin) && (
-                            <div style={{ display: 'flex', gap: '0.4rem' }} onClick={(e) => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => setEditingFolder(folder)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px' }}
-                                title="Rename Folder"
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirm({ type: 'folder', item: folder })}
-                                style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px' }}
-                                title="Delete Folder"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          )}
+                          <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem' }}>
+                            <div style={{ height: '100%', width: resCount > 0 ? '100%' : '15%', backgroundColor: '#30d158', borderRadius: '999px' }} />
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              {folder.ownerName ? `By ${folder.ownerName}` : 'Open to all'}
+                            </span>
+                            {(isMy || isAdmin) && (
+                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingFolder(folder)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                  title="Rename Folder"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirm({ type: 'folder', item: folder })}
+                                  style={{ background: 'none', border: 'none', color: '#ff453a', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                  title="Delete Folder"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

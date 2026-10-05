@@ -1,21 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Award, Code, BookOpen, Layers, X, Edit, Trash2, Plus, ExternalLink, Sparkles } from 'lucide-react';
 import { getStories, getStoryById, updateStory, deleteStory, addPendingStory, fileToBase64 } from '../utils/db';
 
 const getResourceLink = (res) => {
   if (!res) return null;
-  const raw = res.url || res.link || (typeof res.name === 'string' ? res.name : '');
-  if (!raw || typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed;
+  const raw = res.url || res.link || '';
+  if (raw && typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+    if (/^[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(\/.*)?$/i.test(trimmed)) return `https://${trimmed}`;
   }
-  if (/^www\./i.test(trimmed)) {
-    return `https://${trimmed}`;
-  }
-  if (/^[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(\/.*)?$/i.test(trimmed)) {
-    return `https://${trimmed}`;
+  if (res.name && typeof res.name === 'string') {
+    const trimmed = res.name.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+    const lower = trimmed.toLowerCase();
+    if (lower.includes('aws skillbuilder')) return 'https://explore.skillbuilder.aws/';
+    if (lower.includes('striver') || lower.includes('sde sheet')) return 'https://takeuforward.org/interviews/strivers-sde-sheet-top-coding-interview-problems/';
+    if (lower.includes('leetcode 75')) return 'https://leetcode.com/studyplan/leetcode-75/';
+    if (lower.includes('leetcode')) return 'https://leetcode.com/problemset/';
+    if (lower.includes('karpathy') || lower.includes('neural network')) return 'https://karpathy.ai/zero-to-hero.html';
+    if (lower.includes('linux system programming')) return 'https://man7.org/tlpi/';
+    if (lower.includes('amazon leadership')) return 'https://www.amazon.jobs/content/en/our-workplace/leadership-principles';
+    if (lower.includes('deep learning book') || lower.includes('goodfellow')) return 'https://www.deeplearningbook.org/';
+    if (lower.includes('cses')) return 'https://cses.fi/problemset/';
+    if (lower.includes('codeforces')) return 'https://codeforces.com/catalog';
+    if (lower.includes('designing data-intensive') || lower.includes('ddia')) return 'https://dataintensive.net/';
+    if (lower.includes('geeksforgeeks') || lower.includes('gfg')) return 'https://www.geeksforgeeks.org/';
+    if (lower.includes('sql') || lower.includes('hackerrank')) return 'https://www.hackerrank.com/domains/sql';
+    if (lower.includes('qualcomm') || lower.includes('verilog')) return 'https://www.chipverify.com/verilog/verilog-tutorial';
+    return `https://www.google.com/search?q=${encodeURIComponent(trimmed + ' computer engineering preparation')}`;
   }
   return null;
 };
@@ -48,6 +64,39 @@ export default function StoryDetail() {
   const navigate = useNavigate();
   const [story, setStory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTimelineYear, setActiveTimelineYear] = useState(1);
+  const yearCardRefs = useRef({});
+
+  // Auto-scroll spy: changes active dot and year tab automatically as user scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      const years = [1, 2, 3, 4];
+      const viewportMid = window.innerHeight * 0.42;
+      let matchedYear = 1;
+      
+      for (const yr of years) {
+        const el = yearCardRefs.current[yr];
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= viewportMid) {
+            matchedYear = yr;
+          }
+        }
+      }
+      setActiveTimelineYear(matchedYear);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToYear = (yr) => {
+    setActiveTimelineYear(yr);
+    const el = yearCardRefs.current[yr];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
 
   const getStoryFiles = () => {
     if (!story) return [];
@@ -547,112 +596,197 @@ export default function StoryDetail() {
 
         {/* 4-Year Journey Timeline */}
         <section style={{ marginBottom: '4rem' }}>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '2rem', fontFamily: 'var(--font-display)' }}>
-            My Four-Year Journey
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '2.5rem' }}>
+            <div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.75rem', borderRadius: '20px', backgroundColor: 'rgba(212, 255, 50, 0.25)', border: '1px solid rgba(212, 255, 50, 0.45)', color: 'var(--text-primary)', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '0.65rem' }}>
+                <Sparkles size={12} color="var(--accent-lime-dark)" />
+                Curated Roadmaps
+              </div>
+              <h2 style={{ fontSize: '2.1rem', fontWeight: 800, margin: '0 0 0.4rem 0', fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' }}>
+                My Four-Year Journey
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', margin: 0 }}>
+                Chronological academic milestones and technical progression through college
+              </p>
+            </div>
+          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', position: 'relative' }}>
-            {/* Timeline vertical bar */}
+          {/* Timeline Track with Vertical Rail Matching Image 4 */}
+          <div style={{ position: 'relative', paddingLeft: '2.75rem' }}>
+            {/* The vertical line running down the rail */}
             <div style={{
               position: 'absolute',
-              left: '1.25rem',
-              top: '1rem',
-              bottom: '1rem',
-              width: '1px',
+              left: '11px',
+              top: '24px',
+              bottom: '30px',
+              width: '2px',
               backgroundColor: 'var(--border-color)',
               zIndex: 0
             }} />
 
-            {/* Year 1 */}
-            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
-              <div style={{
-                width: '2.5rem',
-                height: '2.5rem',
-                borderRadius: '50%',
-                backgroundColor: 'var(--bg-primary)',
-                border: '2px solid var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                fontSize: '0.85rem',
-                fontWeight: 700
-              }}>1</div>
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>First Year</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
-                  {story.journey.firstYear}
-                </p>
-              </div>
-            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {[
+                {
+                  yearNumber: 1,
+                  yearTitle: 'First Year',
+                  subtitle: 'Foundation & Exploration',
+                  content: story.journey?.firstYear || 'Explored core engineering principles, built foundational logic in C/C++, engaged in coding workshops, and immersed in campus technical clubs.',
+                  phaseBadge: 'Phase 01'
+                },
+                {
+                  yearNumber: 2,
+                  yearTitle: 'Second Year',
+                  subtitle: 'Core Skills & Projects',
+                  content: story.journey?.secondYear || 'Deepened Data Structures & Algorithms, developed full-stack apps and systems projects, and participated in inter-college hackathons.',
+                  phaseBadge: 'Phase 02'
+                },
+                {
+                  yearNumber: 3,
+                  yearTitle: 'Third Year',
+                  subtitle: 'Internships & Preparation',
+                  content: story.journey?.thirdYear || 'Targeted summer internship hiring, studied Low/High-Level System Design, OS, DBMS, Computer Networks, and engaged in peer mock interviews.',
+                  phaseBadge: 'Phase 03'
+                },
+                {
+                  yearNumber: 4,
+                  yearTitle: 'Fourth Year',
+                  subtitle: 'Placement & Career Launch',
+                  content: story.journey?.fourthYear || 'Faced on-campus recruitment drives, cleared technical and managerial rounds, accepted offer, and mentored juniors in interview preparation.',
+                  phaseBadge: 'Phase 04'
+                }
+              ].map((milestone) => {
+                const isActive = activeTimelineYear === milestone.yearNumber;
+                return (
+                  <div
+                    key={milestone.yearNumber}
+                    ref={(el) => (yearCardRefs.current[milestone.yearNumber] = el)}
+                    style={{ position: 'relative', zIndex: 1 }}
+                    onClick={() => scrollToYear(milestone.yearNumber)}
+                  >
+                    {/* Node on the rail matching Image 4 */}
+                    {isActive ? (
+                      /* Active Node: ◉ double concentric ring / solid center */
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollToYear(milestone.yearNumber);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: '-2.75rem',
+                          top: '1.25rem',
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          border: '2.5px solid var(--text-primary)',
+                          backgroundColor: 'var(--bg-surface)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 0 0 4px var(--bg-primary), 0 2px 10px rgba(0,0,0,0.12)',
+                          cursor: 'pointer',
+                          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                          transform: 'scale(1.08)'
+                        }}
+                        title={`Year ${milestone.yearNumber} (Active)`}
+                      >
+                        <div
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: 'var(--text-primary)'
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      /* Inactive Node: ○ clean hollow ring with border */
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollToYear(milestone.yearNumber);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: '-2.75rem',
+                          top: '1.25rem',
+                          width: '22px',
+                          height: '22px',
+                          borderRadius: '50%',
+                          border: '2px solid var(--border-hover)',
+                          backgroundColor: 'var(--bg-surface)',
+                          boxShadow: '0 0 0 4px var(--bg-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                        }}
+                        title={`Click to view Year ${milestone.yearNumber}`}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--text-primary)';
+                          e.currentTarget.style.transform = 'scale(1.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-hover)';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                      />
+                    )}
 
-            {/* Year 2 */}
-            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
-              <div style={{
-                width: '2.5rem',
-                height: '2.5rem',
-                borderRadius: '50%',
-                backgroundColor: 'var(--bg-primary)',
-                border: '2px solid var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                fontSize: '0.85rem',
-                fontWeight: 700
-              }}>2</div>
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Second Year</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
-                  {story.journey.secondYear}
-                </p>
-              </div>
-            </div>
+                    {/* Bento Card for the milestone (Matching Image 3 & 4) */}
+                    <div
+                      className="bento-card"
+                      style={{
+                        padding: '1.75rem',
+                        borderRadius: '20px',
+                        border: isActive ? '1.5px solid var(--text-primary)' : '1px solid var(--border-color)',
+                        backgroundColor: 'var(--bg-surface)',
+                        boxShadow: isActive ? '0 12px 36px rgba(0, 0, 0, 0.08)' : 'var(--card-shadow)',
+                        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                        cursor: 'pointer',
+                        transform: isActive ? 'translateY(-2px)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Top Header Row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '0.2rem 0.6rem',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                letterSpacing: '0.04em',
+                                backgroundColor: isActive ? 'var(--text-primary)' : 'var(--bg-tertiary)',
+                                color: isActive ? 'var(--accent-inverse)' : 'var(--text-primary)'
+                              }}
+                            >
+                              {milestone.phaseBadge}
+                            </span>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {milestone.subtitle}
+                            </span>
+                          </div>
 
-            {/* Year 3 */}
-            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
-              <div style={{
-                width: '2.5rem',
-                height: '2.5rem',
-                borderRadius: '50%',
-                backgroundColor: 'var(--bg-primary)',
-                border: '2px solid var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                fontSize: '0.85rem',
-                fontWeight: 700
-              }}>3</div>
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Third Year</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
-                  {story.journey.thirdYear}
-                </p>
-              </div>
-            </div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Year {milestone.yearNumber} of 4
+                          </span>
+                        </div>
 
-            {/* Year 4 */}
-            <div style={{ display: 'flex', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
-              <div style={{
-                width: '2.5rem',
-                height: '2.5rem',
-                borderRadius: '50%',
-                backgroundColor: 'var(--bg-primary)',
-                border: '2px solid var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                fontSize: '0.85rem',
-                fontWeight: 700
-              }}>4</div>
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Fourth Year</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.7' }}>
-                  {story.journey.fourthYear}
-                </p>
-              </div>
+                        {/* Middle Content Row: Full Width Editorial Text */}
+                        <div>
+                          <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.65rem', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                            {milestone.yearTitle}
+                          </h3>
+                          <p style={{ color: 'var(--text-secondary)', fontSize: '1.02rem', lineHeight: '1.75', margin: 0 }}>
+                            {milestone.content}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -718,32 +852,34 @@ export default function StoryDetail() {
             </h2>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               {story.resources.map((res, index) => {
-                const link = getResourceLink(res);
-                return link ? (
+                const targetUrl = getResourceLink(res) || `https://www.google.com/search?q=${encodeURIComponent((res.name || 'study material') + ' preparation')}`;
+                return (
                   <a
                     key={index}
-                    href={link}
+                    href={targetUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="glass-panel"
-                    title={`Open ${link} in a new tab`}
+                    title={`Open ${res.name} in a new tab`}
                     style={{
                       padding: '0.75rem 1.25rem',
                       borderRadius: '12px',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.5rem',
+                      gap: '0.55rem',
                       fontSize: '0.9rem',
                       border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--bg-surface)',
                       color: 'var(--text-primary)',
                       textDecoration: 'none',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                       maxWidth: '100%',
-                      overflowWrap: 'anywhere'
+                      overflowWrap: 'anywhere',
+                      boxShadow: 'var(--card-shadow)'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary, #0071e3)';
+                      e.currentTarget.style.borderColor = 'var(--text-primary)';
                       e.currentTarget.style.transform = 'translateY(-2px)';
                     }}
                     onMouseLeave={(e) => {
@@ -752,24 +888,13 @@ export default function StoryDetail() {
                     }}
                   >
                     <span style={{ fontWeight: 600 }}>{res.name}</span>
-                    {res.type && <span className="badge" style={{ fontSize: '0.65rem', flexShrink: 0 }}>{res.type}</span>}
-                    <ExternalLink size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.25rem' }} />
+                    {res.type && (
+                      <span className="badge" style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '6px' }}>
+                        {res.type}
+                      </span>
+                    )}
+                    <ExternalLink size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.2rem' }} />
                   </a>
-                ) : (
-                  <div key={index} className="glass-panel" style={{
-                    padding: '0.75rem 1.25rem',
-                    borderRadius: '12px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    fontSize: '0.9rem',
-                    border: '1px solid var(--border-color)',
-                    maxWidth: '100%',
-                    overflowWrap: 'anywhere'
-                  }}>
-                    <span style={{ fontWeight: 600 }}>{res.name}</span>
-                    {res.type && <span className="badge" style={{ fontSize: '0.65rem', flexShrink: 0 }}>{res.type}</span>}
-                  </div>
                 );
               })}
             </div>
