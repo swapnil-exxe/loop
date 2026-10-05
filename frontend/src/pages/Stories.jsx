@@ -42,16 +42,36 @@ export default function Stories() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   
-  // Modal states synced with URL
-  const isModalOpen = searchParams.get('upload') === 'true' || !!location.state?.openUploadModal;
+  // Modal states synced with URL & location.state
+  const [isModalOpen, setIsModalOpenState] = useState(
+    searchParams.get('upload') === 'true' || !!location.state?.openUploadModal
+  );
+
   const setIsModalOpen = (open) => {
-    setSearchParams(prev => {
-      const n = new URLSearchParams(prev);
-      if (open) n.set('upload', 'true');
-      else n.delete('upload');
-      return n;
-    });
+    setIsModalOpenState(open);
+    if (!open) {
+      if (location.state?.openUploadModal) {
+        navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: {} });
+      }
+      setSearchParams(prev => {
+        const n = new URLSearchParams(prev);
+        n.delete('upload');
+        return n;
+      }, { replace: true });
+    } else {
+      setSearchParams(prev => {
+        const n = new URLSearchParams(prev);
+        n.set('upload', 'true');
+        return n;
+      }, { replace: true });
+    }
   };
+
+  useEffect(() => {
+    if (searchParams.get('upload') === 'true') {
+      setIsModalOpenState(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     document.title = 'LOOP | Senior Placement Stories';
@@ -66,17 +86,19 @@ export default function Stories() {
       document.documentElement.style.overflow = 'hidden';
 
       const handleKeyDown = (e) => {
-        if (e.key === 'Escape' || e.key === 'Esc') {
+        if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+          e.preventDefault();
+          e.stopPropagation();
           setIsModalOpen(false);
         }
       };
 
-      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keydown', handleKeyDown, true);
 
       return () => {
         document.body.style.overflow = prevBodyOverflow;
         document.documentElement.style.overflow = prevHtmlOverflow;
-        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keydown', handleKeyDown, true);
       };
     }
   }, [isModalOpen]);
@@ -800,7 +822,12 @@ export default function Stories() {
           >
             {/* Close Button - Apple Style Circle Button */}
             <button 
-              onClick={() => setIsModalOpen(false)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsModalOpen(false);
+              }}
               style={{
                 position: 'absolute',
                 top: '1.75rem',
@@ -815,6 +842,7 @@ export default function Stories() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                zIndex: 50,
                 transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
               onMouseEnter={(e) => {

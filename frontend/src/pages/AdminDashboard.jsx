@@ -39,6 +39,7 @@ import {
   getAdminResourceStats,
   formatBytes
 } from '../utils/db';
+import { playApproveSound, playRejectSound } from '../utils/sound';
 
 const parsePosition = (posStr) => {
   if (!posStr) return { x: 50, y: 50, zoom: 1.0 };
@@ -825,6 +826,7 @@ export default function AdminDashboard() {
   }, [editingItem, previewingPendingStory, previewingPendingResource]);
 
   const handleApproveStory = async (id) => {
+    playApproveSound();
     const previousPending = [...pendingStories];
     const previousActive = [...activeStories];
     const approvedStory = pendingStories.find(s => s.id === id);
@@ -845,6 +847,7 @@ export default function AdminDashboard() {
   };
 
   const handleRejectStory = async (id) => {
+    playRejectSound();
     const previousPending = [...pendingStories];
     mutatePendingStories(pendingStories.filter(s => s.id !== id), false);
     try {
@@ -857,6 +860,7 @@ export default function AdminDashboard() {
   };
 
   const handleApproveResource = async (id) => {
+    playApproveSound();
     const previousPending = [...pendingResources];
     const previousActive = [...activeResources];
     const approvedResource = pendingResources.find(r => r.id === id);
@@ -877,6 +881,7 @@ export default function AdminDashboard() {
   };
 
   const handleRejectResource = async (id) => {
+    playRejectSound();
     const previousPending = [...pendingResources];
     mutatePendingResources(pendingResources.filter(r => r.id !== id), false);
     try {
@@ -982,6 +987,7 @@ export default function AdminDashboard() {
   };
 
   const handleApproveProfileEdit = async (email) => {
+    playApproveSound();
     try {
       await approveProfileEdit(email);
       await refreshData();
@@ -991,6 +997,7 @@ export default function AdminDashboard() {
   };
 
   const handleRejectProfileEdit = async (email) => {
+    playRejectSound();
     try {
       await rejectProfileEdit(email);
       await refreshData();
@@ -1000,6 +1007,7 @@ export default function AdminDashboard() {
   };
 
   const handleApproveRegistration = async (email) => {
+    playApproveSound();
     try {
       await approveRegistration(email);
       await refreshData();
@@ -1010,6 +1018,7 @@ export default function AdminDashboard() {
 
   const handleRejectRegistration = async (email) => {
     if (window.confirm(`Are you sure you want to reject and remove access request for "${email}"?`)) {
+      playRejectSound();
       try {
         await deleteUser(email);
         await refreshData();
