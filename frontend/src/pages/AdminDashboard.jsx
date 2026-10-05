@@ -1803,8 +1803,9 @@ export default function AdminDashboard() {
                           .map(node => {
                             const renderNode = (n, depth = 0) => {
                               const hasChildren = n.children && n.children.length > 0;
-                              const isExp = expandedNodes.has(n.id) || !!folderSearchQuery;
                               const fileCount = activeResources.filter(r => r.folderId === n.id).length;
+                              const hasExpandable = hasChildren || fileCount > 0;
+                              const isExp = expandedNodes.has(n.id) || !!folderSearchQuery;
 
                               if (folderSearchQuery) {
                                 const q = folderSearchQuery.toLowerCase();
@@ -1823,16 +1824,22 @@ export default function AdminDashboard() {
                                     marginLeft: `${depth * 22}px`,
                                     borderRadius: '10px',
                                     backgroundColor: depth % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
-                                    borderLeft: depth > 0 ? '2px solid rgba(0, 113, 227, 0.3)' : 'none',
+                                    borderLeft: depth > 0 ? '2px solid rgba(0, 113, 227, 0.35)' : 'none',
                                     marginBottom: '3px',
                                     gap: '0.6rem',
                                     flexWrap: 'wrap'
                                   }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '180px', flex: 1 }}>
-                                      {hasChildren ? (
+                                    <div 
+                                      onClick={() => hasExpandable && toggleFolderNode(n.id)}
+                                      style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '180px', flex: 1, cursor: hasExpandable ? 'pointer' : 'default', userSelect: 'none' }}
+                                    >
+                                      {hasExpandable ? (
                                         <button
                                           type="button"
-                                          onClick={() => toggleFolderNode(n.id)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleFolderNode(n.id);
+                                          }}
                                           style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex' }}
                                         >
                                           {isExp ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
@@ -1845,13 +1852,16 @@ export default function AdminDashboard() {
                                         {n.name}
                                       </span>
                                       {fileCount > 0 && (
-                                        <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>
+                                        <span 
+                                          title="Click to view/hide files"
+                                          style={{ fontSize: '0.65rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '0.08rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}
+                                        >
                                           {fileCount} {fileCount === 1 ? 'file' : 'files'}
                                         </span>
                                       )}
                                       {hasChildren && (
                                         <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                                          ({n.children.length})
+                                          ({n.children.length} subfolders)
                                         </span>
                                       )}
                                     </div>
@@ -1902,16 +1912,18 @@ export default function AdminDashboard() {
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'space-between',
-                                            padding: '0.4rem 0.65rem',
+                                            padding: '0.45rem 0.75rem',
                                             marginLeft: `${(depth + 1) * 22}px`,
                                             borderRadius: '8px',
                                             backgroundColor: 'var(--bg-secondary)',
                                             border: '1px solid var(--border-color)',
+                                            borderLeft: '3px solid rgba(0, 113, 227, 0.45)',
                                             marginBottom: '3px',
                                             gap: '0.5rem',
                                             flexWrap: 'wrap'
                                           }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '150px', flex: 1 }}>
+                                              <span style={{ fontSize: '0.75rem', color: 'rgba(0, 113, 227, 0.6)', fontWeight: 700, marginRight: '-2px' }}>└──</span>
                                               <FileText size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
                                               <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>{res.title}</span>
                                               {res.size ? (
@@ -2006,9 +2018,10 @@ export default function AdminDashboard() {
                             .map(node => {
                               const renderUserNode = (n, depth = 0) => {
                                 const hasChildren = n.children && n.children.length > 0;
+                                const fileCount = activeResources.filter(r => r.folderId === n.id).length;
+                                const hasExpandable = hasChildren || fileCount > 0;
                                 const isExp = expandedNodes.has(n.id) || !!folderSearchQuery;
                                 const isPriv = n.visibility === 'private';
-                                const fileCount = activeResources.filter(r => r.folderId === n.id).length;
 
                                 if (folderSearchQuery) {
                                   const q = folderSearchQuery.toLowerCase();
@@ -2027,16 +2040,22 @@ export default function AdminDashboard() {
                                       marginLeft: `${depth * 22}px`,
                                       borderRadius: '10px',
                                       backgroundColor: depth % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
-                                      borderLeft: depth > 0 ? '2px solid rgba(52, 199, 89, 0.3)' : 'none',
+                                      borderLeft: depth > 0 ? '2px solid rgba(52, 199, 89, 0.35)' : 'none',
                                       marginBottom: '3px',
                                       gap: '0.6rem',
                                       flexWrap: 'wrap'
                                     }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '180px', flex: 1 }}>
-                                        {hasChildren ? (
+                                      <div 
+                                        onClick={() => hasExpandable && toggleFolderNode(n.id)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '180px', flex: 1, cursor: hasExpandable ? 'pointer' : 'default', userSelect: 'none' }}
+                                      >
+                                        {hasExpandable ? (
                                           <button
                                             type="button"
-                                            onClick={() => toggleFolderNode(n.id)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleFolderNode(n.id);
+                                            }}
                                             style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', display: 'flex' }}
                                           >
                                             {isExp ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
@@ -2052,7 +2071,10 @@ export default function AdminDashboard() {
                                           {isPriv ? 'Private' : 'Public'}
                                         </span>
                                         {fileCount > 0 && (
-                                          <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>
+                                          <span 
+                                            title="Click to view/hide files"
+                                            style={{ fontSize: '0.65rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '0.08rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}
+                                          >
                                             {fileCount} {fileCount === 1 ? 'file' : 'files'}
                                           </span>
                                         )}
@@ -2101,16 +2123,18 @@ export default function AdminDashboard() {
                                               display: 'flex',
                                               alignItems: 'center',
                                               justifyContent: 'space-between',
-                                              padding: '0.4rem 0.65rem',
+                                              padding: '0.45rem 0.75rem',
                                               marginLeft: `${(depth + 1) * 22}px`,
                                               borderRadius: '8px',
                                               backgroundColor: 'var(--bg-secondary)',
                                               border: '1px solid var(--border-color)',
+                                              borderLeft: '3px solid rgba(52, 199, 89, 0.45)',
                                               marginBottom: '3px',
                                               gap: '0.5rem',
                                               flexWrap: 'wrap'
                                             }}>
                                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: '150px', flex: 1 }}>
+                                                <span style={{ fontSize: '0.75rem', color: 'rgba(52, 199, 89, 0.6)', fontWeight: 700, marginRight: '-2px' }}>└──</span>
                                                 <FileText size={14} style={{ color: '#34c759', flexShrink: 0 }} />
                                                 <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>{res.title}</span>
                                                 {res.size ? (
