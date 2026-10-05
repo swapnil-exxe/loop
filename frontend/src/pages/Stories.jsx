@@ -57,16 +57,26 @@ export default function Stories() {
     document.title = 'LOOP | Senior Placement Stories';
   }, []);
 
-  // Prevent background page from scrolling when Share Your Story modal is active
+  // Handle Escape key and lock background scroll when Share Your Story modal is active
   useEffect(() => {
     if (isModalOpen) {
       const prevBodyOverflow = document.body.style.overflow;
       const prevHtmlOverflow = document.documentElement.style.overflow;
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+          setIsModalOpen(false);
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+
       return () => {
         document.body.style.overflow = prevBodyOverflow;
         document.documentElement.style.overflow = prevHtmlOverflow;
+        window.removeEventListener('keydown', handleKeyDown);
       };
     }
   }, [isModalOpen]);
@@ -751,24 +761,28 @@ export default function Stories() {
 
       {/* Upload Story Modal - Apple OS Liquid Glass Redesign */}
       {isModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          backdropFilter: 'blur(30px) saturate(190%)',
-          WebkitBackdropFilter: 'blur(30px) saturate(190%)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '2rem 1.5rem',
-          overflow: 'hidden',
-          overscrollBehavior: 'contain'
-        }}>
+        <div 
+          onClick={() => setIsModalOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.45)',
+            backdropFilter: 'blur(30px) saturate(190%)',
+            WebkitBackdropFilter: 'blur(30px) saturate(190%)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem 1.5rem',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain'
+          }}
+        >
           <div 
+            onClick={(e) => e.stopPropagation()}
             className="animate-fade-in custom-scrollbar" 
             style={{
               width: '100%',
