@@ -486,7 +486,7 @@ export default function Resources() {
           {[
             { id: 'all', label: 'All Resources', icon: Layers },
             { id: 'system', label: 'College / System', icon: Shield },
-            { id: 'public', label: 'Public Community', icon: Globe },
+            ...(isAdmin ? [{ id: 'public', label: 'Public Community', icon: Globe }] : []),
             { id: 'private', label: 'My Private Folders', icon: Lock }
           ].map(tab => {
             const Icon = tab.icon;
@@ -888,8 +888,8 @@ export default function Resources() {
             </div>
           )}
 
-          {/* SECTION C: PUBLIC COMMUNITY FOLDERS */}
-          {(filterTab === 'all' || filterTab === 'public') && (
+          {/* SECTION C: PUBLIC COMMUNITY FOLDERS (Admin Only) */}
+          {isAdmin && (filterTab === 'all' || filterTab === 'public') && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
